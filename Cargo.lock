@@ -3,12 +3,34 @@
 version = 3
 
 [[package]]
-name = "amqprs"
+name = "amqp_frame"
 version = "0.1.0"
 dependencies = [
+ "amqp_macros",
  "serde",
+]
+
+[[package]]
+name = "amqp_macros"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "amqp_serde"
+version = "0.1.0"
+dependencies = [
+ "amqp_macros",
+ "serde",
+ "serde_derive",
  "serde_json",
 ]
+
+[[package]]
+name = "amqprs"
+version = "0.1.0"
 
 [[package]]
 name = "itoa"
