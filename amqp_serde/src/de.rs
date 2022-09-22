@@ -17,6 +17,7 @@ use serde::de::{
 pub struct Deserializer<'de> {
     input: &'de [u8],
     last_parsed_len: Option<usize>,
+    cursor: usize,
 }
 
 impl<'de> Deserializer<'de> {
@@ -29,6 +30,7 @@ impl<'de> Deserializer<'de> {
         Deserializer {
             input,
             last_parsed_len: None,
+            cursor: 0,
         }
     }
 }
@@ -47,7 +49,7 @@ where
     if deserializer.input.is_empty() {
         Ok(t)
     } else {
-        Err(Error::TrailingCharacters)
+        Err(Error::Incomplete)
     }
 }
 
@@ -56,7 +58,7 @@ macro_rules! impl_inner {
     ($self:ident, $typ:tt, $($index:literal),+) => {{
         let size = std::mem::size_of::<$typ>();
         $self.last_parsed_len = None;
-
+        $self.cursor += size;
         if $self.input.len() < size {
             Err(Error::Eof)
         } else {
@@ -90,6 +92,7 @@ impl<'de> Deserializer<'de> {
     fn next_byte(&mut self) -> Result<u8> {
         let v = self.peek_byte()?;
         self.input = &self.input[1..];
+        self.cursor += 1;
         Ok(v)
     }
 
@@ -145,14 +148,17 @@ impl<'de> Deserializer<'de> {
 
     fn parse_string(&mut self) -> Result<&'de str> {
         let len = self.get_parsed_length()?;
+        self.cursor += len;
 
         let s = &self.input[..len];
         self.input = &self.input[len..];
-        std::str::from_utf8(s).map_err(|_| Error::ExpectedString)
+        std::str::from_utf8(s)
+            .map_err(|_| Error::Message(format!("len = {}, content = {:02X?}", len, s)))
     }
 
     fn next_bytes(&mut self) -> Result<&'de [u8]> {
         let len = self.get_parsed_length()?;
+        self.cursor += len;
 
         let s = &self.input[..len];
         self.input = &self.input[len..];
@@ -385,6 +391,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         // should have a length parsed right before
+        // the length is number of bytes of the table, not the field-value pair
         let len = self.parse_u32()?;
         visitor.visit_map(DataSequence::new(self, len as usize))
     }
@@ -484,8 +491,11 @@ impl<'de, 'a> MapAccess<'de> for DataSequence<'a, 'de> {
         K: DeserializeSeed<'de>,
     {
         if self.len > 0 {
-            self.len -= 1;
-            seed.deserialize(&mut *self.de).map(Some)
+            let start = self.de.cursor;
+            let res = seed.deserialize(&mut *self.de).map(Some);
+            let end = self.de.cursor;
+            self.len -= (end - start);
+            res
         } else {
             Ok(None)
         }
@@ -495,7 +505,11 @@ impl<'de, 'a> MapAccess<'de> for DataSequence<'a, 'de> {
     where
         V: DeserializeSeed<'de>,
     {
-        seed.deserialize(&mut *self.de)
+        let start = self.de.cursor;
+        let res = seed.deserialize(&mut *self.de);
+        let end = self.de.cursor;
+        self.len -= (end - start);
+        res
     }
 }
 
@@ -525,12 +539,15 @@ impl<'de, 'a> EnumAccess<'de> for Enum<'a, 'de> {
         match self.de.next_byte()? {
             v if v.is_ascii_alphabetic() => {
                 let val = [v];
-                
+
                 let variant = unsafe { std::str::from_utf8_unchecked(val.as_slice()) };
                 let val = seed.deserialize(variant.into_deserializer())?;
                 Ok((val, self))
             }
-            _ => panic!("unsupported enum variant for AMQP field value"),
+            v => panic!(
+                "unsupported enum variant for AMQP field value: {}, cursor: {}",
+                v, self.de.cursor
+            ),
         }
     }
 }
@@ -638,7 +655,7 @@ mod tests {
         };
 
         let input = vec![
-            0x00, 0x00, 0x00, 0x03, 0x01, b'A', b't', 0x01, 0x01, b'B', b'u', 0x00, 0x09, 0x01,
+            0x00, 0x00, 0x00, 16, 0x01, b'A', b't', 0x01, 0x01, b'B', b'u', 0x00, 0x09, 0x01,
             b'C', b'f', 0x3F, 0xC0, 0, 0,
         ];
         let result: Frame = from_bytes(&input).unwrap();

@@ -7,6 +7,8 @@ pub const FRAME_HEARTBEAT: Octect = 8;
 
 pub const FRAME_END: Octect = 206;
 
+pub const REPLY_SUCCESS: Octect = 200;
+
 // all reply code are unsigned 16bit integer
 // soft error / channel
 pub const CONTENT_TOO_LARGE: ShortUint = 311;

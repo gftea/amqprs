@@ -29,20 +29,10 @@ pub enum Error {
     // are specific to the format, in this case JSON.
     Eof,
     Syntax,
+    Incomplete,
     ExpectedLength,
     ExpectedBoolean,
-    ExpectedInteger,
     ExpectedString,
-    ExpectedNull,
-    ExpectedArray,
-    ExpectedArrayComma,
-    ExpectedArrayEnd,
-    ExpectedMap,
-    ExpectedMapColon,
-    ExpectedMapComma,
-    ExpectedMapEnd,
-    ExpectedEnum,
-    TrailingCharacters,
 }
 
 impl ser::Error for Error {

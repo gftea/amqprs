@@ -31,7 +31,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
 
     type SerializeTupleVariant = Self;
 
-    type SerializeMap = Self;
+    type SerializeMap = MapSerializer<'a>;
 
     type SerializeStruct = Self;
 
@@ -154,7 +154,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         _variant_index: u32,
         variant: &'static str,
     ) -> Result<Self::Ok> {
-        self.serialize_str(variant)
+        variant.serialize(&mut *self)
     }
 
     // serialize only contained value
@@ -228,12 +228,10 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     // map is mainly for AMQP field-table, implicitly serailize length as `u32`
     // if to skip serailizing length, one can implement `Serialize` by passing `None` to `len`
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
-        match len {
-            Some(len) if len <= u32::MAX as usize => self.serialize_u32(len as u32)?,
-            None => (),
-            _ => panic!("field table exceed max length"),
-        }
-        Ok(self)
+        let start = self.output.len();     
+        // reserve u32 for length of table
+        self.serialize_u32(0)?;
+        Ok( MapSerializer { ser: self, start})
     }
 }
 
@@ -298,7 +296,13 @@ impl<'a> ser::SerializeTupleVariant for &'a mut Serializer {
         Ok(())
     }
 }
-impl<'a> ser::SerializeMap for &'a mut Serializer {
+
+pub struct MapSerializer<'a> {
+    ser: &'a mut Serializer,
+    start: usize,
+}
+
+impl<'a> ser::SerializeMap for  MapSerializer<'a> {
     type Ok = ();
     type Error = Error;
 
@@ -307,17 +311,26 @@ impl<'a> ser::SerializeMap for &'a mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        key.serialize(&mut **self)
+        key.serialize(&mut *self.ser)
     }
 
     fn serialize_value<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        value.serialize(&mut **self)
+        value.serialize(&mut *self.ser)
     }
 
     fn end(self) -> Result<()> {
+        
+        // first 4 bytes are reserved for length 
+        let len: u32 = (self.ser.output.len() - self.start - 4) as u32;
+        let mut start = self.start;
+        for b in len.to_be_bytes() {
+            let p = self.ser.output.get_mut(start).unwrap();
+            *p = b;
+            start += 1;
+        }
         Ok(())
     }
 }
@@ -399,6 +412,7 @@ mod test {
             table.insert(ShortStr::from("A"), FieldValue::t(true as Boolean));
             table.insert(ShortStr::from("B"), FieldValue::u(9));
             table.insert(ShortStr::from("C"), FieldValue::f(1.5));
+            table.insert(ShortStr::from("D"), FieldValue::V);
 
             table
         }
@@ -410,7 +424,7 @@ mod test {
         // search the field name first, then get the field-value-pair
 
         // length bytes
-        let len_expected = vec![0x00, 0x00, 0x00, 0x03];
+        let len_expected = vec![0x00, 0x00, 0x00, 19];
         assert_eq!(len_expected, result[..4]);
 
         // 'A' field-value pair
@@ -428,9 +442,15 @@ mod test {
         let c = result.iter().position(|v| v == &b'C').unwrap();
         assert_eq!(c_expected, result[c - 1..c + 6]);
 
+        // 'D' field-value pair
+        let d_expected = vec![0x01, b'D', b'V'];
+        let d = result.iter().position(|v| v == &b'D').unwrap();
+        assert_eq!(d_expected, result[d - 1..d + 2]);
+
         // total number of bytes
+        // println!("{:02X?}", result);
         assert_eq!(
-            len_expected.len() + a_expected.len() + b_expected.len() + c_expected.len(),
+            len_expected.len() + a_expected.len() + b_expected.len() + c_expected.len() + d_expected.len(),
             result.len()
         );
     }

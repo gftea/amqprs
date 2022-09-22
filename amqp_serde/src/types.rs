@@ -53,51 +53,64 @@ impl LongStr {
     }
 }
 
-// field-value = 't' boolean
-//               'b' short-short-int
-//               'B' short-short-uint
-//               'U' short-int
-//               'u' short-uint
-//               'I' long-int
-//               'i' long-uint
-//               'L' long-long-int
-//               'l' long-long-uint
-//               'f' float
-//               'd' double
-//               'D' decimal-value
-//               's' short-string
-//               'S' long-string
-//               'A' field-array
-//               'T' timestamp
-//               'F' field-table
-//               'V' ; no field
-// #[derive(Serialize)]
+// Follow Rabbit definitions below
+// Ref: // https://www.rabbitmq.com/amqp-0-9-1-errata.html#section_3
+//----------------------------------------------------------------------------
+// 0-9   0-9-1   Qpid/Rabbit  Type               Remarks
+// ---------------------------------------------------------------------------
+//         t       t            Boolean
+//         b       b            Signed 8-bit
+//         B       B            Unsigned 8-bit
+//         U       s            Signed 16-bit      (A1)
+//         u       u            Unsigned 16-bit
+//   I     I       I            Signed 32-bit
+//         i       i            Unsigned 32-bit
+//         L       l            Signed 64-bit      (B)
+//         l                    Unsigned 64-bit
+//         f       f            32-bit float
+//         d       d            64-bit float
+//   D     D       D            Decimal
+//         s                    Short string       (A2)
+//   S     S       S            Long string
+//         A       A            Array              (C)
+//   T     T       T            Timestamp (u64)
+//   F     F       F            Nested Table
+//   V     V       V            Void
+//                 x            Byte array         (D)
+
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct DecimalValue(Octect, LongUint);
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[allow(non_camel_case_types)]
 pub enum FieldValue {
     t(Boolean),
     b(ShortShortInt),
     B(ShortShortUint),
-    U(ShortInt),
+    // U(ShortInt), // not exist in RabbitMQ
+    s(ShortInt), // used in RabbitMQ equivalent to 'U' in 0-9-1 spec
     u(ShortUint),
     I(LongInt),
     i(LongUint),
-    L(LongLongInt),
-    l(LongLongUint),
+    // L(LongLongInt), // not exist in RabbitMQ
+    l(LongLongInt),  // RabbitMQ is signed, 0-9-1 spec is unsigned
     f(Float),
     d(Double),
     D(DecimalValue),
-    s(ShortStr),
+    // s(ShortStr),  // not exist in RabbitMQ
     S(LongStr),
     A(FieldArray),
     T(TimeStamp),
     F(FieldTable),
     V,
+    x(LongUint, Vec<u8>), // RabbitMQ only
 }
 pub type FieldName = ShortStr;
 pub type FieldTable = HashMap<FieldName, FieldValue>;
 
-pub type FieldArray = (LongInt, Vec<FieldValue>);
+// RabbitMQ use LongUint, 0-9-1 spec use LongInt
+pub type FieldArray = (LongUint, Vec<FieldValue>);
+
+// AMQP domains
+pub type PeerProperties = FieldTable;

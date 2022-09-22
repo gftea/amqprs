@@ -77,6 +77,7 @@ impl LongStr {
 pub struct DecimalValue(Octect, LongUint);
 
 #[derive(Serialize)]
+#[allow(non_camel_case_types)]
 pub enum FieldValue {
     t(Boolean),
     b(ShortShortInt),
