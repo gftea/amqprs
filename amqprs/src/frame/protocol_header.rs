@@ -17,15 +17,7 @@ pub struct ProtocolHeader {
     id: Octect,
     version: ProtocolVersion,
 }
-impl ProtocolHeader {
-    pub fn set_version(&mut self, major: Octect, minor: Octect, revision: Octect) {
-        self.version = ProtocolVersion {
-            major,
-            minor,
-            revision,
-        };
-    }
-}
+
 impl Default for ProtocolHeader {
     fn default() -> Self {
         Self {
@@ -55,8 +47,9 @@ mod tests {
 
     #[test]
     fn test_deserialize() {
-        let data = [65, 77, 81, 80, 0, 0, 9, 0];
+        let data = [65, 77, 81, 80, 0, 0, 9, 1];
         let frame: ProtocolHeader = from_bytes(&data).unwrap();
-        println!("{frame:?}");
+        let ProtocolHeader { name, id, version } = frame;
+        println!("{name:?}, {id:?}, {version:?}");
     }
 }

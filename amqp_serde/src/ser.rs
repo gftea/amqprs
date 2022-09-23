@@ -228,10 +228,10 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     // map is mainly for AMQP field-table, implicitly serailize length as `u32`
     // if to skip serailizing length, one can implement `Serialize` by passing `None` to `len`
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
-        let start = self.output.len();     
+        let start = self.output.len();
         // reserve u32 for length of table
         self.serialize_u32(0)?;
-        Ok( MapSerializer { ser: self, start})
+        Ok(MapSerializer { ser: self, start })
     }
 }
 
@@ -302,7 +302,7 @@ pub struct MapSerializer<'a> {
     start: usize,
 }
 
-impl<'a> ser::SerializeMap for  MapSerializer<'a> {
+impl<'a> ser::SerializeMap for MapSerializer<'a> {
     type Ok = ();
     type Error = Error;
 
@@ -322,8 +322,7 @@ impl<'a> ser::SerializeMap for  MapSerializer<'a> {
     }
 
     fn end(self) -> Result<()> {
-        
-        // first 4 bytes are reserved for length 
+        // first 4 bytes are reserved for length
         let len: u32 = (self.ser.output.len() - self.start - 4) as u32;
         let mut start = self.start;
         for b in len.to_be_bytes() {
@@ -374,6 +373,13 @@ mod test {
     use crate::types::*;
     use serde::Serialize;
 
+    #[test]
+    fn test_size() {
+        println!("{:?}", std::mem::size_of_val(&String::from("s")));
+        println!("{:?}", std::mem::size_of_val("s"));
+        println!("{:?}", std::mem::size_of_val(&FieldValue::t(1)));
+
+    }
     #[test]
     fn test_struct() {
         #[derive(Serialize)]
@@ -450,7 +456,11 @@ mod test {
         // total number of bytes
         // println!("{:02X?}", result);
         assert_eq!(
-            len_expected.len() + a_expected.len() + b_expected.len() + c_expected.len() + d_expected.len(),
+            len_expected.len()
+                + a_expected.len()
+                + b_expected.len()
+                + c_expected.len()
+                + d_expected.len(),
             result.len()
         );
     }

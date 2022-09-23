@@ -1,36 +1,59 @@
-use amqp_serde::types::{Octect, PeerProperties, LongStr, ShortStr, ShortUint, LongUint};
-use serde::{Serialize, Deserialize};
+use amqp_serde::types::{LongStr, LongUint, Octect, PeerProperties, ShortStr, ShortUint};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MethodPayload<T> {
-    pub class_id: ShortUint, 
-    pub method_id: ShortUint,
-    pub method: T,
+pub trait Method {
+    fn get_class_id(&self) -> ShortUint;
+    fn get_method_id(&self) -> ShortUint;
 }
 
-// Connection, class id = 10
 #[derive(Debug, Serialize, Deserialize)]
+pub struct MethodHeader {
+    class_id: ShortUint,
+    method_id: ShortUint,
+}
+
+/////////////////////////////////
+/// Connection
+/////////////////////////////////
+#[derive(Debug, Deserialize)]
 pub struct Start {
-   pub version_major: Octect,
-   pub version_minor: Octect,
-   pub server_properties: PeerProperties,
-   pub mechanisms: LongStr,
-   pub locales: LongStr,
+    header: MethodHeader,
+    pub version_major: Octect,
+    pub version_minor: Octect,
+    pub server_properties: PeerProperties,
+    pub mechanisms: LongStr,
+    pub locales: LongStr,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct StartOk {
-   pub client_properties: PeerProperties,
-   pub machanisms: ShortStr,
-   pub response: LongStr,
-   pub locale: ShortStr,
+    header: MethodHeader,
+    pub client_properties: PeerProperties,
+    pub machanisms: ShortStr,
+    pub response: LongStr,
+    pub locale: ShortStr,
+}
+impl Default for StartOk {
+    fn default() -> Self {
+        Self {
+            header: MethodHeader {
+                class_id: 10,
+                method_id: 11,
+            },
+            client_properties: PeerProperties::new(),
+            machanisms: ShortStr::from("PLAIN"),
+            response: LongStr::from("\0user\0bitnami"),
+            locale: ShortStr::from("en_US"),
+        }
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Tune {
-   channel_max: ShortUint,
-   frame_max: LongUint,
-   heartbeat: ShortUint,
+    header: MethodHeader,
+    pub channel_max: ShortUint,
+    pub frame_max: LongUint,
+    pub heartbeat: ShortUint,
 }
 
 // Channel, class id = 20

@@ -7,10 +7,10 @@ pub const FRAME_HEARTBEAT: Octect = 8;
 
 pub const FRAME_END: Octect = 206;
 
-pub const REPLY_SUCCESS: Octect = 200;
-
 // all reply code are unsigned 16bit integer
-// soft error / channel
+pub const REPLY_SUCCESS: ShortUint = 200; //This reply code is reserved for future use
+
+// soft error for channel
 pub const CONTENT_TOO_LARGE: ShortUint = 311;
 pub const NO_ROUTE: ShortUint = 312;
 pub const NO_CONSUMERS: ShortUint = 313;
@@ -19,7 +19,7 @@ pub const NOT_FOUND: ShortUint = 404;
 pub const RESOURCE_LOCKED: ShortUint = 405;
 pub const PRECONDITION_FAILED: ShortUint = 406;
 
-// hard error / connection
+// hard error for connection
 pub const CONNECTION_FORCED: ShortUint = 320;
 pub const INVALID_PATH: ShortUint = 402;
 pub const FRAME_ERROR: ShortUint = 501;

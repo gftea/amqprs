@@ -1,8 +1,8 @@
 use std::io::Cursor;
 
-use crate::frame::{Frame, ProtocolHeader};
+use crate::frame::{Frame, FrameHeader, ProtocolHeader};
 
-use amqp_serde::{constants::FRAME_END, from_bytes, to_bytes};
+use amqp_serde::{constants::FRAME_END, from_bytes, to_bytes, types::LongUint};
 use bytes::{Buf, BytesMut};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::io;
@@ -10,6 +10,9 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
+
+const DEFAULT_BUFFER_SIZE: usize = 8192;
+
 pub struct Connection {
     stream: TcpStream,
     write_buffer: BytesMut,
@@ -19,8 +22,8 @@ pub struct Connection {
 impl Connection {
     pub async fn open(addr: &str) -> io::Result<Self> {
         let stream = TcpStream::connect(addr).await?;
-        let write_buffer = BytesMut::with_capacity(1024);
-        let read_buffer = BytesMut::with_capacity(1024);
+        let write_buffer = BytesMut::with_capacity(DEFAULT_BUFFER_SIZE);
+        let read_buffer = BytesMut::with_capacity(DEFAULT_BUFFER_SIZE);
 
         let mut me = Self {
             stream,
@@ -44,14 +47,31 @@ impl Connection {
         Ok(content.len())
     }
 
-    pub async fn write_frame<T: Serialize>(&mut self, frame: Frame<T>) -> io::Result<usize> {
-        // add new api to serialize the frame into write_buffer instead
-        // instead of pass in whole Frame<T>, pass the frame payload type, because we need to calculate the payload size
-        let content = to_bytes(&frame)
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
-        self.stream.write_all(content.as_ref()).await?;
+    pub async fn write_frame<T: Serialize>(&mut self, mut frame: Frame<T>) -> io::Result<usize> {
+        // TODO: add new api to serialize the frame into write_buffer instead
 
-        Ok(content.len())
+        let payload = to_bytes(&frame.payload)
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
+
+        // update the payload size
+        frame.set_payload_size(payload.len() as LongUint);        
+        let header = to_bytes(&frame.header)
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
+
+        // TODO: cannot get the bytes size in advance
+        // so we serialzie the frame first, then update the size in serialized bytes sequence
+        // let payload_size = content.len() as LongUint - 8;
+        // println!("payload size = {}", payload_size);
+        // let mut start = 3;
+        // for b in payload_size.to_be_bytes() {
+        //     let p = content.get_mut(start).unwrap();
+        //     *p = b;
+        //     start += 1;
+        // }
+        self.stream.write_all(&header).await?;
+        self.stream.write_all(&payload).await?;
+        self.stream.write_u8(FRAME_END).await?;
+        Ok(header.len() + payload.len() + 1)
     }
 
     pub async fn read_frame<T: DeserializeOwned>(&mut self) -> io::Result<Frame<T>> {
@@ -73,15 +93,9 @@ impl Connection {
 
             // check frame type and properties, 7 octects
             if self.read_buffer.len() > 7 {
-                #[derive(Deserialize)]
-                struct Header {
-                    typ: u8,
-                    channel: u16,
-                    size: u32,
-                };
-                let header: Header = from_bytes(self.read_buffer.get(0..7).unwrap()).unwrap();
+                let header: FrameHeader = from_bytes(self.read_buffer.get(0..7).unwrap()).unwrap();
                 // have full frame
-                let total = header.size as usize + 8;
+                let total = header.payload_size as usize + 8;
                 if total == self.read_buffer.len() {
                     // check frame end
                     let last_byte = self.read_buffer.last().unwrap();
@@ -108,7 +122,7 @@ mod test {
     };
     use tokio::runtime;
 
-    use crate::frame::{Frame, MethodPayload, Start, StartOk, Tune};
+    use crate::frame::{Frame, FrameHeader, Start, StartOk, Tune};
 
     use super::Connection;
 
@@ -125,31 +139,20 @@ mod test {
         let rt = new_runtime();
         rt.block_on(async {
             let mut conn = Connection::open("localhost:5672").await.unwrap();
+
+            // C: protocol-header
             conn.negotiate_protocol().await.unwrap();
-            let start = conn.read_frame::<MethodPayload<Start>>().await.unwrap();
+
+            // S: 'Start'
+            let start = conn.read_frame::<Start>().await.unwrap();
             println!("{start:?}");
 
-            let payload = MethodPayload {
-                class_id: 10,
-                method_id: 11,
-                method: StartOk {
-                    client_properties: PeerProperties::new(),
-                    machanisms: ShortStr::from("PLAIN"),
-                    response: LongStr::from("\0user\0bitnami"),
-                    locale: ShortStr::from("en_US"),
-                },
-            };
-            // TODO: frame propertities is encoded wihtout using serialize API
-            let payload_size = to_bytes(&payload).unwrap().len() as u32;
-            let start_ok = Frame {
-                typ: 1,
-                channel: 0,
-                payload_size,
-                payload,
-                frame_end: FRAME_END,
-            };
+            // C: 'StartOk'
+            let start_ok = Frame::new_method_frame(StartOk::default());
             conn.write_frame(start_ok).await.unwrap();
-            let secure = conn.read_frame::<MethodPayload<Tune>>().await.unwrap();
+
+            // S: 'Tune'
+            let secure = conn.read_frame::<Tune>().await.unwrap();
             println!("{secure:?}");
         });
     }

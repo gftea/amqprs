@@ -7,7 +7,7 @@
 // except according to those terms.
 
 use serde::{de, ser};
-use std::{fmt::{self, Display}};
+use std::fmt;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -36,19 +36,19 @@ pub enum Error {
 }
 
 impl ser::Error for Error {
-    fn custom<T: Display>(msg: T) -> Self {
+    fn custom<T: fmt::Display>(msg: T) -> Self {
         Error::Message(msg.to_string())
     }
 }
 
 impl de::Error for Error {
-    fn custom<T: Display>(msg: T) -> Self {
+    fn custom<T: fmt::Display>(msg: T) -> Self {
         Error::Message(msg.to_string())
     }
 }
 
 
-impl Display for Error {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::Message(msg) => write!(f, "{}", msg),

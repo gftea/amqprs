@@ -332,8 +332,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        // unsupported
-        unimplemented!()
+        visitor.visit_unit()
     }
 
     // Unit struct means a named value containing no data.
@@ -341,8 +340,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        // unsupported
-        unimplemented!()
+        self.deserialize_unit(visitor)
     }
 
     fn deserialize_newtype_struct<V>(self, _name: &'static str, visitor: V) -> Result<V::Value>
@@ -494,7 +492,7 @@ impl<'de, 'a> MapAccess<'de> for DataSequence<'a, 'de> {
             let start = self.de.cursor;
             let res = seed.deserialize(&mut *self.de).map(Some);
             let end = self.de.cursor;
-            self.len -= (end - start);
+            self.len -= end - start;
             res
         } else {
             Ok(None)
@@ -508,7 +506,7 @@ impl<'de, 'a> MapAccess<'de> for DataSequence<'a, 'de> {
         let start = self.de.cursor;
         let res = seed.deserialize(&mut *self.de);
         let end = self.de.cursor;
-        self.len -= (end - start);
+        self.len -= end - start;
         res
     }
 }
@@ -655,8 +653,8 @@ mod tests {
         };
 
         let input = vec![
-            0x00, 0x00, 0x00, 16, 0x01, b'A', b't', 0x01, 0x01, b'B', b'u', 0x00, 0x09, 0x01,
-            b'C', b'f', 0x3F, 0xC0, 0, 0,
+            0x00, 0x00, 0x00, 16, 0x01, b'A', b't', 0x01, 0x01, b'B', b'u', 0x00, 0x09, 0x01, b'C',
+            b'f', 0x3F, 0xC0, 0, 0,
         ];
         let result: Frame = from_bytes(&input).unwrap();
         // println!("{result:?}");
