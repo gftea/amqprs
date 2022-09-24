@@ -23,6 +23,7 @@ name = "amqp_serde"
 version = "0.1.0"
 dependencies = [
  "amqp_macros",
+ "bytes",
  "serde",
  "serde_derive",
 ]

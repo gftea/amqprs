@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, num::TryFromIntError};
 
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
+
 
 pub type Bit = u8; //TODO: continuous bits packed in octect
 pub type Octect = u8;
@@ -18,29 +19,57 @@ pub type TimeStamp = u64;
 pub type Float = f32;
 pub type Double = f64;
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug)]
+
+
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ShortStr(u8, String);
-impl ShortStr {
-    pub fn new(s: String) -> Self {
-        let len = u8::try_from(s.len()).expect("length out of range for ShortStr");
-        Self(len, s)
-    }
-    pub fn from(s: &str) -> Self {
-        Self::new(s.to_string())
+
+impl From<ShortStr> for String {
+    fn from(s: ShortStr) -> Self {
+        s.1
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct LongStr(u32, String);
-impl LongStr {
-    pub fn new(s: String) -> Self {
-        let len = u32::try_from(s.len()).expect("length out of range for LongStr");
-        Self(len, s)
-    }
-    pub fn from(s: &str) -> Self {
-        Self::new(s.to_string())
+impl TryFrom<String> for ShortStr {
+    type Error = TryFromIntError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+       let len = u8::try_from(s.len())?;
+       Ok(Self(len, s))
     }
 }
+impl TryFrom<&str> for ShortStr {
+    type Error = TryFromIntError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+       s.to_string().try_into()
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct LongStr(u32, String);
+impl TryFrom<String> for LongStr {
+    type Error = TryFromIntError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+       let len = u32::try_from(s.len())?;
+       Ok(Self(len, s))
+    }
+}
+impl TryFrom<&str> for LongStr {
+    type Error = TryFromIntError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+       s.to_string().try_into()
+    }
+}
+impl From<LongStr> for String {
+    fn from(s: LongStr) -> Self {
+        s.1
+    }
+}
+
 
 // Follow Rabbit definitions below
 // Ref: // https://www.rabbitmq.com/amqp-0-9-1-errata.html#section_3
@@ -67,13 +96,28 @@ impl LongStr {
 //   V     V       V            Void
 //                 x            Byte array         (D)
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-// binary to dec  e.g. (11.11)₂ = (1 × 2¹) + (1 × 2⁰) + (1 × 2⁻¹) + (1 × 2⁻²) = (3.75)₁₀
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+//long-uint * 10^(-scale)
 pub struct DecimalValue(Octect, LongUint);
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct ByteArray(LongUint, Vec<u8>);
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct ByteArray(LongUint, Vec<u8>);
+impl TryFrom<Vec<u8>> for ByteArray {
+    type Error = TryFromIntError;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+       let len = LongUint::try_from(bytes.len())?;
+       Ok(Self(len, bytes))
+    }
+}
+impl From<ByteArray> for Vec<u8> {
+    fn from(arr: ByteArray) -> Self {
+        arr.1
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 #[allow(non_camel_case_types)]
 pub enum FieldValue {
     t(Boolean),
@@ -100,10 +144,27 @@ pub enum FieldValue {
 pub type FieldName = ShortStr;
 pub type FieldTable = HashMap<FieldName, FieldValue>;
 
-// RabbitMQ use LongUint, 0-9-1 spec use LongInt
-pub type FieldArray = (LongUint, Vec<FieldValue>);
+// RabbitMQ use LongUint
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct FieldArray(LongUint, Vec<FieldValue>);
+impl TryFrom<Vec<FieldValue>> for FieldArray {
+    type Error = TryFromIntError;
+
+    fn try_from(values: Vec<FieldValue>) -> Result<Self, Self::Error> {
+       let len = LongUint::try_from(values.len())?;
+       Ok(Self(len, values))
+    }
+}
+impl From<FieldArray> for Vec<FieldValue> {
+    fn from(arr: FieldArray) -> Self {
+        arr.1
+    }
+}
 
 //////////////////////////////////////////////////////////////////////////////
 // AMQP domains mapping to types
 pub type PeerProperties = FieldTable;
 pub type SecurityToken = LongStr;
+pub type Path = ShortStr;
+pub type ReplyCode = ShortUint;
+pub type ReplyText = ShortStr;

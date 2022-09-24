@@ -1,7 +1,10 @@
 use std::marker::PhantomData;
 
-use amqp_serde::{types::{Octect, ShortUint, LongUint}, constants::{FRAME_END, FRAME_METHOD}};
-use serde::{Serialize, Deserialize};
+use amqp_serde::{
+    constants::{FRAME_END, FRAME_METHOD},
+    types::{LongUint, Octect, ShortUint},
+};
+use serde::{Deserialize, Serialize};
 
 mod protocol_header;
 pub use protocol_header::ProtocolHeader;
@@ -9,11 +12,12 @@ pub use protocol_header::ProtocolHeader;
 mod method;
 pub use method::*;
 
-use self::{content_header::ContentHeaderPayload, content_body::ContentBodyPayload, heartbeat::HeartBeat};
-mod heartbeat;
-mod content_header;
+use self::{
+    content_body::ContentBodyPayload, content_header::ContentHeaderPayload, heartbeat::HeartBeat,
+};
 mod content_body;
-
+mod content_header;
+mod heartbeat;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FrameHeader {
@@ -29,20 +33,25 @@ pub struct Frame<T> {
     frame_end: Octect,
 }
 
-impl<T> Frame<T> {
-    pub fn new_method_frame(payload: T) -> Self {
-        let header = FrameHeader{ frame_type: FRAME_METHOD, channel: 0, payload_size: 0 };
+impl<T> Frame<T>  {
+    pub fn new_method(payload: T) -> Self {
+        let header = FrameHeader {
+            frame_type: FRAME_METHOD,
+            channel: 0,
+            payload_size: 0,
+        };
         Self {
             header,
             payload,
             frame_end: FRAME_END,
         }
     }
+    pub fn new_content_header() {}
+    pub fn new_content_body() {}
     pub fn set_channel(&mut self, channel: ShortUint) {
         self.header.channel = channel;
     }
     pub fn set_payload_size(&mut self, payload_size: LongUint) {
         self.header.payload_size = payload_size;
-    }    
+    }
 }
-

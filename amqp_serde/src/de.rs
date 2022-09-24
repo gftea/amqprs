@@ -607,7 +607,7 @@ mod tests {
             type_id: 1,
             channel_id: 2,
             size: 8,
-            payload: LongStr::from("ABCD"),
+            payload: "ABCD".try_into().unwrap(),
             end: 0xCE,
         };
         let result: Frame = from_bytes(&input).unwrap();
@@ -641,10 +641,9 @@ mod tests {
 
         fn create_field_table() -> FieldTable {
             let mut table = FieldTable::new();
-            table.insert(ShortStr::from("A"), FieldValue::t(true as Boolean));
-            table.insert(ShortStr::from("B"), FieldValue::u(9));
-            table.insert(ShortStr::from("C"), FieldValue::f(1.5));
-
+            table.insert("A".try_into().unwrap(), FieldValue::t(true as Boolean));
+            table.insert("B".try_into().unwrap(), FieldValue::u(9));
+            table.insert("C".try_into().unwrap(), FieldValue::f(1.5));
             table
         }
 

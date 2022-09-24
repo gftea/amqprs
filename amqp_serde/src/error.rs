@@ -32,7 +32,7 @@ pub enum Error {
     Incomplete,
     ExpectedLength,
     ExpectedBoolean,
-    ExpectedString,
+    ExpectedString,    
 }
 
 impl ser::Error for Error {

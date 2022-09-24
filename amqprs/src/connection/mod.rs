@@ -2,8 +2,8 @@ use std::io::Cursor;
 
 use crate::frame::{Frame, FrameHeader, ProtocolHeader};
 
-use amqp_serde::{constants::FRAME_END, from_bytes, to_bytes, types::LongUint};
-use bytes::{Buf, BytesMut};
+use amqp_serde::{constants::FRAME_END, from_bytes, into_buf, to_bytes, types::LongUint};
+use bytes::{Buf, BufMut, BytesMut};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::io;
 use tokio::{
@@ -38,46 +38,66 @@ impl Connection {
         self.stream.shutdown().await
     }
 
-    pub async fn negotiate_protocol(&mut self) -> io::Result<usize> {
-        let content = to_bytes(&ProtocolHeader::default())
+    pub async fn write<T: Serialize>(&mut self, value: &T) -> io::Result<usize> {
+        into_buf(value, &mut self.write_buffer)
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
-        self.stream.write_all(content.as_ref()).await?;
-        // TODO: if server reject the protocol, try to negotiate!
-
-        Ok(content.len())
+        let len = self.write_buffer.len();
+        self.stream.write_all(&self.write_buffer).await?;
+        self.write_buffer.advance(len);
+        Ok(len)
     }
 
     pub async fn write_frame<T: Serialize>(&mut self, mut frame: Frame<T>) -> io::Result<usize> {
-        // TODO: add new api to serialize the frame into write_buffer instead
+        into_buf(&frame.payload, &mut self.write_buffer).unwrap();
+        // update payload size
+        let payload_size = self.write_buffer.len();
+        frame.set_payload_size(payload_size as LongUint);
 
-        let payload = to_bytes(&frame.payload)
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
+        into_buf(&frame.header, &mut self.write_buffer).unwrap();
+        self.stream
+            .write_all(self.write_buffer.get(payload_size..).unwrap())
+            .await?;
+        self.stream
+            .write_all(self.write_buffer.get(..payload_size).unwrap())
+            .await?;
+        self.stream.write_u8(FRAME_END).await?;
+        let len = self.write_buffer.len();
+        self.write_buffer.advance(len);
+        // total length + frame end byte
+        Ok(len + 1)
 
-        // update the payload size
-        frame.set_payload_size(payload.len() as LongUint);        
-        let header = to_bytes(&frame.header)
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
-
-        // TODO: cannot get the bytes size in advance
-        // so we serialzie the frame first, then update the size in serialized bytes sequence
-        // let payload_size = content.len() as LongUint - 8;
-        // println!("payload size = {}", payload_size);
+        ////////////////////////////////////////////////////////////////
+        // into_buf(&frame, &mut self.write_buffer).unwrap();
+        // let len = self.write_buffer.len()
         // let mut start = 3;
-        // for b in payload_size.to_be_bytes() {
-        //     let p = content.get_mut(start).unwrap();
+        // for b in (len as LongUint - 8).to_be_bytes() {
+        //     let p = self.write_buffer.get_mut(start).unwrap();
         //     *p = b;
         //     start += 1;
         // }
-        self.stream.write_all(&header).await?;
-        self.stream.write_all(&payload).await?;
-        self.stream.write_u8(FRAME_END).await?;
-        Ok(header.len() + payload.len() + 1)
+        // self.stream.write_all(&self.write_buffer).await?;
+        // self.write_buffer.advance(len);
+        // Ok(len)
+
+        ////////////////////////////////////////////////////////////////
+        // let payload = to_bytes(&frame.payload)
+        //     .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
+
+        // // update the payload size
+        // frame.set_payload_size(payload.len() as LongUint);
+        // let header = to_bytes(&frame.header)
+        //     .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
+
+        // self.stream.write_all(&header).await?;
+        // self.stream.write_all(&payload).await?;
+        // self.stream.write_u8(FRAME_END).await?;
+        // Ok(header.len() + payload.len() + 1)
     }
 
     pub async fn read_frame<T: DeserializeOwned>(&mut self) -> io::Result<Frame<T>> {
-        // TODO: read frame type, channel, payload size
-        // processing according to frame type
-        // if method frame, process according to class-id and method-id
+        // TODO: handle network error, such as
+        // 1. timeout ?
+        // 2.  incomplete frame?
         loop {
             let len = self.stream.read_buf(&mut self.read_buffer).await?;
             if len == 0 {
@@ -122,7 +142,7 @@ mod test {
     };
     use tokio::runtime;
 
-    use crate::frame::{Frame, FrameHeader, Start, StartOk, Tune};
+    use crate::frame::{Frame, FrameHeader, Start, StartOk, Tune, ProtocolHeader, TuneOk, Open, OpenOk};
 
     use super::Connection;
 
@@ -135,25 +155,50 @@ mod test {
     }
 
     #[test]
-    fn test_open() {
+    fn test_client_establish_connection() {
+        // connection       = open-connection *use-connection close-connection
+        // open-connection  = C:protocolheader
+        //                 S:START C:STARTOK
+        //                 *challenge
+        //                 S:TUNE C:TUNEOK
+        //                 C:OPEN S:OPENOK
+        // challenge        = S:SECURE C:SECUREOK
+        // use-connection   = *channel
+        // close-connection = C:CLOSE S:CLOSEOK
+        //                 / S:CLOSE C:CLOSEOK
         let rt = new_runtime();
         rt.block_on(async {
             let mut conn = Connection::open("localhost:5672").await.unwrap();
 
             // C: protocol-header
-            conn.negotiate_protocol().await.unwrap();
+            conn.write(&ProtocolHeader::default()).await.unwrap();
 
             // S: 'Start'
             let start = conn.read_frame::<Start>().await.unwrap();
             println!("{start:?}");
 
             // C: 'StartOk'
-            let start_ok = Frame::new_method_frame(StartOk::default());
+            let start_ok = Frame::new_method(StartOk::default());
             conn.write_frame(start_ok).await.unwrap();
 
             // S: 'Tune'
-            let secure = conn.read_frame::<Tune>().await.unwrap();
-            println!("{secure:?}");
+            let tune = conn.read_frame::<Tune>().await.unwrap();
+            println!("{tune:?}");
+
+            // C: TuneOk
+            let mut tune_ok = Frame::new_method(TuneOk::default());
+            tune_ok.payload.channel_max = tune.payload.channel_max;
+            tune_ok.payload.frame_max = tune.payload.frame_max;
+            tune_ok.payload.heartbeat = tune.payload.heartbeat;
+            conn.write_frame(tune_ok).await.unwrap();
+
+            // C: Open
+            let open = Frame::new_method(Open::default());
+            conn.write_frame(open).await.unwrap();
+
+            // S: OpenOk
+            let open_ok = conn.read_frame::<OpenOk>().await.unwrap();
+            println!("{open_ok:?}");
         });
     }
 }

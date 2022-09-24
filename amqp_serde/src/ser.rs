@@ -1,24 +1,40 @@
+use std::ops::{Deref, DerefMut};
+
 use crate::error::{Error, Result};
+use bytes::{BufMut, BytesMut};
 use serde::{
     ser::{self},
     Serialize,
 };
 
-pub struct Serializer {
-    output: Vec<u8>, // TODO: buffer generic interfaces?
+pub struct Serializer<'a, W: BufMut> {
+    output: &'a mut W, // TODO: buffer generic interfaces?
 }
 
 pub fn to_bytes<T>(value: &T) -> Result<Vec<u8>>
 where
     T: Serialize,
 {
-    let mut serializer = Serializer { output: vec![] };
-    // either derived implementation of trait Serialize or implement your own for the type
+    let mut buf = Vec::new();
+    let mut serializer = Serializer { output: &mut buf };
     value.serialize(&mut serializer)?;
-    Ok(serializer.output)
+    Ok(buf)
 }
 
-impl<'a> ser::Serializer for &'a mut Serializer {
+pub fn into_buf<T>(value: &T, buf: &mut BytesMut) -> Result<()>
+where
+    T: Serialize,
+{
+    let mut serializer = Serializer { output: buf };
+    value.serialize(&mut serializer)?;
+    Ok(())
+    // Ok(serializer.output)
+}
+
+impl<'a, 'b: 'a, W> ser::Serializer for &'a mut Serializer<'b, W>
+where
+    W: BufMut + DerefMut<Target = [u8]>,
+{
     type Ok = ();
 
     type Error = Error;
@@ -31,82 +47,73 @@ impl<'a> ser::Serializer for &'a mut Serializer {
 
     type SerializeTupleVariant = Self;
 
-    type SerializeMap = MapSerializer<'a>;
+    type SerializeMap = MapSerializer<'a, 'b, W>;
 
     type SerializeStruct = Self;
 
     type SerializeStructVariant = Self;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok> {
-        self.output.push(v as u8);
+        self.output.put_u8(v as u8);
+
         Ok(())
     }
 
     fn serialize_i8(self, v: i8) -> Result<Self::Ok> {
-        for b in v.to_be_bytes() {
-            self.output.push(b);
-        }
+        self.output.put_u8(v as u8);
         Ok(())
     }
 
     fn serialize_i16(self, v: i16) -> Result<Self::Ok> {
-        for b in v.to_be_bytes() {
-            self.output.push(b);
-        }
+        self.output.put(&v.to_be_bytes()[..]);
+
         Ok(())
     }
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok> {
-        for b in v.to_be_bytes() {
-            self.output.push(b);
-        }
+        self.output.put(&v.to_be_bytes()[..]);
+
         Ok(())
     }
 
     fn serialize_i64(self, v: i64) -> Result<Self::Ok> {
-        for b in v.to_be_bytes() {
-            self.output.push(b);
-        }
+        self.output.put(&v.to_be_bytes()[..]);
+
         Ok(())
     }
 
     fn serialize_u8(self, v: u8) -> Result<Self::Ok> {
-        self.output.push(v);
+        self.output.put_u8(v);
         Ok(())
     }
 
     fn serialize_u16(self, v: u16) -> Result<Self::Ok> {
-        for b in v.to_be_bytes() {
-            self.output.push(b);
-        }
+        self.output.put(&v.to_be_bytes()[..]);
+
         Ok(())
     }
 
     fn serialize_u32(self, v: u32) -> Result<Self::Ok> {
-        for b in v.to_be_bytes() {
-            self.output.push(b);
-        }
+        self.output.put(&v.to_be_bytes()[..]);
+
         Ok(())
     }
 
     fn serialize_u64(self, v: u64) -> Result<Self::Ok> {
-        for b in v.to_be_bytes() {
-            self.output.push(b);
-        }
+        self.output.put(&v.to_be_bytes()[..]);
+
         Ok(())
     }
 
     fn serialize_f32(self, v: f32) -> Result<Self::Ok> {
-        for b in v.to_be_bytes() {
-            self.output.push(b);
-        }
+        self.output.put(&v.to_be_bytes()[..]);
+
         Ok(())
     }
 
     fn serialize_f64(self, v: f64) -> Result<Self::Ok> {
-        for b in v.to_be_bytes() {
-            self.output.push(b);
-        }
+        self.output.put(&v.to_be_bytes()[..]);
+
         Ok(())
     }
 
@@ -115,16 +122,14 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
-        for b in v.bytes() {
-            self.output.push(b);
-        }
+        self.output.put(v.as_bytes());
+
         Ok(())
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok> {
-        for b in v {
-            self.output.push(*b);
-        }
+        self.output.put(v);
+
         Ok(())
     }
 
@@ -229,13 +234,17 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     // if to skip serailizing length, one can implement `Serialize` by passing `None` to `len`
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
         let start = self.output.len();
+
         // reserve u32 for length of table
         self.serialize_u32(0)?;
         Ok(MapSerializer { ser: self, start })
     }
 }
 
-impl<'a> ser::SerializeSeq for &'a mut Serializer {
+impl<'a, 'b:'a, W> ser::SerializeSeq for &'a mut Serializer<'b, W>
+where
+    W: BufMut + DerefMut<Target = [u8]>,
+{
     type Ok = ();
 
     type Error = Error;
@@ -251,7 +260,10 @@ impl<'a> ser::SerializeSeq for &'a mut Serializer {
         Ok(())
     }
 }
-impl<'a> ser::SerializeTuple for &'a mut Serializer {
+impl<'a, 'b:'a, W> ser::SerializeTuple for &'a mut Serializer<'b, W>
+where
+    W: BufMut + DerefMut<Target = [u8]>,
+{
     type Ok = ();
     type Error = Error;
 
@@ -266,7 +278,10 @@ impl<'a> ser::SerializeTuple for &'a mut Serializer {
         Ok(())
     }
 }
-impl<'a> ser::SerializeTupleStruct for &'a mut Serializer {
+impl<'a, 'b:'a, W> ser::SerializeTupleStruct for &'a mut Serializer<'b, W>
+where
+    W: BufMut + DerefMut<Target = [u8]>,
+{
     type Ok = ();
     type Error = Error;
 
@@ -281,7 +296,10 @@ impl<'a> ser::SerializeTupleStruct for &'a mut Serializer {
         Ok(())
     }
 }
-impl<'a> ser::SerializeTupleVariant for &'a mut Serializer {
+impl<'a, 'b:'a, W> ser::SerializeTupleVariant for &'a mut Serializer<'b, W>
+where
+    W: BufMut + DerefMut<Target = [u8]>,
+{
     type Ok = ();
     type Error = Error;
 
@@ -297,12 +315,15 @@ impl<'a> ser::SerializeTupleVariant for &'a mut Serializer {
     }
 }
 
-pub struct MapSerializer<'a> {
-    ser: &'a mut Serializer,
+pub struct MapSerializer<'a, 'b: 'a, W: BufMut> {
+    ser: &'a mut Serializer<'b, W>,
     start: usize,
 }
 
-impl<'a> ser::SerializeMap for MapSerializer<'a> {
+impl<'a, 'b:'a, W> ser::SerializeMap for MapSerializer<'a, 'b, W>
+where
+    W: BufMut + DerefMut<Target = [u8]>,
+{
     type Ok = ();
     type Error = Error;
 
@@ -324,6 +345,7 @@ impl<'a> ser::SerializeMap for MapSerializer<'a> {
     fn end(self) -> Result<()> {
         // first 4 bytes are reserved for length
         let len: u32 = (self.ser.output.len() - self.start - 4) as u32;
+
         let mut start = self.start;
         for b in len.to_be_bytes() {
             let p = self.ser.output.get_mut(start).unwrap();
@@ -334,7 +356,10 @@ impl<'a> ser::SerializeMap for MapSerializer<'a> {
     }
 }
 
-impl<'a> ser::SerializeStruct for &'a mut Serializer {
+impl<'a, 'b:'a, W> ser::SerializeStruct for &'a mut Serializer<'b, W>
+where
+    W: BufMut + DerefMut<Target = [u8]>,
+{
     type Ok = ();
     type Error = Error;
 
@@ -350,7 +375,10 @@ impl<'a> ser::SerializeStruct for &'a mut Serializer {
     }
 }
 
-impl<'a> ser::SerializeStructVariant for &'a mut Serializer {
+impl<'a, 'b:'a, W> ser::SerializeStructVariant for &'a mut Serializer<'b, W>
+where
+    W: BufMut + DerefMut<Target = [u8]>,
+{
     type Ok = ();
     type Error = Error;
 
@@ -378,7 +406,6 @@ mod test {
         println!("{:?}", std::mem::size_of_val(&String::from("s")));
         println!("{:?}", std::mem::size_of_val("s"));
         println!("{:?}", std::mem::size_of_val(&FieldValue::t(1)));
-
     }
     #[test]
     fn test_struct() {
@@ -397,7 +424,7 @@ mod test {
                     type_id: 1,
                     channel_id: 2,
                     size: 3,
-                    payload: LongStr::from("ABCD"),
+                    payload: "ABCD".try_into().unwrap(),
                     end: FRAME_END,
                 }
             }
@@ -415,10 +442,10 @@ mod test {
     fn test_field_table() {
         fn create_field_table() -> FieldTable {
             let mut table = FieldTable::new();
-            table.insert(ShortStr::from("A"), FieldValue::t(true as Boolean));
-            table.insert(ShortStr::from("B"), FieldValue::u(9));
-            table.insert(ShortStr::from("C"), FieldValue::f(1.5));
-            table.insert(ShortStr::from("D"), FieldValue::V);
+            table.insert("A".try_into().unwrap(), FieldValue::t(true as Boolean));
+            table.insert("B".try_into().unwrap(), FieldValue::u(9));
+            table.insert("C".try_into().unwrap(), FieldValue::f(1.5));
+            table.insert("D".try_into().unwrap(), FieldValue::V);
 
             table
         }
