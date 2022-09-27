@@ -1,9 +1,12 @@
 use crate::types::{Octect, ShortUint};
 
+pub const FRAME_HEADER_SIZE: usize = 7;
+
 pub const FRAME_METHOD: Octect = 1;
 pub const FRAME_HEADER: Octect = 2;
 pub const FRAME_BODY: Octect = 3;
 pub const FRAME_HEARTBEAT: Octect = 8;
+
 
 pub const FRAME_END: Octect = 206;
 

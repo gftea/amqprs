@@ -21,14 +21,15 @@ where
     Ok(buf)
 }
 
-pub fn into_buf<T>(value: &T, buf: &mut BytesMut) -> Result<()>
+pub fn to_buffer<T, U: BufMut + DerefMut<Target = [u8]>>(value: &T, buf: &mut U) -> Result<usize>
 where
     T: Serialize,
 {
+    let initial_size = buf.len();
     let mut serializer = Serializer { output: buf };
     value.serialize(&mut serializer)?;
-    Ok(())
-    // Ok(serializer.output)
+    let final_size = buf.len();
+    Ok(final_size - initial_size)
 }
 
 impl<'a, 'b: 'a, W> ser::Serializer for &'a mut Serializer<'b, W>
