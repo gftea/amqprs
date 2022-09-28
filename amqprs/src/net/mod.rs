@@ -1,4 +1,6 @@
 mod connection;
-pub use connection::*;
-
 mod split_connection;
+
+
+pub use connection::*;
+pub use split_connection::*;
