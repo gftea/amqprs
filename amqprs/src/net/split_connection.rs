@@ -141,7 +141,7 @@ mod test {
 
     use super::SplitConnection;
     use crate::frame::*;
-    use tokio::runtime;
+    use tokio::{runtime, sync::mpsc};
 
     fn new_runtime() -> runtime::Runtime {
         let rt = runtime::Builder::new_multi_thread()
@@ -150,67 +150,73 @@ mod test {
             .unwrap();
         rt
     }
+    #[tokio::test]
+    async fn test_streaming_read_write() {
+        let (tx_resp, mut rx_resp) = mpsc::channel(1024);
+        let (tx_req, mut rx_req) = mpsc::channel(1024);
 
-    #[test]
-    fn test_client_establish_connection() {
-        // connection       = open-connection *use-connection close-connection
-        // open-connection  = C:protocolheader
-        //                 S:START C:STARTOK
-        //                 *challenge
-        //                 S:TUNE C:TUNEOK
-        //                 C:OPEN S:OPENOK
-        // challenge        = S:SECURE C:SECUREOK
-        // use-connection   = *channel
-        // close-connection = C:CLOSE S:CLOSEOK
-        //                 / S:CLOSE C:CLOSEOK
-        let rt = new_runtime();
-        rt.block_on(async {
-            let  (mut reader, mut writer) = SplitConnection::open("localhost:5672").await.unwrap();
+        let (mut reader, mut writer) = SplitConnection::open("localhost:5672").await.unwrap();
+        // TODO: protocol header negotiation in connection level
+        // do not need support channel multiplex, only done once per new connection
+        writer.write(&ProtocolHeader::default()).await.unwrap();
 
-            // C: protocol-header
-            writer.write(&ProtocolHeader::default()).await.unwrap();
+        // simulate  using  messaging channel as buffer
+        // request to channel over writer half
+        tokio::spawn(async move {
+            while let Some((channel_id, frame)) = rx_req.recv().await {
+                writer.write_frame(channel_id, frame).await.unwrap();
+            }
+        });
+        // response from channel over reader half
+        tokio::spawn(async move {
+            while let Ok((channel_id, frame)) = reader.read_frame().await {
+                tx_resp.send((channel_id, frame)).await.unwrap();
+            }
+        });
 
-            // S: 'Start'
-            let start = reader.read_frame().await.unwrap();
-            println!(" {start:?}");
+        // S: 'Start'
+        let start = rx_resp.recv().await.unwrap();
+        println!(" {start:?}");
 
-            // C: 'StartOk'
-            let start_ok = StartOk::default().into_frame();
-            writer.write_frame(0, start_ok).await.unwrap();
+        // C: 'StartOk'
+        let start_ok = StartOk::default().into_frame();
+        tx_req.send((0, start_ok)).await.unwrap();
 
-            // S: 'Tune'
-            let tune = reader.read_frame().await.unwrap();
-            println!("{tune:?}");
+        // S: 'Tune'
+        let tune = rx_resp.recv().await.unwrap();
+        println!("{tune:?}");
 
-            // C: TuneOk
-            let mut tune_ok = TuneOk::default();
-            let tune = match tune.1 {
-                Frame::Tune(_, v) => v,
-                _ => panic!("wrong message"),
-            };
+        // C: TuneOk
+        let mut tune_ok = TuneOk::default();
+        let tune = match tune.1 {
+            Frame::Tune(_, v) => v,
+            _ => panic!("wrong message"),
+        };
 
-            tune_ok.channel_max = tune.channel_max;
-            tune_ok.frame_max = tune.frame_max;
-            tune_ok.heartbeat = tune.heartbeat;
+        tune_ok.channel_max = tune.channel_max;
+        tune_ok.frame_max = tune.frame_max;
+        tune_ok.heartbeat = tune.heartbeat;
 
-            writer.write_frame(0, tune_ok.into_frame()).await.unwrap();
+        tx_req.send((0, tune_ok.into_frame())).await.unwrap();
 
-            // C: Open
-            let open = Open::default().into_frame();
-            writer.write_frame(0, open).await.unwrap();
+        // C: Open
+        let open = Open::default().into_frame();
+        tx_req.send((0, open)).await.unwrap();
 
-            // S: OpenOk
-            let open_ok = reader.read_frame().await.unwrap();
-            println!("{open_ok:?}");
+        // S: OpenOk
+        let open_ok = rx_resp.recv().await.unwrap();
+        println!("{open_ok:?}");
 
-            // C: Close
-            writer.write_frame(0, Close::default().into_frame())
-                .await
-                .unwrap();
+        // C: Close
+        tx_req
+            .send((0, Close::default().into_frame()))
+            .await
+            .unwrap();
 
-            // S: CloseOk
-            let close_ok = reader.read_frame().await.unwrap();
-            println!("{close_ok:?}");
-        })
+        // S: CloseOk
+        let close_ok = rx_resp.recv().await.unwrap();
+        println!("{close_ok:?}");
     }
+
+
 }
