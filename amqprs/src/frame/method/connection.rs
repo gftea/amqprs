@@ -3,28 +3,10 @@ use amqp_serde::{
     types::{Bit, LongStr, LongUint, Octect, PeerProperties, ShortStr, ShortUint},
 };
 use serde::{Deserialize, Serialize};
+use super::impl_mapping;
 use crate::frame::{Frame, MethodHeader};
 
-macro_rules! impl_mapping {
-    ($name:ident, $class_id:literal, $method_id:literal) => {
-        impl $name {
-            pub fn header() -> &'static MethodHeader {                
-                static __METHOD_HEADER: MethodHeader = 
-                MethodHeader {
-                    class_id: $class_id,
-                    method_id: $method_id,
-                };
-                &__METHOD_HEADER
-            }
-            pub fn into_frame(self) -> Frame {                
-                Frame::$name(
-                    Self::header(),
-                    self,
-                )
-            }
-        }
-    };
-}
+
 impl_mapping!(Start,      10, 10);
 impl_mapping!(StartOk,    10, 11);
 impl_mapping!(Tune,       10, 30);

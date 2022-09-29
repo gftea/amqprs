@@ -34,3 +34,11 @@ pub const RESOURCE_ERROR: ShortUint = 506;
 pub const NOT_ALLOWED: ShortUint = 530;
 pub const NOT_IMPLEMENTED: ShortUint = 540;
 pub const INTERNAL_ERROR: ShortUint = 541;
+
+// class id
+pub const CLASS_CONNECTION: ShortUint = 10;
+pub const CLASS_CHANNEL: ShortUint = 20;
+pub const CLASS_EXCHANGE: ShortUint = 40;
+pub const CLASS_QUEUE: ShortUint = 50;
+pub const CLASS_BASIC: ShortUint = 60;
+pub const CLASS_TX: ShortUint = 90;

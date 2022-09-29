@@ -40,8 +40,7 @@ impl Connection {
         let (tx_req, mut rx_req) = mpsc::channel(CHANNEL_BUFFER_SIZE);
 
         let (mut reader, mut writer) = SplitConnection::open(uri).await.unwrap();
-        // TODO: protocol header negotiation in connection level
-        // do not need support channel multiplex, only done once per new connection
+        // TODO: protocol header negotiation ?
         writer.write(&ProtocolHeader::default()).await.unwrap();
 
         // create task for write connection

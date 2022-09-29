@@ -57,6 +57,10 @@ pub enum Frame {
 
     CloseOk(&'static MethodHeader, CloseOk),
 
+    OpenChannel(&'static MethodHeader, OpenChannel),
+    #[serde(skip_serializing)]
+    OpenChannelOk(&'static MethodHeader, OpenChannelOk),
+
     HeartBeat(HeartBeat),
 
     ContentHeader(ContentHeader),
