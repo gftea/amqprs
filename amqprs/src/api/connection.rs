@@ -5,7 +5,7 @@ use amqp_serde::types::ShortUint;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::RwLock;
 
-use crate::frame::{Frame, Open, ProtocolHeader, StartOk, TuneOk, Close};
+use crate::frame::{Close, Declare, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk};
 use crate::net::{Reader, SplitConnection, Writer};
 
 use super::error::Error;
@@ -31,7 +31,10 @@ pub struct Connection {
     channels: Arc<RwLock<BTreeMap<ShortUint, Sender<Message>>>>,
 }
 pub struct Channel {
-    id: usize,
+    id: ShortUint,
+    tx: Sender<Message>,
+    rx: Receiver<Message>,
+    channels: Arc<RwLock<BTreeMap<ShortUint, Sender<Message>>>>,
 }
 
 impl Connection {
@@ -134,13 +137,60 @@ impl Connection {
     pub async fn close(&mut self) {
         // C: Close
         self.tx
-            .send(Message {channel_id: self.channel_id, frame:Close::default().into_frame()})
+            .send(Message {
+                channel_id: self.channel_id,
+                frame: Close::default().into_frame(),
+            })
             .await
             .unwrap();
 
         // S: CloseOk
         let close_ok = self.rx.recv().await.unwrap();
         println!("{close_ok:?}");
+    }
+
+    pub async fn channel(&mut self) -> Result<Channel, Error> {
+        let channel_id = (self.channels.read().await.len() + 1) as ShortUint;
+        let (tx_resp, mut rx_resp) = mpsc::channel(CHANNEL_BUFFER_SIZE);
+        self.channels.write().await.insert(channel_id, tx_resp);
+        // TODO: close the channel, and remove it from the map?
+        Ok(Channel {
+            id: channel_id,
+            tx: self.tx.clone(),
+            rx: rx_resp,
+            channels: self.channels.clone(),
+        })
+    }
+}
+
+impl Channel {
+    pub async fn open(&mut self) {
+        self.tx
+            .send(Message {
+                channel_id: self.id,
+                frame: OpenChannel::default().into_frame(),
+            })
+            .await
+            .unwrap();
+        let resp = match self.rx.recv().await {
+            Some(v) => v,
+            None => todo!(),
+        };
+        println!("{:?}", resp);
+    }
+    pub async fn exchange_declare(&mut self) {
+        self.tx
+            .send(Message {
+                channel_id: self.id,
+                frame: Declare::new(true, false, false, false, false).into_frame(),
+            })
+            .await
+            .unwrap();
+        let resp = match self.rx.recv().await {
+            Some(v) => v,
+            None => todo!(),
+        };
+        println!("{:?}", resp);
     }
 }
 
@@ -151,6 +201,10 @@ mod tests {
     #[tokio::test]
     async fn test_api_open_and_close() {
         let mut conn = Connection::open("localhost:5672").await.unwrap();
+
+        let mut chan = conn.channel().await.unwrap();
+        chan.open().await;
+        chan.exchange_declare().await;
         conn.close().await;
     }
 }

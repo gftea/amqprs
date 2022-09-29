@@ -22,8 +22,6 @@ pub struct MethodHeader {
 }
 macro_rules! impl_mapping {
     ($name:ident, $class_id:literal, $method_id:literal) => {
-
-
         impl $name {
             pub fn header() -> &'static MethodHeader {                
                 static __METHOD_HEADER: MethodHeader = 

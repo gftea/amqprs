@@ -40,26 +40,26 @@ pub struct FrameHeader {
 pub enum Frame {
     #[serde(skip_serializing)]
     Start(&'static MethodHeader, Start),
-
     StartOk(&'static MethodHeader, StartOk),
 
     #[serde(skip_serializing)]
     Tune(&'static MethodHeader, Tune),
-
     TuneOk(&'static MethodHeader, TuneOk),
 
     Open(&'static MethodHeader, Open),
-
     #[serde(skip_serializing)]
     OpenOk(&'static MethodHeader, OpenOk),
 
     Close(&'static MethodHeader, Close),
-
     CloseOk(&'static MethodHeader, CloseOk),
 
     OpenChannel(&'static MethodHeader, OpenChannel),
     #[serde(skip_serializing)]
     OpenChannelOk(&'static MethodHeader, OpenChannelOk),
+
+    Declare(&'static MethodHeader, Declare),
+    #[serde(skip_serializing)]
+    DeclareOk(&'static MethodHeader, DeclareOk),
 
     HeartBeat(HeartBeat),
 
@@ -135,8 +135,14 @@ impl Frame {
                     from_bytes::<Close>(content)?.into_frame()
                 } else if &header == CloseOk::header() {
                     from_bytes::<CloseOk>(content)?.into_frame()
+                } else if &header == OpenChannelOk::header() {
+                    from_bytes::<OpenChannelOk>(content)?.into_frame()
+                } else if &header == DeclareOk::header() {
+                    from_bytes::<DeclareOk>(content)?.into_frame()
                 } else {
-                    unreachable!()
+                    println!("header: {:?}", header);
+                    println!("content: {:?}", content);
+                    unreachable!("unknown frame");
                 };
                 Ok((total_size, channel, frame))
             }
