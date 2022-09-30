@@ -150,7 +150,7 @@ impl Connection {
     }
 
     pub async fn channel(&mut self) -> Result<Channel, Error> {
-        let channel_id = (self.channels.read().await.len() + 1) as ShortUint;
+        let channel_id = self.channels.read().await.len() as ShortUint;
         let (tx_resp, mut rx_resp) = mpsc::channel(CHANNEL_BUFFER_SIZE);
         self.channels.write().await.insert(channel_id, tx_resp);
         // TODO: close the channel, and remove it from the map?
