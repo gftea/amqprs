@@ -146,7 +146,8 @@ impl Frame {
                 };
                 Ok((total_size, channel, frame))
             }
-            FRAME_HEARTBEAT | FRAME_HEADER | FRAME_BODY => todo!(),
+            FRAME_HEARTBEAT => Ok((total_size, channel, Frame::HeartBeat(HeartBeat))),
+            FRAME_HEADER | FRAME_BODY => todo!(),
             _ => Err(Error::Corrupted),
         }
     }

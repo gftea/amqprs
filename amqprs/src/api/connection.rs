@@ -53,6 +53,7 @@ impl Connection {
                 let Message { channel_id, frame } = msg;
                 conn.writer.write_frame(channel_id, frame).await.unwrap();
             }
+            println!("exit write connection !");
         });
         // store the channel's sender half
         let mut channels = Arc::new(RwLock::new(BTreeMap::new()));
@@ -71,6 +72,10 @@ impl Connection {
                 let tx_resp = channels.get(&channel_id).unwrap();
                 tx_resp.send(Message { channel_id, frame }).await.unwrap();
             }
+
+            println!("exit read connection !");
+            // TODO: notify write connection to shutdown
+            conn.channels.write().await.clear();
         });
 
         // connection class method always use channel 0
@@ -102,7 +107,7 @@ impl Connection {
 
         tune_ok.channel_max = tune.channel_max;
         tune_ok.frame_max = tune.frame_max;
-        tune_ok.heartbeat = tune.heartbeat;
+        tune_ok.heartbeat = tune.heartbeat / 2;
 
         tx_req
             .send(Message {
@@ -200,11 +205,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_api_open_and_close() {
-        let mut conn = Connection::open("localhost:5672").await.unwrap();
+        for _ in 0..2 {
+            let mut conn = Connection::open("localhost:5672").await.unwrap();
 
-        let mut chan = conn.channel().await.unwrap();
-        chan.open().await;
-        chan.exchange_declare().await;
-        conn.close().await;
+            let mut channel = conn.channel().await.unwrap();
+            channel.open().await;
+            channel.exchange_declare().await;
+
+            // heartbeat from connection
+            while let Some(heartbeat) = conn.rx.recv().await {
+                println!("{:?}", heartbeat);
+            }
+            println!("connection closed by server");
+        }
     }
 }
