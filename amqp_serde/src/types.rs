@@ -163,8 +163,10 @@ impl From<FieldArray> for Vec<FieldValue> {
 
 //////////////////////////////////////////////////////////////////////////////
 // AMQP domains mapping to types
-pub type PeerProperties = FieldTable;
-pub type SecurityToken = LongStr;
-pub type Path = ShortStr;
-pub type ReplyCode = ShortUint;
-pub type ReplyText = ShortStr;
+pub type AmqpPeerProperties = FieldTable;
+pub type AmqpSecurityToken = LongStr;
+pub type AmqpPath = ShortStr;
+pub type AmqpReplyCode = ShortUint;
+pub type AmqpReplyText = ShortStr;
+pub type AmqpChannelId = ShortUint;
+

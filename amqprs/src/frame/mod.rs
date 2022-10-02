@@ -3,7 +3,7 @@ use amqp_serde::{
         FRAME_BODY, FRAME_END, FRAME_HEADER, FRAME_HEADER_SIZE, FRAME_HEARTBEAT, FRAME_METHOD,
     },
     from_bytes,
-    types::{LongUint, Octect, ShortUint},
+    types::{LongUint, Octect, ShortUint, AmqpChannelId},
 };
 
 use serde::{Deserialize, Serialize};
@@ -57,6 +57,9 @@ pub enum Frame {
     #[serde(skip_serializing)]
     OpenChannelOk(&'static MethodHeader, OpenChannelOk),
 
+    CloseChannel(&'static MethodHeader, CloseChannel),
+    CloseChannelOk(&'static MethodHeader, CloseChannelOk),
+
     Declare(&'static MethodHeader, Declare),
     #[serde(skip_serializing)]
     DeclareOk(&'static MethodHeader, DeclareOk),
@@ -81,10 +84,10 @@ impl Frame {
     /// to support update of read buffer cursor, need to populate the number of bytes are read
     /// Return :
     ///     (Number of bytes are read, Channel id, the Frame)
-    pub fn decode(buf: &[u8]) -> Result<(usize, ShortUint, Frame), Error> {
+    pub fn decode(buf: &[u8]) -> Result<Option<(usize, AmqpChannelId, Frame)>, Error> {
         // check frame header, 7 octects
         if buf.len() < FRAME_HEADER_SIZE {
-            return Err(Error::Incomplete);
+            return Ok(None);
         }
 
         let FrameHeader {
@@ -93,13 +96,13 @@ impl Frame {
             payload_size,
         } = from_bytes(match buf.get(0..FRAME_HEADER_SIZE) {
             Some(s) => s,
-            None => unreachable!(),
+            None => unreachable!("out of bound"),
         })?;
 
         // check full frame is received payload_size + 8 octects
         let total_size = payload_size as usize + FRAME_HEADER_SIZE + 1;
         if total_size > buf.len() {
-            return Err(Error::Incomplete);
+            return Ok(None);
         }
         // check frame end
         match buf.get(total_size - 1) {
@@ -109,7 +112,7 @@ impl Frame {
                     return Err(Error::Corrupted);
                 }
             }
-            None => unreachable!(),
+            None => unreachable!("out of bound"),
         };
 
         // parse frame payload
@@ -118,11 +121,11 @@ impl Frame {
                 let header: MethodHeader =
                     from_bytes(match buf.get(FRAME_HEADER_SIZE..FRAME_HEADER_SIZE + 4) {
                         Some(s) => s,
-                        None => unreachable!(),
+                        None => unreachable!("out of bound"),
                     })?;
                 let content = match buf.get(FRAME_HEADER_SIZE + 4..total_size as usize - 1) {
                     Some(s) => s,
-                    None => unreachable!(),
+                    None => unreachable!("out of bound"),
                 };
 
                 let frame = if &header == Start::header() {
@@ -139,14 +142,18 @@ impl Frame {
                     from_bytes::<OpenChannelOk>(content)?.into_frame()
                 } else if &header == DeclareOk::header() {
                     from_bytes::<DeclareOk>(content)?.into_frame()
+                } else if &header == CloseChannel::header() {
+                    from_bytes::<CloseChannel>(content)?.into_frame()
+                } else if &header == CloseChannelOk::header() {
+                    from_bytes::<CloseChannelOk>(content)?.into_frame()
                 } else {
                     println!("header: {:?}", header);
                     println!("content: {:?}", content);
                     unreachable!("unknown frame");
                 };
-                Ok((total_size, channel, frame))
+                Ok(Some((total_size, channel, frame)))
             }
-            FRAME_HEARTBEAT => Ok((total_size, channel, Frame::HeartBeat(HeartBeat))),
+            FRAME_HEARTBEAT => Ok(Some((total_size, channel, Frame::HeartBeat(HeartBeat)))),
             FRAME_HEADER | FRAME_BODY => todo!(),
             _ => Err(Error::Corrupted),
         }

@@ -16,11 +16,11 @@ impl_mapping!(DeclareOk, 40, 11);
 
 #[derive(Debug, Serialize)]
 pub struct Declare {
-    ticket: ShortUint,
-    exchange: ShortStr,
-    typ: ShortStr,
+    pub ticket: ShortUint,
+    pub exchange: ShortStr,
+    pub typ: ShortStr,
     bits: Octect,
-    arguments: FieldTable,
+    pub arguments: FieldTable,
 }
 impl Default for Declare {
     fn default() -> Self {
@@ -34,36 +34,37 @@ impl Default for Declare {
     }
 }
 impl Declare {
-    pub fn new(
-        passive: bool,
-        durable: bool,
-        auto_delete: bool,
-        internal: bool,
-        no_wait: bool,
-    ) -> Self {
-        let mut bits = 0b0000_0000;
-        if passive {
-            bits |= PASSIVE;
-        }
-        if durable {
-            bits |= DURABLE;
-        }
-        if auto_delete {
-            bits |= AUTO_DELETE;            
-        }
-        if internal {
-            bits |= INTERNAL;
-        }
-        if no_wait {
-            bits |= NO_WAIT;
-        }
-        Declare {
-            ticket: 0,
-            exchange: "amq.direct".try_into().unwrap(),
-            typ: "direct".try_into().unwrap(),
-            bits,
-            arguments: FieldTable::new(),
-        }
+    /// set passive to `true`
+    pub fn set_passive(&mut self) {
+        self.bits |= PASSIVE;
+    }
+    /// set passive to `false`
+    pub fn clear_passive(&mut self) {
+        self.bits &= !PASSIVE;
+    }
+    pub fn set_durable(&mut self) {
+        self.bits |= DURABLE;
+    }
+    pub fn clear_durable(&mut self) {
+        self.bits &= !DURABLE;
+    }
+    pub fn set_auto_delete(&mut self) {
+        self.bits |= AUTO_DELETE;
+    }
+    pub fn clear_auto_delete(&mut self) {
+        self.bits &= !AUTO_DELETE;
+    }
+    pub fn set_internal(&mut self) {
+        self.bits |= INTERNAL;
+    }
+    pub fn clear_internal(&mut self) {
+        self.bits &= !INTERNAL;
+    }
+    pub fn set_no_wait(&mut self) {
+        self.bits |= NO_WAIT;
+    }
+    pub fn clear_no_wait(&mut self) {
+        self.bits &= !NO_WAIT;
     }
 }
 

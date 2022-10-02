@@ -1,6 +1,6 @@
 use amqp_serde::{
     constants::REPLY_SUCCESS,
-    types::{Bit, LongStr, LongUint, Octect, PeerProperties, ShortStr, ShortUint},
+    types::{Bit, LongStr, LongUint, Octect, AmqpPeerProperties, ShortStr, ShortUint},
 };
 use serde::{Deserialize, Serialize};
 use super::impl_mapping;
@@ -23,14 +23,14 @@ impl_mapping!(CloseOk,    10, 51);
 pub struct Start {
     pub version_major: Octect,
     pub version_minor: Octect,
-    pub server_properties: PeerProperties,
+    pub server_properties: AmqpPeerProperties,
     pub mechanisms: LongStr,
     pub locales: LongStr,
 }
 
 #[derive(Debug, Serialize)]
 pub struct StartOk {
-    pub client_properties: PeerProperties,
+    pub client_properties: AmqpPeerProperties,
     pub machanisms: ShortStr,
     pub response: LongStr,
     pub locale: ShortStr,
@@ -39,7 +39,7 @@ pub struct StartOk {
 impl Default for StartOk {
     fn default() -> Self {
         Self {
-            client_properties: PeerProperties::new(),
+            client_properties: AmqpPeerProperties::new(),
             machanisms: "PLAIN".try_into().unwrap(),
             response: "\0user\0bitnami".try_into().unwrap(),
             locale: "en_US".try_into().unwrap(),

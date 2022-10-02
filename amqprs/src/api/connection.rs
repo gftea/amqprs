@@ -1,222 +1,105 @@
-use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex};
-
-use amqp_serde::types::ShortUint;
-use tokio::sync::mpsc::{self, Receiver, Sender};
-use tokio::sync::RwLock;
+use amqp_serde::types::AmqpChannelId;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::frame::{Close, Declare, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk};
-use crate::net::{Reader, SplitConnection, Writer};
+use crate::net::{ConnectionManager, Message, SplitConnection};
 
+use super::channel::Channel;
 use super::error::Error;
 
-#[derive(Debug)]
-pub struct Message {
-    channel_id: ShortUint,
-    frame: Frame,
-}
-pub struct ReadConnection {
-    reader: Reader,
-    channels: Arc<RwLock<BTreeMap<ShortUint, Sender<Message>>>>,
-}
-pub struct WriteConnection {
-    writer: Writer,
-    rx: Receiver<Message>,
-}
-const CHANNEL_BUFFER_SIZE: usize = 16;
 pub struct Connection {
-    channel_id: ShortUint,
-    tx: Sender<Message>,
-    rx: Receiver<Message>,
-    channels: Arc<RwLock<BTreeMap<ShortUint, Sender<Message>>>>,
-}
-pub struct Channel {
-    id: ShortUint,
-    tx: Sender<Message>,
-    rx: Receiver<Message>,
-    channels: Arc<RwLock<BTreeMap<ShortUint, Sender<Message>>>>,
+    manager: ConnectionManager,
 }
 
 impl Connection {
     pub async fn open(uri: &str) -> Result<Self, Error> {
-        let (tx_resp, mut rx_resp) = mpsc::channel(CHANNEL_BUFFER_SIZE);
-        let (tx_req, mut rx_req) = mpsc::channel(CHANNEL_BUFFER_SIZE);
-
-        let (mut reader, mut writer) = SplitConnection::open(uri).await.unwrap();
+        let mut connection = SplitConnection::open(uri).await?;
         // TODO: protocol header negotiation ?
-        writer.write(&ProtocolHeader::default()).await.unwrap();
+        connection.write(&ProtocolHeader::default()).await?;
 
-        // create task for write connection
-        tokio::spawn(async move {
-            let mut conn = WriteConnection { writer, rx: rx_req };
-            while let Some(msg) = conn.rx.recv().await {
-                let Message { channel_id, frame } = msg;
-                conn.writer.write_frame(channel_id, frame).await.unwrap();
-            }
-            println!("exit write connection !");
-        });
-        // store the channel's sender half
-        let mut channels = Arc::new(RwLock::new(BTreeMap::new()));
-        channels.write().await.insert(0, tx_resp);
-
-        // create task for read connection
-        let mut conn = ReadConnection {
-            reader,
-            channels: channels.clone(),
-        };
-        // response from channel over reader half
-        tokio::spawn(async move {
-            while let Ok((channel_id, frame)) = conn.reader.read_frame().await {
-                let channels = conn.channels.read().await;
-
-                let tx_resp = channels.get(&channel_id).unwrap();
-                tx_resp.send(Message { channel_id, frame }).await.unwrap();
-            }
-
-            println!("exit read connection !");
-            // TODO: notify write connection to shutdown
-            conn.channels.write().await.clear();
-        });
-
-        // connection class method always use channel 0
-        let channel_id = 0;
         // S: 'Start'
-        let start = rx_resp.recv().await.unwrap();
-        println!(" {start:?}");
+        let (_, start) = connection.read_frame().await?;
 
         // C: 'StartOk'
         let start_ok = StartOk::default().into_frame();
-        tx_req
-            .send(Message {
-                channel_id,
-                frame: start_ok,
-            })
-            .await
-            .unwrap();
+        connection.write_frame(0, start_ok).await?;
 
         // S: 'Tune'
-        let tune = rx_resp.recv().await.unwrap();
+        let (_, tune) = connection.read_frame().await?;
         println!("{tune:?}");
 
         // C: TuneOk
         let mut tune_ok = TuneOk::default();
-        let tune = match tune.frame {
-            Frame::Tune(_, v) => v,
-            _ => panic!("wrong message"),
+        match tune {
+            Frame::Tune(_, method) => {
+                tune_ok.channel_max = method.channel_max;
+                tune_ok.frame_max = method.frame_max;
+                tune_ok.heartbeat = method.heartbeat;
+            }
+            _ => return Err(Error::ConnectionOpenFailure),
         };
-
-        tune_ok.channel_max = tune.channel_max;
-        tune_ok.frame_max = tune.frame_max;
-        tune_ok.heartbeat = tune.heartbeat / 2;
-
-        tx_req
-            .send(Message {
-                channel_id,
-                frame: tune_ok.into_frame(),
-            })
-            .await
-            .unwrap();
+        let channel_max = tune_ok.channel_max;
+        let heartbeat = tune_ok.channel_max;
+        connection.write_frame(0, tune_ok.into_frame()).await?;
 
         // C: Open
         let open = Open::default().into_frame();
-        tx_req
-            .send(Message {
-                channel_id,
-                frame: open,
-            })
-            .await
-            .unwrap();
+        connection.write_frame(0, open).await?;
 
         // S: OpenOk
-        let open_ok = rx_resp.recv().await.unwrap();
+        let (_, open_ok) = connection.read_frame().await?;
         println!("{open_ok:?}");
 
-        Ok(Self {
-            channel_id: 0,
-            tx: tx_req,
-            rx: rx_resp,
-            channels,
-        })
+        let manager = ConnectionManager::spawn(connection, channel_max).await;
+        Ok(Self { manager })
     }
 
-    pub async fn close(&mut self) {
+    pub async fn close(mut self) -> Result<(), Error> {
         // C: Close
-        self.tx
+        self.manager
+            .tx
             .send(Message {
-                channel_id: self.channel_id,
+                channel_id: 0,
                 frame: Close::default().into_frame(),
             })
-            .await
-            .unwrap();
+            .await?;
 
         // S: CloseOk
-        let close_ok = self.rx.recv().await.unwrap();
+        let close_ok = self.manager.rx.recv().await;
         println!("{close_ok:?}");
+        Ok(())
     }
 
     pub async fn channel(&mut self) -> Result<Channel, Error> {
-        let channel_id = self.channels.read().await.len() as ShortUint;
-        let (tx_resp, mut rx_resp) = mpsc::channel(CHANNEL_BUFFER_SIZE);
-        self.channels.write().await.insert(channel_id, tx_resp);
-        // TODO: close the channel, and remove it from the map?
-        Ok(Channel {
-            id: channel_id,
-            tx: self.tx.clone(),
-            rx: rx_resp,
-            channels: self.channels.clone(),
-        })
-    }
-}
+        let (channel_id, tx, mut rx) = self.manager.allocate_channel().await;
 
-impl Channel {
-    pub async fn open(&mut self) {
-        self.tx
-            .send(Message {
-                channel_id: self.id,
-                frame: OpenChannel::default().into_frame(),
-            })
-            .await
-            .unwrap();
-        let resp = match self.rx.recv().await {
-            Some(v) => v,
-            None => todo!(),
-        };
-        println!("{:?}", resp);
-    }
-    pub async fn exchange_declare(&mut self) {
-        self.tx
-            .send(Message {
-                channel_id: self.id,
-                frame: Declare::new(true, false, false, false, false).into_frame(),
-            })
-            .await
-            .unwrap();
-        let resp = match self.rx.recv().await {
-            Some(v) => v,
-            None => todo!(),
-        };
-        println!("{:?}", resp);
+        tx.send(Message {
+            channel_id,
+            frame: OpenChannel::default().into_frame(),
+        })
+        .await?;
+        match rx.recv().await {
+            Some(frame) => match frame {
+                Frame::OpenChannelOk(_, _) => Ok(Channel::new(channel_id, tx, rx)),
+                _ => Err(Error::ChannelOpenFailure),
+            },
+            None => Err(Error::ChannelOpenFailure),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Connection;
-
+    use tokio::time;
     #[tokio::test]
     async fn test_api_open_and_close() {
-        for _ in 0..2 {
-            let mut conn = Connection::open("localhost:5672").await.unwrap();
+        let mut client = Connection::open("localhost:5672").await.unwrap();
 
-            let mut channel = conn.channel().await.unwrap();
-            channel.open().await;
-            channel.exchange_declare().await;
-
-            // heartbeat from connection
-            while let Some(heartbeat) = conn.rx.recv().await {
-                println!("{:?}", heartbeat);
-            }
-            println!("connection closed by server");
-        }
+        let mut channel = client.channel().await.unwrap();
+        channel.exchange_declare().await.unwrap();
+        // time::sleep(time::Duration::from_secs(160)).await;
+        channel.close().await;
+        client.close().await.unwrap();
     }
 }

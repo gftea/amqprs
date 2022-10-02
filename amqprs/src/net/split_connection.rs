@@ -1,11 +1,15 @@
 use crate::frame::{Frame, FrameHeader};
 
-use amqp_serde::{constants::FRAME_END, to_buffer, types::ShortUint};
+use amqp_serde::{
+    constants::FRAME_END,
+    to_buffer,
+    types::{AmqpChannelId, ShortUint},
+};
 use bytes::{Buf, BytesMut};
 use serde::Serialize;
 use std::io;
 use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWriteExt},
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpStream,
@@ -14,37 +18,63 @@ use tokio::{
 
 const DEFAULT_BUFFER_SIZE: usize = 8192;
 
-pub struct SplitConnection;
-pub struct Reader {
+pub struct SplitConnection {
+    reader: BufferReader,
+    writer: BufferWriter,
+}
+pub struct BufferReader {
     stream: OwnedReadHalf,
     buffer: BytesMut,
 }
-pub struct Writer {
+pub struct BufferWriter {
     stream: OwnedWriteHalf,
     buffer: BytesMut,
 }
 
 impl SplitConnection {
-    pub async fn open(addr: &str) -> io::Result<(Reader, Writer)> {
+    /// open a splitable socket connection
+    pub async fn open(addr: &str) -> io::Result<Self> {
         let stream = TcpStream::connect(addr).await?;
         let (reader, writer) = stream.into_split();
 
         let read_buffer = BytesMut::with_capacity(DEFAULT_BUFFER_SIZE);
         let write_buffer = BytesMut::with_capacity(DEFAULT_BUFFER_SIZE);
 
-        Ok((
-            Reader {
+        Ok(Self {
+            reader: BufferReader {
                 stream: reader,
                 buffer: read_buffer,
             },
-            Writer {
+            writer: BufferWriter {
                 stream: writer,
                 buffer: write_buffer,
             },
-        ))
+        })
+    }
+    pub fn into_split(self) -> (BufferReader, BufferWriter) {
+        (self.reader, self.writer)
+    }
+    /// forward to reader and writer
+    pub async fn close(self) -> io::Result<()> {
+        self.reader.close().await;
+        self.writer.close().await
+    }
+    /// forward to writer
+    pub async fn write<T: Serialize>(&mut self, value: &T) -> io::Result<usize> {
+        self.writer.write(value).await
+    }
+    /// forward to writer
+    pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> io::Result<usize> {
+        self.writer.write_frame(channel, frame).await
+    }
+    /// forward to reader
+    pub async fn read_frame(&mut self) -> io::Result<(ShortUint, Frame)> {
+        self.reader.read_frame().await
     }
 }
-impl Writer {
+
+impl BufferWriter {
+    /// write any sequence of bytes
     pub async fn write<T: Serialize>(&mut self, value: &T) -> io::Result<usize> {
         to_buffer(value, &mut self.buffer)
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
@@ -53,8 +83,8 @@ impl Writer {
         self.buffer.advance(len);
         Ok(len)
     }
-
-    pub async fn write_frame(&mut self, channel: ShortUint, frame: Frame) -> io::Result<usize> {
+    /// write a frame over specific channel
+    pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> io::Result<usize> {
         // reserve bytes for frame header, which to be updated after encoding payload
         let header = FrameHeader {
             frame_type: frame.get_frame_type(),
@@ -86,12 +116,13 @@ impl Writer {
         Ok(len)
     }
 
-    pub async fn close(&mut self) -> io::Result<()> {
+    /// close the socket and consume
+    pub async fn close(mut self) -> io::Result<()> {
         // TODO: flush buffers if is not empty?
         self.stream.shutdown().await
     }
 }
-impl Reader {
+impl BufferReader {
     /// To support channels multiplex on one connection
     /// we need to return the channel id.
     /// Return :
@@ -110,30 +141,42 @@ impl Reader {
                 }
             }
             // TODO: replace with tracing
-            println!("number of bytes read from network {len}");
+            // println!("number of bytes read from network {len}");
             // println!("{:02X?}", self.buffer.as_ref());
             // println!("{:?}", self.buffer);
 
             match Frame::decode(&self.buffer) {
-                Ok((len, channel, frame)) => {
-                    // discard parsed data in read buffer
-                    self.buffer.advance(len);
-                    return Ok((channel, frame));
+                Ok(value) => {
+                    match value {
+                        Some((len, channel, frame)) => {
+                            // discard parsed data in read buffer
+                            self.buffer.advance(len);
+                            return Ok((channel, frame));
+                        }
+                        None => continue,
+                    }
                 }
                 Err(err) => match err {
-                    crate::frame::Error::Incomplete => continue,
-                    crate::frame::Error::Corrupted => {
-                        // TODO: map this error to indicate connection to be shutdown
+                    crate::frame::Error::Corrupted =>
+                    // TODO: map this error to indicate connection to be shutdown
+                    {
                         return Err(io::Error::new(
                             io::ErrorKind::Other,
                             "corrupted frame, should close the connection",
-                        ));
+                        ))
                     }
-                    crate::frame::Error::Other(_) => todo!(),
+                    crate::frame::Error::Inner(msg) => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::Other,
+                            "internal error, should close the connection",
+                        ))
+                    }
                 },
             }
         }
     }
+    /// consume the reader
+    pub async fn close(self) {}
 }
 
 #[cfg(test)]
@@ -141,7 +184,7 @@ mod test {
 
     use super::SplitConnection;
     use crate::frame::*;
-    use tokio::{runtime, sync::mpsc};
+    use tokio::{runtime, sync::mpsc, time::sleep};
 
     fn new_runtime() -> runtime::Runtime {
         let rt = runtime::Builder::new_multi_thread()
@@ -155,7 +198,10 @@ mod test {
         let (tx_resp, mut rx_resp) = mpsc::channel(1024);
         let (tx_req, mut rx_req) = mpsc::channel(1024);
 
-        let (mut reader, mut writer) = SplitConnection::open("localhost:5672").await.unwrap();
+        let (mut reader, mut writer) = SplitConnection::open("localhost:5672")
+            .await
+            .unwrap()
+            .into_split();
         // TODO: protocol header negotiation in connection level
         // do not need support channel multiplex, only done once per new connection
         writer.write(&ProtocolHeader::default()).await.unwrap();
@@ -218,5 +264,29 @@ mod test {
         println!("{close_ok:?}");
     }
 
+    #[tokio::test]
+    async fn test_connection_open_close() {
+        let mut connection = SplitConnection::open("localhost:5672").await.unwrap();
 
+        connection.write(&ProtocolHeader::default()).await.unwrap();
+        let (channel_id, frame) = connection.read_frame().await.unwrap();
+        assert_eq!(0, channel_id);
+        println!(" {frame:?}");
+        connection.write_frame(channel_id, StartOk::default().into_frame()).await.unwrap();
+        connection.close().await;
+    }
+
+    #[tokio::test]
+    async fn test_split_open_close() {
+        let (mut reader, mut writer) = SplitConnection::open("localhost:5672").await.unwrap().into_split();
+
+        writer.write(&ProtocolHeader::default()).await.unwrap();
+        let (channel_id, frame) = reader.read_frame().await.unwrap();
+        assert_eq!(0, channel_id);
+        println!(" {frame:?}");
+        writer.write_frame(channel_id, StartOk::default().into_frame()).await.unwrap();
+        reader.close().await;
+        writer.close().await;
+
+    }
 }
