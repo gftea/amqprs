@@ -5,7 +5,10 @@ use crate::net;
 #[derive(Debug)]
 pub enum Error {
     ConnectionOpenError,
+    ConnectionCloseError,
+    ConnectionUseError,
     ChannelOpenError,
+    ChannelCloseError,
     ChannelUseError,
     CommunicationError(String),
 }
@@ -28,6 +31,10 @@ impl fmt::Display for Error {
             Error::CommunicationError(msg) => write!(f, "{}", msg),
             Error::ChannelOpenError => f.write_str("failed to open amqp channel"),
             Error::ChannelUseError => f.write_str("error occurred in channel"),
+            Error::ConnectionCloseError => todo!(),
+            Error::ConnectionUseError => todo!(),
+            Error::ChannelCloseError => todo!(),
+            
         }
     }
 }

@@ -59,10 +59,16 @@ impl Connection {
             .send((0, Close::default().into_frame()))
             .await?;
 
-        // S: CloseOk
-        let close_ok = self.manager.rx.recv().await;
-        println!("client: {close_ok:?}");
-        Ok(())
+        match self
+            .manager
+            .rx
+            .recv()
+            .await
+            .ok_or_else(|| Error::ConnectionCloseError)?
+        {
+            Frame::CloseOk(_, _) => Ok(()),
+            _ => Err(Error::ConnectionCloseError),
+        }
     }
 
     pub async fn channel(&mut self) -> Result<Channel, Error> {
@@ -70,12 +76,10 @@ impl Connection {
 
         tx.send((channel_id, OpenChannel::default().into_frame()))
             .await?;
-        match rx.recv().await {
-            Some(frame) => match frame {
-                Frame::OpenChannelOk(_, _) => Ok(Channel::new(channel_id, tx, rx)),
-                _ => Err(Error::ChannelOpenError),
-            },
-            None => Err(Error::ChannelOpenError),
+
+        match rx.recv().await.ok_or_else(|| Error::ChannelOpenError)? {
+            Frame::OpenChannelOk(_, _) => Ok(Channel::new(channel_id, tx, rx)),
+            _ => Err(Error::ChannelOpenError),
         }
     }
 }
