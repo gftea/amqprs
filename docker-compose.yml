@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    restart: always
+    image: bitnami/rabbitmq:3.8.9
+    expose:
+      - "15672"
+      - "5672"
+      - "15675"
+      - "1883"
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+      - "15675:15675"
+      - "1883:1883"
+    networks:
+      integration-net:
+        aliases:
+          - rabbitmq
+    environment:
+      - RABBITMQ_USERNAME=user
+      - RABBITMQ_PASSWORD=bitnami
+      - RABBITMQ_VHOST=/
+
+networks:
+  integration-net:
+    driver: bridge
