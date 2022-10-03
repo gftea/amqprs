@@ -18,6 +18,7 @@ pub struct ReaderHandler {
     stream: BufferReader,
     response_tx: Sender<Frame>,
     request_tx: Sender<Message>,
+    #[allow(dead_code /* notify shutdown just by dropping the instance */)]
     notify_shutdown: broadcast::Sender<()>,
     channel_manager: Arc<RwLock<ChannelManager>>,
 }
@@ -43,7 +44,7 @@ impl ReaderHandler {
                     break;
                 }
                 Frame::CloseChannel(..) => {
-                    self.channel_manager.write().await.delete(channel_id);
+                    self.channel_manager.write().await.remove(channel_id);
                     println!("forward close channel ok to writer, id: {channel_id} ");
                     self.request_tx
                         .send((channel_id, CloseChannelOk::default().into_frame()))
@@ -54,7 +55,7 @@ impl ReaderHandler {
 
                 Frame::CloseChannelOk(..) => {
                     println!("got close channel ok, id: {channel_id} ");
-                    let tx = self.channel_manager.write().await.delete(channel_id);
+                    let tx = self.channel_manager.write().await.remove(channel_id);
                     if let Some(tx) = tx {
                         if let Err(_) = tx.send(frame).await {
                             println!("channel already closed");
@@ -76,7 +77,7 @@ impl ReaderHandler {
                 if let Some(tx) = self.channel_manager.read().await.get(&channel_id) {
                     if let Err(_) = tx.send(frame).await {
                         // drop  channel
-                        self.channel_manager.write().await.delete(channel_id);
+                        self.channel_manager.write().await.remove(channel_id);
                     }
                 }
             }
@@ -139,15 +140,20 @@ pub struct ChannelManager {
     channels: BTreeMap<AmqpChannelId, Sender<Frame>>,
 }
 
+// AMQP channel manager handle allocation of AMQP channel id and messaging channel
 impl ChannelManager {
     pub fn new(channel_max: ShortUint) -> Self {
+        // `DEFAULT_CONNECTION_CHANNEL` is reserved for connection level message
+        // the channel manager only allocate id above DEFAULT_CONNECTION_CHANNEL
         Self {
             channel_max,
-            last_allocated_id: 0,
+            last_allocated_id: DEFAULT_CONNECTION_CHANNEL,
             free_ids: vec![],
             channels: BTreeMap::new(),
         }
     }
+
+    // allocate a channel id or reuse a previous free id
     fn alloc_id(&mut self) -> ShortUint {
         assert!(self.channels.len() < self.channel_max as usize);
         // if any free id from closed channel
@@ -160,28 +166,37 @@ impl ChannelManager {
             self.last_allocated_id
         }
     }
+
+    // check if the channel exists
     fn check(&self, channel_id: &AmqpChannelId) -> bool {
         self.channels.contains_key(channel_id)
     }
 
+    // get sender half to be used for forwarding mesaage to AMQP channel
     fn get(&self, channel_id: &AmqpChannelId) -> Option<&Sender<Frame>> {
         self.channels.get(channel_id)
     }
 
-    fn add(&mut self, sender: Sender<Frame>) -> AmqpChannelId {
-        let channel_id = self.alloc_id();
+    // store sender half associated with the channel id
+    // if channel id already exist, it will silently overwrite the associated value 
+    fn store(&mut self, channel_id: AmqpChannelId, sender: Sender<Frame>)  {
         self.channels.insert(channel_id, sender);
-        channel_id
     }
-    fn delete(&mut self, channel_id: AmqpChannelId) -> Option<Sender<Frame>> {
+
+    // remove sender half
+    // if exist, return the Sender half, else None
+    fn remove(&mut self, channel_id: AmqpChannelId) -> Option<Sender<Frame>> {
         let sender = self.channels.remove(&channel_id);
-        self.free_ids.push(channel_id);
+        if !self.free_ids.contains(&channel_id) {
+            self.free_ids.push(channel_id);
+        }
         sender
     }
+
     fn clear(&mut self) {
         self.channels.clear();
         self.free_ids.clear();
-        self.last_allocated_id = 0;
+        self.last_allocated_id = DEFAULT_CONNECTION_CHANNEL;
     }
 }
 
@@ -191,18 +206,24 @@ pub struct ConnectionManager {
     pub channel_manager: Arc<RwLock<ChannelManager>>,
 }
 
+// AMQP connection manager per a AMQP connection
+// AMQP client message is forwarded to the manager first, then the manager's write handler task forward to server
+// AMQP server message is received by manager's read handler task first, and forwarded to the client.
+// Server's request will be handled internnaly within manager, e.g. hearbeat, close request from servers, etc
 impl ConnectionManager {
-    /// Spawn management tasks for connection
     pub async fn spawn(connection: SplitConnection, channel_max: ShortUint) -> Self {
+        // The Connection Manager will Spawn two  tasks for connection
+        // - one task for writer handler
+        // - one task for reader handler
         let (request_tx, request_rx) = mpsc::channel(CHANNEL_BUFFER_SIZE);
         let (response_tx, response_rx) = mpsc::channel(CHANNEL_BUFFER_SIZE);
         let (reader, writer) = connection.into_split();
 
         let channel_manager = Arc::new(RwLock::new(ChannelManager::new(channel_max)));
 
-        let (notify_shutdown, mut shutdown) = broadcast::channel::<()>(1);
+        let (notify_shutdown, shutdown) = broadcast::channel::<()>(1);
 
-        // spawn task for write connection
+        // spawn task for write connection handler
         let mut handler = WriterHandler {
             stream: writer,
             channel_manager: channel_manager.clone(),
@@ -213,7 +234,7 @@ impl ConnectionManager {
             handler.run().await;
         });
 
-        // spawn task for read connection
+        // spawn task for read connection hanlder
         let mut handler = ReaderHandler {
             stream: reader,
             response_tx,
@@ -225,7 +246,6 @@ impl ConnectionManager {
             handler.run().await;
         });
 
-        //
         Self {
             tx: request_tx,
             rx: response_rx,
@@ -234,8 +254,17 @@ impl ConnectionManager {
     }
 
     pub async fn allocate_channel(&mut self) -> (AmqpChannelId, Sender<Message>, Receiver<Frame>) {
+        // A channel has
+        // - a sender to send message to write connection handler,  created by cloning sender of channel manager
+        // - a receiver to receive message from read connection handler, the sender half will be stored in channel manager
+        //   and will be retrieved by read connection handler
+        //
         let (tx, rx) = mpsc::channel(CHANNEL_BUFFER_SIZE);
-        let id = self.channel_manager.write().await.add(tx);
-        (id, self.tx.clone(), rx)
+        let channel_id = self.channel_manager.write().await.alloc_id();
+        if self.channel_manager.read().await.check(&channel_id) {
+            unreachable!("duplicated channel id: {channel_id}");
+        }
+        self.channel_manager.write().await.store(channel_id, tx);
+        (channel_id, self.tx.clone(), rx)
     }
 }

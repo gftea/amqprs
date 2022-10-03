@@ -1,26 +1,42 @@
 use std::{fmt, io};
 
-use super::Message;
+use crate::frame;
+
+
 
 #[derive(Debug)]
 pub enum Error {
-    IOFailure(String),
-    ReadFailure(String),
-    WriteFailure(String),
+    NetIOFailure(String),
+    SerdeError(String),
+    FramingError(String),
+    PeerShutdown,
+    Interrupted,
 }
 
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Self {
-        Error::IOFailure(err.to_string())
+        Error::NetIOFailure(err.to_string())
     }
 }
-
+impl From<amqp_serde::Error> for Error {
+    fn from(err: amqp_serde::Error) -> Self {
+        Error::SerdeError(err.to_string())
+    }
+}
+impl From<frame::Error> for Error {
+    fn from(err: frame::Error) -> Self {
+        Error::FramingError(err.to_string())
+    }
+}
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::IOFailure(msg) => write!(f, "{}", msg),
-            Error::ReadFailure(msg) => write!(f, "{}", msg),
-            Error::WriteFailure(msg) => write!(f, "{}", msg),
+            Error::NetIOFailure(msg) => write!(f, "{}", msg),
+            Error::SerdeError(msg) => write!(f, "{}", msg),
+            Error::FramingError(msg) => write!(f, "{}", msg),
+            Error::PeerShutdown => f.write_str("Peer shutdown"),
+            Error::Interrupted => f.write_str("connection exceptionally interrupted"),
+            
         }
     }
 }

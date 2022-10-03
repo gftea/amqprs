@@ -17,9 +17,9 @@ impl_mapping!(Blocked, 10, 60);
 impl_mapping!(Unblocked, 10, 61);
 impl_mapping!(UpdateSecret, 10, 70);
 impl_mapping!(UpdateSecretOk, 10, 71);
-/////////////////////////////////
-/// Connection
-/////////////////////////////////
+
+
+
 #[derive(Debug, Deserialize)]
 pub struct Start {
     pub version_major: Octect,
@@ -102,21 +102,7 @@ impl Default for Close {
         }
     }
 }
-impl Close {
-    pub fn new(
-        reply_code: ShortUint,
-        reply_text: ShortStr,
-        class_id: ShortUint,
-        method_id: ShortUint,
-    ) -> Self {
-        Self {
-            reply_code,
-            reply_text,
-            class_id,
-            method_id,
-        }
-    }
-}
+
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct CloseOk;
@@ -124,18 +110,18 @@ pub struct CloseOk;
 
 #[derive(Debug, Serialize, Default)]
 pub struct Secure {
-    challenge: LongStr,
+    pub challenge: LongStr,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct SecureOk {
-    response: LongStr,
+    pub response: LongStr,
 }
 
 // below from https://www.rabbitmq.com/resources/specs/amqp0-9-1.extended.xml
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Blocked {
-    reason: ShortStr,
+    pub reason: ShortStr,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]

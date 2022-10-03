@@ -18,7 +18,7 @@ pub struct OpenChannel {
 
 #[derive(Debug, Deserialize)]
 pub struct OpenChannelOk {
-    channel_id: LongStr,
+    pub channel_id: LongStr,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -8,7 +8,10 @@ pub struct Connection {
     manager: ConnectionManager,
 }
 
+/// AMQP Connection API
+///
 impl Connection {
+    /// Open a AMQP connection
     pub async fn open(uri: &str) -> Result<Self, Error> {
         let mut connection = SplitConnection::open(uri).await?;
         // TODO: protocol header negotiation ?
@@ -99,7 +102,7 @@ mod tests {
 
         let mut handles = vec![];
 
-        for i in 0..10 {
+        for _ in 0..10 {
             let mut ch = client.channel().await.unwrap();
             handles.push(tokio::spawn(async move {
                 time::sleep(time::Duration::from_secs(1)).await;
@@ -123,7 +126,7 @@ mod tests {
             handles.push(handle);
         }
         for h in handles {
-            h.await;
+            h.await.unwrap();
         }
     }
 }

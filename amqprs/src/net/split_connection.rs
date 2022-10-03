@@ -1,9 +1,6 @@
 use crate::frame::{Frame, FrameHeader, FRAME_END};
 
-use amqp_serde::{
-    to_buffer,
-    types::{AmqpChannelId, ShortUint},
-};
+use amqp_serde::{to_buffer, types::AmqpChannelId};
 use bytes::{Buf, BytesMut};
 use serde::Serialize;
 use std::io;
@@ -15,6 +12,8 @@ use tokio::{
     },
 };
 
+use super::Error;
+type Result<T> = std::result::Result<T, Error>;
 const DEFAULT_BUFFER_SIZE: usize = 8192;
 
 pub struct SplitConnection {
@@ -30,9 +29,10 @@ pub struct BufferWriter {
     buffer: BytesMut,
 }
 
+// Support to split socket connection into reader half and wirter half, which can be run in different tasks cocurrently
+// Same interfaces to read/write packet before and after split.
 impl SplitConnection {
-    /// open a splitable socket connection
-    pub async fn open(addr: &str) -> io::Result<Self> {
+    pub async fn open(addr: &str) -> Result<Self> {
         let stream = TcpStream::connect(addr).await?;
         let (reader, writer) = stream.into_split();
 
@@ -50,31 +50,34 @@ impl SplitConnection {
             },
         })
     }
+
+    // split connection into reader half and writer half
     pub fn into_split(self) -> (BufferReader, BufferWriter) {
         (self.reader, self.writer)
     }
-    /// forward to reader and writer
-    pub async fn close(self) -> io::Result<()> {
+
+    // == below interfaces are forwarded to `BufferReader` and `BufferWriter` internally
+    pub async fn close(self) -> Result<()> {
         self.reader.close().await;
         self.writer.close().await
     }
-    /// forward to writer
-    pub async fn write<T: Serialize>(&mut self, value: &T) -> io::Result<usize> {
+
+    pub async fn write<T: Serialize>(&mut self, value: &T) -> Result<usize> {
         self.writer.write(value).await
     }
-    /// forward to writer
-    pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> io::Result<usize> {
+
+    pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
         self.writer.write_frame(channel, frame).await
     }
-    /// forward to reader
-    pub async fn read_frame(&mut self) -> io::Result<(ShortUint, Frame)> {
+
+    pub async fn read_frame(&mut self) -> Result<ChannelFrame> {
         self.reader.read_frame().await
     }
 }
 
 impl BufferWriter {
-    /// write any sequence of bytes
-    pub async fn write<T: Serialize>(&mut self, value: &T) -> io::Result<usize> {
+    // write any serializable value to socket
+    pub async fn write<T: Serialize>(&mut self, value: &T) -> Result<usize> {
         to_buffer(value, &mut self.buffer)
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
         let len = self.buffer.len();
@@ -82,8 +85,9 @@ impl BufferWriter {
         self.buffer.advance(len);
         Ok(len)
     }
-    /// write a frame over specific channel
-    pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> io::Result<usize> {
+
+    // write a AMQP frame over a specific channel
+    pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
         // reserve bytes for frame header, which to be updated after encoding payload
         let header = FrameHeader {
             frame_type: frame.get_frame_type(),
@@ -93,8 +97,7 @@ impl BufferWriter {
         to_buffer(&header, &mut self.buffer).unwrap();
 
         // encode payload
-        let payload_size = to_buffer(&frame, &mut self.buffer)
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+        let payload_size = to_buffer(&frame, &mut self.buffer)?;
 
         // update frame's payload size
         for (i, v) in (payload_size as u32).to_be_bytes().iter().enumerate() {
@@ -115,35 +118,34 @@ impl BufferWriter {
         Ok(len)
     }
 
-    /// close the socket and consume
-    pub async fn close(mut self) -> io::Result<()> {
-        // TODO: flush buffers if is not empty?
-        self.stream.shutdown().await
+    // The socket connection will be shutdown if writer half is shutdown
+    pub async fn close(mut self) -> Result<()> {
+        self.stream.shutdown().await?;
+        Ok(())
     }
 }
 
+type ChannelFrame = (AmqpChannelId, Frame);
+
 impl BufferReader {
-    async fn decode(&mut self) -> io::Result<Option<(ShortUint, Frame)>> {
-        match Frame::decode(&self.buffer) {
-            Ok(value) => {
-                match value {
-                    Some((len, channel, frame)) => {
-                        // discard parsed data in read buffer
-                        self.buffer.advance(len);
-                        println!("{}, {:?}", channel, frame);
-                        Ok(Some((channel, frame)))
-                    }
-                    None => Ok(None),
-                }
+    // try to decode a whole frame from the bufferred data
+    // If it is incomplete data, return None
+    // If the frame syntax is corrupted, return Error
+    async fn decode(&mut self) -> Result<Option<ChannelFrame>> {
+        match Frame::decode(&self.buffer)? {
+            Some((len, channel_id, frame)) => {
+                // discard parsed data in read buffer
+                self.buffer.advance(len);
+                // TODO: tracing
+                println!("{}, {:?}", channel_id, frame);
+                Ok(Some((channel_id, frame)))
             }
-            Err(err) => Err(io::Error::new(io::ErrorKind::Other, err.to_string())),
+            None => Ok(None),
         }
     }
-    /// To support channels multiplex on one connection
-    /// we need to return the channel id.
-    /// Return :
-    ///     (channel_id, Frame)
-    pub async fn read_frame(&mut self) -> io::Result<(ShortUint, Frame)> {
+
+    // Read a complete frame from socket connection, return channel id and decoded frame.
+    pub async fn read_frame(&mut self) -> Result<ChannelFrame> {
         // check if there is remaining data in buffer to decode first
         let result = self.decode().await?;
         if let Some(frame) = result {
@@ -154,25 +156,22 @@ impl BufferReader {
             let len = self.stream.read_buf(&mut self.buffer).await?;
             if len == 0 {
                 if self.buffer.is_empty() {
-                    //TODO: map to own error
-                    return Err(io::Error::new(io::ErrorKind::Other, "peer shutdown"));
+                    return Err(Error::PeerShutdown);
                 } else {
-                    //TODO: map to own error
-                    return Err(io::Error::new(io::ErrorKind::Other, "connection failure"));
+                    return Err(Error::Interrupted);
                 }
             }
-            // TODO: replace with tracing
+            // TODO:  tracing
             println!("number of bytes read from network {len}");
-            // println!("{:02X?}", self.buffer.as_ref());
-            // println!("{:?}", self.buffer);
             let result = self.decode().await?;
             match result {
-                Some(frame) => return Ok(frame) ,
+                Some(frame) => return Ok(frame),
                 None => continue,
             }
         }
     }
-    /// consume the reader
+
+    // do nothing except consume the reader itself
     pub async fn close(self) {}
 }
 
@@ -181,15 +180,8 @@ mod test {
 
     use super::SplitConnection;
     use crate::frame::*;
-    use tokio::{runtime, sync::mpsc};
+    use tokio::sync::mpsc;
 
-    fn new_runtime() -> runtime::Runtime {
-        let rt = runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        rt
-    }
     #[tokio::test]
     async fn test_streaming_read_write() {
         let (tx_resp, mut rx_resp) = mpsc::channel(1024);
@@ -282,7 +274,7 @@ mod test {
             .write_frame(channel_id, StartOk::default().into_frame())
             .await
             .unwrap();
-        connection.close().await;
+        connection.close().await.unwrap();
     }
 
     #[tokio::test]
@@ -301,6 +293,6 @@ mod test {
             .await
             .unwrap();
         reader.close().await;
-        writer.close().await;
+        writer.close().await.unwrap();
     }
 }

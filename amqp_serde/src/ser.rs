@@ -183,7 +183,7 @@ where
     }
 
     // ignore length
-    fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
         Ok(self)
     }
 
@@ -229,7 +229,7 @@ where
 
     // map is mainly for AMQP field-table, implicitly serailize length as `u32`
     // if to skip serailizing length, one can implement `Serialize` by passing `None` to `len`
-    fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
         let start = self.output.len();
 
         // reserve u32 for length of table

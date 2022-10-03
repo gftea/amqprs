@@ -2,6 +2,8 @@ use std::{fmt, io};
 
 use tokio::sync::mpsc::error::SendError;
 
+use crate::net;
+
 #[derive(Debug)]
 pub enum Error {
     ConnectionOpenFailure,
@@ -11,6 +13,11 @@ pub enum Error {
     Other(String),
 }
 
+impl From<net::Error> for Error {
+    fn from(err: net::Error) -> Self {
+        Self::NetworkFailure(err.to_string())
+    }
+}
 impl From<amqp_serde::Error> for Error {
     fn from(err: amqp_serde::Error) -> Self {
         Self::Other(err.to_string())
