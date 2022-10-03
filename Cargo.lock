@@ -3,14 +3,6 @@
 version = 3
 
 [[package]]
-name = "amqp_frame"
-version = "0.1.0"
-dependencies = [
- "amqp_macros",
- "serde",
-]
-
-[[package]]
 name = "amqp_macros"
 version = "0.1.0"
 dependencies = [
@@ -25,7 +17,6 @@ dependencies = [
  "amqp_macros",
  "bytes",
  "serde",
- "serde_derive",
 ]
 
 [[package]]
