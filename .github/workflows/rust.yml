@@ -1,6 +1,6 @@
 name: Integration
 
-description: 'Run test against real rabbitmq server'
+run-name: 'Run test against real rabbitmq server'
 
 on: workflow_dispatch
   # push:
