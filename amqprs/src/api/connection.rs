@@ -26,7 +26,6 @@ impl Connection {
 
         // S: 'Tune'
         let (_, tune) = connection.read_frame().await?;
-        println!("{tune:?}");
 
         // C: TuneOk
         let mut tune_ok = TuneOk::default();
@@ -48,7 +47,6 @@ impl Connection {
 
         // S: OpenOk
         let (_, open_ok) = connection.read_frame().await?;
-        println!("{open_ok:?}");
 
         let manager = ConnectionManager::spawn(connection, channel_max).await;
         Ok(Self { manager })
@@ -63,7 +61,7 @@ impl Connection {
 
         // S: CloseOk
         let close_ok = self.manager.rx.recv().await;
-        println!("{close_ok:?}");
+        println!("client: {close_ok:?}");
         Ok(())
     }
 
@@ -85,9 +83,9 @@ impl Connection {
 #[cfg(test)]
 mod tests {
     use super::Connection;
-    use tokio::time;
+    use tokio::{task::JoinHandle, time};
     #[tokio::test]
-    async fn test_api_open_and_close() {
+    async fn test_channel_open_use_close() {
         let mut client = Connection::open("localhost:5672").await.unwrap();
 
         let mut channel = client.channel().await.unwrap();
@@ -95,5 +93,40 @@ mod tests {
         // time::sleep(time::Duration::from_secs(160)).await;
         channel.close().await;
         client.close().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_multi_channel_open_close() {
+        let mut client = Connection::open("localhost:5672").await.unwrap();
+
+        let mut handles = vec![];
+
+        for i in 0..10 {
+            let mut ch = client.channel().await.unwrap();
+            handles.push(tokio::spawn(async move {
+                time::sleep(time::Duration::from_secs(10)).await;
+                ch.exchange_declare().await.unwrap();
+
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_multi_conn_open_close() {
+        let mut handles = vec![];
+        for i in 0..10 {
+            let handle = tokio::spawn(async move {
+                let mut client = Connection::open("localhost:5672").await.unwrap();
+                time::sleep(time::Duration::from_millis((i % 3) * 50 + 100)).await;
+                client.close().await.unwrap();
+            });
+            handles.push(handle);
+        }
+        for h in handles {
+            h.await;
+        }
     }
 }

@@ -2,6 +2,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 use tokio::sync::{
+    broadcast,
     mpsc::{self, Receiver, Sender},
     RwLock,
 };
@@ -93,33 +94,48 @@ impl ConnectionManager {
 
         let channel_manager = Arc::new(RwLock::new(ChannelManager::new(channel_max)));
 
+        let (notify_shutdown, mut shutdown) = broadcast::channel::<()>(1);
+
         // spawn task for write connection
         let mut handler = WriterHandler {
             stream: writer,
             channel_manager: channel_manager.clone(),
             request_rx,
         };
-
         tokio::spawn(async move {
-            while let Some((channel_id, frame)) = handler.request_rx.recv().await {
-                // handle server close request internally
-                match &frame {
-                    Frame::CloseOk(..) => {
-                        assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
-                        println!("respond close ok to server");
-                        handler.stream.write_frame(channel_id, frame).await.unwrap();
+            loop {
+                tokio::select! {
+                    _ = shutdown.recv() => {
+                        println!("received shutdown");
                         break;
-                    }
-                    Frame::CloseChannelOk(..) => {
-                        println!("respond close channel ok to server");
-                    }
-                    _ => (),
-                }
+                    },
+                    msg = handler.request_rx.recv() => {
 
-                handler.stream.write_frame(channel_id, frame).await.unwrap();
+                            match msg {
+                                Some((channel_id, frame)) => {
+                                    // handle server close request internally
+                                    match &frame {
+                                        Frame::CloseOk(..) => {
+                                            assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
+                                            println!("respond close ok to server");
+                                            handler.stream.write_frame(channel_id, frame).await.unwrap();
+                                            break;
+                                        }
+                                        Frame::CloseChannelOk(..) => {
+                                            println!("respond close channel ok to server");
+                                        }
+                                        _ => (),
+                                    }
+
+                                     handler.stream.write_frame(channel_id, frame).await.unwrap();
+                                },
+                                None => break,
+                            }
+                    }
+                };
             }
-            println!("write connection exit!");
             handler.channel_manager.write().await.clear();
+            println!("shutdown write connection handler!");
         });
 
         // spawn task for read connection
@@ -151,7 +167,7 @@ impl ConnectionManager {
                     }
                     Frame::CloseChannel(..) => {
                         handler.channel_manager.write().await.delete(channel_id);
-                        println!("forward close channel ok to writer {channel_id} ");
+                        println!("forward close channel ok to writer, id: {channel_id} ");
                         handler
                             .request_tx
                             .send((channel_id, CloseChannelOk::default().into_frame()))
@@ -161,7 +177,7 @@ impl ConnectionManager {
                     }
 
                     Frame::CloseChannelOk(..) => {
-                        println!("got close channel ok {channel_id} ");
+                        println!("got close channel ok, id: {channel_id} ");
                         let tx = handler.channel_manager.write().await.delete(channel_id);
                         if let Some(tx) = tx {
                             if let Err(_) = tx.send(frame).await {
@@ -190,18 +206,11 @@ impl ConnectionManager {
                 }
             }
 
-            println!("read connection exit!");
             handler.channel_manager.write().await.clear();
-            // trip: notify writer handler to shutdown by CloseOk message
-            // this may lead to unnecessary CloseOk message to server
-            // TODO: to be cleaner, use a separate channel to shutdown
-            if let Err(_) = handler
-                .request_tx
-                .send((DEFAULT_CONNECTION_CHANNEL, CloseOk::default().into_frame()))
-                .await
-            {
-                println!("failed to notify writer handler to shutdown");
-            }
+            // When `notify_shutdown` is dropped, all tasks which have `subscribe`d will
+            // receive the shutdown signal and can exit
+            drop(notify_shutdown);
+            println!("shutdown read connection handler!");
         });
 
         //

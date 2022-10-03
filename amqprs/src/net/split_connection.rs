@@ -121,13 +121,35 @@ impl BufferWriter {
         self.stream.shutdown().await
     }
 }
+
 impl BufferReader {
+    async fn decode(&mut self) -> io::Result<Option<(ShortUint, Frame)>> {
+        match Frame::decode(&self.buffer) {
+            Ok(value) => {
+                match value {
+                    Some((len, channel, frame)) => {
+                        // discard parsed data in read buffer
+                        self.buffer.advance(len);
+                        println!("{}, {:?}", channel, frame);
+                        Ok(Some((channel, frame)))
+                    }
+                    None => Ok(None),
+                }
+            }
+            Err(err) => Err(io::Error::new(io::ErrorKind::Other, err.to_string())),
+        }
+    }
     /// To support channels multiplex on one connection
     /// we need to return the channel id.
     /// Return :
     ///     (channel_id, Frame)
     pub async fn read_frame(&mut self) -> io::Result<(ShortUint, Frame)> {
-        // TODO: handle network error, such as timeout, corrupted frame
+        // check if there is remaining data in buffer to decode first
+        let result = self.decode().await?;
+        if let Some(frame) = result {
+            return Ok(frame);
+        }
+        // incomplete frame data remains in buffer, read until a complete frame
         loop {
             let len = self.stream.read_buf(&mut self.buffer).await?;
             if len == 0 {
@@ -140,37 +162,13 @@ impl BufferReader {
                 }
             }
             // TODO: replace with tracing
-            // println!("number of bytes read from network {len}");
+            println!("number of bytes read from network {len}");
             // println!("{:02X?}", self.buffer.as_ref());
             // println!("{:?}", self.buffer);
-
-            match Frame::decode(&self.buffer) {
-                Ok(value) => {
-                    match value {
-                        Some((len, channel, frame)) => {
-                            // discard parsed data in read buffer
-                            self.buffer.advance(len);
-                            return Ok((channel, frame));
-                        }
-                        None => continue,
-                    }
-                }
-                Err(err) => match err {
-                    crate::frame::Error::Corrupted =>
-                    // TODO: map this error to indicate connection to be shutdown
-                    {
-                        return Err(io::Error::new(
-                            io::ErrorKind::Other,
-                            "corrupted frame, should close the connection",
-                        ))
-                    }
-                    crate::frame::Error::Inner(msg) => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::Other,
-                            "internal error, should close the connection",
-                        ))
-                    }
-                },
+            let result = self.decode().await?;
+            match result {
+                Some(frame) => return Ok(frame) ,
+                None => continue,
             }
         }
     }
@@ -225,7 +223,10 @@ mod test {
 
         // C: 'StartOk'
         let start_ok = StartOk::default().into_frame();
-        tx_req.send((DEFAULT_CONNECTION_CHANNEL, start_ok)).await.unwrap();
+        tx_req
+            .send((DEFAULT_CONNECTION_CHANNEL, start_ok))
+            .await
+            .unwrap();
 
         // S: 'Tune'
         let tune = rx_resp.recv().await.unwrap();
@@ -242,11 +243,17 @@ mod test {
         tune_ok.frame_max = tune.frame_max;
         tune_ok.heartbeat = tune.heartbeat;
 
-        tx_req.send((DEFAULT_CONNECTION_CHANNEL, tune_ok.into_frame())).await.unwrap();
+        tx_req
+            .send((DEFAULT_CONNECTION_CHANNEL, tune_ok.into_frame()))
+            .await
+            .unwrap();
 
         // C: Open
         let open = Open::default().into_frame();
-        tx_req.send((DEFAULT_CONNECTION_CHANNEL, open)).await.unwrap();
+        tx_req
+            .send((DEFAULT_CONNECTION_CHANNEL, open))
+            .await
+            .unwrap();
 
         // S: OpenOk
         let open_ok = rx_resp.recv().await.unwrap();
