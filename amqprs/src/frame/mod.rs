@@ -41,8 +41,8 @@ pub enum Frame {
     #[serde(skip_serializing)]
     Start(&'static MethodHeader, Start),
     StartOk(&'static MethodHeader, StartOk),
-    Secure(&'static MethodHeader, Secure),
     #[serde(skip_serializing)]
+    Secure(&'static MethodHeader, Secure),
     SecureOk(&'static MethodHeader, SecureOk),
     #[serde(skip_serializing)]
     Tune(&'static MethodHeader, Tune),
@@ -162,7 +162,7 @@ impl Frame {
                     header,
                     content,
                     Start,
-                    SecureOk,
+                    Secure,
                     Tune,
                     OpenOk,
                     Close,

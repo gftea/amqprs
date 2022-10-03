@@ -56,7 +56,8 @@ impl SplitConnection {
         (self.reader, self.writer)
     }
 
-    // == below interfaces are forwarded to `BufferReader` and `BufferWriter` internally
+    // to keep same read/write interfaces before and after connection split
+    // below interfaces are forwarded to `BufferReader` and `BufferWriter` internally
     pub async fn close(self) -> Result<()> {
         self.reader.close().await;
         self.writer.close().await

@@ -108,12 +108,12 @@ impl Default for Close {
 pub struct CloseOk;
 
 
-#[derive(Debug, Serialize, Default)]
+#[derive(Debug, Deserialize)]
 pub struct Secure {
     pub challenge: LongStr,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct SecureOk {
     pub response: LongStr,
 }

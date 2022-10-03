@@ -27,9 +27,9 @@ impl Channel {
         match self.rx.recv().await {
             Some(frame) => match frame {
                 Frame::DeclareOk(_, _) => Ok(()),
-                _ => Err(Error::ChannelUseFailure),
+                _ => Err(Error::ChannelUseError),
             },
-            None => Err(Error::ChannelUseFailure),
+            None => Err(Error::ChannelUseError),
         }
     }
 

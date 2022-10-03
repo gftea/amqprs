@@ -35,7 +35,7 @@ impl Connection {
                 tune_ok.frame_max = method.frame_max;
                 tune_ok.heartbeat = method.heartbeat;
             }
-            _ => return Err(Error::ConnectionOpenFailure),
+            _ => return Err(Error::ConnectionOpenError),
         };
         let channel_max = tune_ok.channel_max;
         let heartbeat = tune_ok.channel_max;
@@ -73,9 +73,9 @@ impl Connection {
         match rx.recv().await {
             Some(frame) => match frame {
                 Frame::OpenChannelOk(_, _) => Ok(Channel::new(channel_id, tx, rx)),
-                _ => Err(Error::ChannelOpenFailure),
+                _ => Err(Error::ChannelOpenError),
             },
-            None => Err(Error::ChannelOpenFailure),
+            None => Err(Error::ChannelOpenError),
         }
     }
 }
@@ -119,7 +119,7 @@ mod tests {
         let mut handles = vec![];
         for i in 0..10 {
             let handle = tokio::spawn(async move {
-                let mut client = Connection::open("localhost:5672").await.unwrap();
+                let client = Connection::open("localhost:5672").await.unwrap();
                 time::sleep(time::Duration::from_millis((i % 3) * 50 + 100)).await;
                 client.close().await.unwrap();
             });
