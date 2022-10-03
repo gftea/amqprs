@@ -1,20 +1,16 @@
-use amqp_serde::{
-    constants::REPLY_SUCCESS,
-    types::{Bit, LongStr, LongUint, Octect, AmqpPeerProperties, ShortStr, ShortUint},
-};
-use serde::{Deserialize, Serialize};
 use super::impl_mapping;
-use crate::frame::{Frame, MethodHeader};
+use crate::frame::{Frame, MethodHeader, REPLY_SUCCESS};
+use amqp_serde::types::{AmqpPeerProperties, Bit, LongStr, LongUint, Octect, ShortStr, ShortUint};
+use serde::{Deserialize, Serialize};
 
-
-impl_mapping!(Start,      10, 10);
-impl_mapping!(StartOk,    10, 11);
-impl_mapping!(Tune,       10, 30);
-impl_mapping!(TuneOk,     10, 31);
-impl_mapping!(Open,       10, 40);
-impl_mapping!(OpenOk,     10, 41);
-impl_mapping!(Close,      10, 50);
-impl_mapping!(CloseOk,    10, 51);
+impl_mapping!(Start, 10, 10);
+impl_mapping!(StartOk, 10, 11);
+impl_mapping!(Tune, 10, 30);
+impl_mapping!(TuneOk, 10, 31);
+impl_mapping!(Open, 10, 40);
+impl_mapping!(OpenOk, 10, 41);
+impl_mapping!(Close, 10, 50);
+impl_mapping!(CloseOk, 10, 51);
 
 /////////////////////////////////
 /// Connection

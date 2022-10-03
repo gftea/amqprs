@@ -58,10 +58,7 @@ impl Connection {
         // C: Close
         self.manager
             .tx
-            .send(Message {
-                channel_id: 0,
-                frame: Close::default().into_frame(),
-            })
+            .send((0, Close::default().into_frame()))
             .await?;
 
         // S: CloseOk
@@ -73,11 +70,8 @@ impl Connection {
     pub async fn channel(&mut self) -> Result<Channel, Error> {
         let (channel_id, tx, mut rx) = self.manager.allocate_channel().await;
 
-        tx.send(Message {
-            channel_id,
-            frame: OpenChannel::default().into_frame(),
-        })
-        .await?;
+        tx.send((channel_id, OpenChannel::default().into_frame()))
+            .await?;
         match rx.recv().await {
             Some(frame) => match frame {
                 Frame::OpenChannelOk(_, _) => Ok(Channel::new(channel_id, tx, rx)),

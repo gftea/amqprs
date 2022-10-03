@@ -1,8 +1,8 @@
-use amqp_serde::{types::{LongStr, ShortStr, ShortUint}, constants::REPLY_SUCCESS};
+use amqp_serde::types::{LongStr, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
 
 use super::impl_mapping;
-use crate::frame::{Frame, MethodHeader};
+use crate::frame::{Frame, MethodHeader, REPLY_SUCCESS};
 
 impl_mapping!(OpenChannel, 20, 10);
 impl_mapping!(OpenChannelOk, 20, 11);
@@ -53,6 +53,6 @@ impl Default for CloseChannel {
 pub struct CloseChannelOk;
 impl Default for CloseChannelOk {
     fn default() -> Self {
-        Self {  }
+        Self {}
     }
 }

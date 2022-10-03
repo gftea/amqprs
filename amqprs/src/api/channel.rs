@@ -2,7 +2,7 @@ use amqp_serde::types::AmqpChannelId;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{
-    frame::{Declare, Frame, CloseChannel},
+    frame::{CloseChannel, Declare, Frame},
     net::Message,
 };
 
@@ -21,10 +21,7 @@ impl Channel {
         let mut declare = Declare::default();
         declare.set_passive();
         self.tx
-            .send(Message {
-                channel_id: self.channel_id,
-                frame: declare.into_frame(),
-            })
+            .send((self.channel_id, declare.into_frame()))
             .await?;
         match self.rx.recv().await {
             Some(frame) => match frame {
@@ -36,9 +33,11 @@ impl Channel {
     }
 
     pub async fn close(mut self) {
-        self.tx.send(Message { channel_id: self.channel_id, frame: CloseChannel::default().into_frame() }).await.unwrap();
+        self.tx
+            .send((self.channel_id, CloseChannel::default().into_frame()))
+            .await
+            .unwrap();
         self.rx.recv().await.unwrap();
         // TODO: how to remove the channel from channel manager
-
     }
 }

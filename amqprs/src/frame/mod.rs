@@ -1,14 +1,12 @@
 use amqp_serde::{
-    constants::{
-        FRAME_BODY, FRAME_END, FRAME_HEADER, FRAME_HEADER_SIZE, FRAME_HEARTBEAT, FRAME_METHOD,
-    },
     from_bytes,
-    types::{LongUint, Octect, ShortUint, AmqpChannelId},
+    types::{AmqpChannelId, LongUint, Octect, ShortUint},
 };
 
 use serde::{Deserialize, Serialize};
 
 ///////////////////////////////////////////////////////////
+mod constants;
 mod content_body;
 mod content_header;
 mod error;
@@ -16,6 +14,7 @@ mod heartbeat;
 mod method;
 mod protocol_header;
 
+pub use constants::*;
 pub use content_body::*;
 pub use content_header::*;
 pub use error::*;

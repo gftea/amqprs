@@ -1,6 +1,7 @@
-use crate::types::{Octect, ShortUint};
+use amqp_serde::types::{Octect, ShortUint};
 
 pub const FRAME_HEADER_SIZE: usize = 7;
+pub const DEFAULT_CONNECTION_CHANNEL: ShortUint = 0;
 
 pub const FRAME_METHOD: Octect = 1;
 pub const FRAME_HEADER: Octect = 2;

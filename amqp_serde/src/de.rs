@@ -6,7 +6,6 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use crate::constants::{FRAME_BODY, FRAME_HEADER, FRAME_HEARTBEAT, FRAME_METHOD};
 use crate::error::{Error, Result};
 
 use serde::de::{

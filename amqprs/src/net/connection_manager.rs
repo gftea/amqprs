@@ -6,16 +6,13 @@ use tokio::sync::{
     RwLock,
 };
 
-use crate::frame::{CloseChannelOk, CloseOk, Frame};
+use crate::frame::{CloseChannelOk, CloseOk, Frame, DEFAULT_CONNECTION_CHANNEL};
 
 use super::{BufferReader, BufferWriter, SplitConnection};
 const CHANNEL_BUFFER_SIZE: usize = 8;
 
-#[derive(Debug)]
-pub struct Message {
-    pub channel_id: AmqpChannelId,
-    pub frame: Frame,
-}
+pub type Message = (AmqpChannelId, Frame);
+
 pub struct ReaderHandler {
     stream: BufferReader,
     response_tx: Sender<Frame>,
@@ -104,12 +101,11 @@ impl ConnectionManager {
         };
 
         tokio::spawn(async move {
-            while let Some(msg) = handler.request_rx.recv().await {
-                let Message { channel_id, frame } = msg;
+            while let Some((channel_id, frame)) = handler.request_rx.recv().await {
                 // handle server close request internally
                 match &frame {
                     Frame::CloseOk(..) => {
-                        assert_eq!(0, channel_id);
+                        assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
                         println!("respond close ok to server");
                         handler.stream.write_frame(channel_id, frame).await.unwrap();
                         break;
@@ -138,20 +134,17 @@ impl ConnectionManager {
                 // handle close request from server
                 match &frame {
                     Frame::Close(..) => {
-                        assert_eq!(0, channel_id);
+                        assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
                         println!("forward close ok to writer");
                         handler
                             .request_tx
-                            .send(Message {
-                                channel_id: 0,
-                                frame: CloseOk::default().into_frame(),
-                            })
+                            .send((DEFAULT_CONNECTION_CHANNEL, CloseOk::default().into_frame()))
                             .await
                             .unwrap();
                         break;
                     }
                     Frame::CloseOk(..) => {
-                        assert_eq!(0, channel_id);
+                        assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
                         println!("got close connection ok");
                         handler.response_tx.send(frame).await.unwrap();
                         break;
@@ -161,10 +154,7 @@ impl ConnectionManager {
                         println!("forward close channel ok to writer {channel_id} ");
                         handler
                             .request_tx
-                            .send(Message {
-                                channel_id,
-                                frame: CloseChannelOk::default().into_frame(),
-                            })
+                            .send((channel_id, CloseChannelOk::default().into_frame()))
                             .await
                             .unwrap();
                         continue;
@@ -203,14 +193,11 @@ impl ConnectionManager {
             println!("read connection exit!");
             handler.channel_manager.write().await.clear();
             // trip: notify writer handler to shutdown by CloseOk message
-            // this may lead to unnecessary CloseOk message to server 
+            // this may lead to unnecessary CloseOk message to server
             // TODO: to be cleaner, use a separate channel to shutdown
             if let Err(_) = handler
                 .request_tx
-                .send(Message {
-                    channel_id: 0,
-                    frame: CloseOk::default().into_frame(),
-                })
+                .send((DEFAULT_CONNECTION_CHANNEL, CloseOk::default().into_frame()))
                 .await
             {
                 println!("failed to notify writer handler to shutdown");

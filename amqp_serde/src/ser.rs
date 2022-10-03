@@ -1,11 +1,7 @@
-use std::ops::{Deref, DerefMut};
-
+use std::ops::DerefMut;
 use crate::error::{Error, Result};
-use bytes::{BufMut, BytesMut};
-use serde::{
-    ser::{self},
-    Serialize,
-};
+use bytes::BufMut;
+use serde::{ser, Serialize};
 
 pub struct Serializer<'a, W: BufMut> {
     output: &'a mut W, // TODO: buffer generic interfaces?
@@ -242,7 +238,7 @@ where
     }
 }
 
-impl<'a, 'b:'a, W> ser::SerializeSeq for &'a mut Serializer<'b, W>
+impl<'a, 'b: 'a, W> ser::SerializeSeq for &'a mut Serializer<'b, W>
 where
     W: BufMut + DerefMut<Target = [u8]>,
 {
@@ -261,7 +257,7 @@ where
         Ok(())
     }
 }
-impl<'a, 'b:'a, W> ser::SerializeTuple for &'a mut Serializer<'b, W>
+impl<'a, 'b: 'a, W> ser::SerializeTuple for &'a mut Serializer<'b, W>
 where
     W: BufMut + DerefMut<Target = [u8]>,
 {
@@ -279,7 +275,7 @@ where
         Ok(())
     }
 }
-impl<'a, 'b:'a, W> ser::SerializeTupleStruct for &'a mut Serializer<'b, W>
+impl<'a, 'b: 'a, W> ser::SerializeTupleStruct for &'a mut Serializer<'b, W>
 where
     W: BufMut + DerefMut<Target = [u8]>,
 {
@@ -297,7 +293,7 @@ where
         Ok(())
     }
 }
-impl<'a, 'b:'a, W> ser::SerializeTupleVariant for &'a mut Serializer<'b, W>
+impl<'a, 'b: 'a, W> ser::SerializeTupleVariant for &'a mut Serializer<'b, W>
 where
     W: BufMut + DerefMut<Target = [u8]>,
 {
@@ -321,7 +317,7 @@ pub struct MapSerializer<'a, 'b: 'a, W: BufMut> {
     start: usize,
 }
 
-impl<'a, 'b:'a, W> ser::SerializeMap for MapSerializer<'a, 'b, W>
+impl<'a, 'b: 'a, W> ser::SerializeMap for MapSerializer<'a, 'b, W>
 where
     W: BufMut + DerefMut<Target = [u8]>,
 {
@@ -357,7 +353,7 @@ where
     }
 }
 
-impl<'a, 'b:'a, W> ser::SerializeStruct for &'a mut Serializer<'b, W>
+impl<'a, 'b: 'a, W> ser::SerializeStruct for &'a mut Serializer<'b, W>
 where
     W: BufMut + DerefMut<Target = [u8]>,
 {
@@ -376,7 +372,7 @@ where
     }
 }
 
-impl<'a, 'b:'a, W> ser::SerializeStructVariant for &'a mut Serializer<'b, W>
+impl<'a, 'b: 'a, W> ser::SerializeStructVariant for &'a mut Serializer<'b, W>
 where
     W: BufMut + DerefMut<Target = [u8]>,
 {
@@ -397,7 +393,6 @@ where
 ////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod test {
-    use crate::constants::*;
     use crate::to_bytes;
     use crate::types::*;
     use serde::Serialize;
@@ -416,7 +411,6 @@ mod test {
             channel_id: ShortUint,
             size: LongUint,
             payload: LongStr,
-            end: Octect,
         }
 
         impl Frame {
@@ -426,7 +420,6 @@ mod test {
                     channel_id: 2,
                     size: 3,
                     payload: "ABCD".try_into().unwrap(),
-                    end: FRAME_END,
                 }
             }
         }
@@ -434,7 +427,7 @@ mod test {
         let test = Frame::new();
         let expected = vec![
             0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, b'A', b'B', b'C',
-            b'D', 0xCE,
+            b'D', 
         ];
         assert_eq!(to_bytes(&test).unwrap(), expected);
     }

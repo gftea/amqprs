@@ -1,7 +1,6 @@
-use crate::frame::{Frame, FrameHeader};
+use crate::frame::{Frame, FrameHeader, FRAME_END};
 
 use amqp_serde::{
-    constants::FRAME_END,
     to_buffer,
     types::{AmqpChannelId, ShortUint},
 };
@@ -184,7 +183,7 @@ mod test {
 
     use super::SplitConnection;
     use crate::frame::*;
-    use tokio::{runtime, sync::mpsc, time::sleep};
+    use tokio::{runtime, sync::mpsc};
 
     fn new_runtime() -> runtime::Runtime {
         let rt = runtime::Builder::new_multi_thread()
@@ -226,7 +225,7 @@ mod test {
 
         // C: 'StartOk'
         let start_ok = StartOk::default().into_frame();
-        tx_req.send((0, start_ok)).await.unwrap();
+        tx_req.send((DEFAULT_CONNECTION_CHANNEL, start_ok)).await.unwrap();
 
         // S: 'Tune'
         let tune = rx_resp.recv().await.unwrap();
@@ -243,11 +242,11 @@ mod test {
         tune_ok.frame_max = tune.frame_max;
         tune_ok.heartbeat = tune.heartbeat;
 
-        tx_req.send((0, tune_ok.into_frame())).await.unwrap();
+        tx_req.send((DEFAULT_CONNECTION_CHANNEL, tune_ok.into_frame())).await.unwrap();
 
         // C: Open
         let open = Open::default().into_frame();
-        tx_req.send((0, open)).await.unwrap();
+        tx_req.send((DEFAULT_CONNECTION_CHANNEL, open)).await.unwrap();
 
         // S: OpenOk
         let open_ok = rx_resp.recv().await.unwrap();
@@ -255,7 +254,7 @@ mod test {
 
         // C: Close
         tx_req
-            .send((0, Close::default().into_frame()))
+            .send((DEFAULT_CONNECTION_CHANNEL, Close::default().into_frame()))
             .await
             .unwrap();
 
@@ -270,23 +269,31 @@ mod test {
 
         connection.write(&ProtocolHeader::default()).await.unwrap();
         let (channel_id, frame) = connection.read_frame().await.unwrap();
-        assert_eq!(0, channel_id);
+        assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
         println!(" {frame:?}");
-        connection.write_frame(channel_id, StartOk::default().into_frame()).await.unwrap();
+        connection
+            .write_frame(channel_id, StartOk::default().into_frame())
+            .await
+            .unwrap();
         connection.close().await;
     }
 
     #[tokio::test]
     async fn test_split_open_close() {
-        let (mut reader, mut writer) = SplitConnection::open("localhost:5672").await.unwrap().into_split();
+        let (mut reader, mut writer) = SplitConnection::open("localhost:5672")
+            .await
+            .unwrap()
+            .into_split();
 
         writer.write(&ProtocolHeader::default()).await.unwrap();
         let (channel_id, frame) = reader.read_frame().await.unwrap();
-        assert_eq!(0, channel_id);
+        assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
         println!(" {frame:?}");
-        writer.write_frame(channel_id, StartOk::default().into_frame()).await.unwrap();
+        writer
+            .write_frame(channel_id, StartOk::default().into_frame())
+            .await
+            .unwrap();
         reader.close().await;
         writer.close().await;
-
     }
 }
