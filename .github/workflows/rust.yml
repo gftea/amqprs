@@ -1,5 +1,5 @@
-name: Rust
-
+name: Integration
+description: 'Run test against real rabbitmq server'
 on:
   push:
     branches: [ "main" ]
@@ -10,11 +10,14 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+
   build:
 
     runs-on: ubuntu-latest
 
     steps:
+    - name: Start RabbitMQ
+      run:  docker-compose up 
     - uses: actions/checkout@v3
     - name: Build
       run: cargo build --verbose
