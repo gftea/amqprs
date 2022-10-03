@@ -1,4 +1,4 @@
-name: Integration
+name: integration-test
 
 run-name: 'Run test against real rabbitmq server'
 
@@ -13,7 +13,7 @@ env:
 
 jobs:
 
-  build:
+  basic_test:
 
     runs-on: ubuntu-latest
 
