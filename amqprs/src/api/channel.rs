@@ -6,7 +6,7 @@ use crate::{
     net::Message,
 };
 
-use super::error::Error;
+use super::{error::Error, macros};
 
 pub struct Channel {
     channel_id: AmqpChannelId,
@@ -24,27 +24,25 @@ impl Channel {
     pub async fn exchange_declare(&mut self) -> Result<()> {
         let mut declare = Declare::default();
         declare.set_passive();
-        self.tx
-            .send((self.channel_id, declare.into_frame()))
-            .await?;
-        match self.rx.recv().await.ok_or_else(|| Error::ChannelUseError)? {
-            Frame::DeclareOk(_, _) => Ok(()),
-            _ => Err(Error::ChannelUseError),
-        }
+
+        macros::synchronous_request!(
+            self.tx,
+            (self.channel_id, declare.into_frame()),
+            self.rx,
+            Frame::DeclareOk,
+            (),
+            Error::ChannelUseError
+        )
     }
 
     pub async fn close(mut self) -> Result<()> {
-        self.tx
-            .send((self.channel_id, CloseChannel::default().into_frame()))
-            .await?;
-        match self
-            .rx
-            .recv()
-            .await
-            .ok_or_else(|| Error::ChannelCloseError)?
-        {
-            Frame::CloseChannelOk(_, _) => Ok(()),
-            _ => Err(Error::ChannelCloseError),
-        }
+        macros::synchronous_request!(
+            self.tx,
+            (self.channel_id, CloseChannel::default().into_frame()),
+            self.rx,
+            Frame::CloseChannelOk,
+            (),
+            Error::ChannelCloseError
+        )
     }
 }

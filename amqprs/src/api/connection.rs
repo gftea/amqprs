@@ -1,8 +1,11 @@
-use crate::frame::{Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk};
+use crate::frame::{
+    Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, DEFAULT_CONNECTION_CHANNEL,
+};
 use crate::net::{ConnectionManager, SplitConnection};
 
 use super::channel::Channel;
 use super::error::Error;
+use super::macros;
 
 pub struct Connection {
     manager: ConnectionManager,
@@ -53,34 +56,27 @@ impl Connection {
     }
 
     pub async fn close(mut self) -> Result<(), Error> {
-        // C: Close
-        self.manager
-            .tx
-            .send((0, Close::default().into_frame()))
-            .await?;
-
-        match self
-            .manager
-            .rx
-            .recv()
-            .await
-            .ok_or_else(|| Error::ConnectionCloseError)?
-        {
-            Frame::CloseOk(_, _) => Ok(()),
-            _ => Err(Error::ConnectionCloseError),
-        }
+        macros::synchronous_request!(
+            self.manager.tx,
+            (DEFAULT_CONNECTION_CHANNEL, Close::default().into_frame()),
+            self.manager.rx,
+            Frame::CloseOk,
+            (),
+            Error::ConnectionCloseError
+        )
     }
 
     pub async fn channel(&mut self) -> Result<Channel, Error> {
         let (channel_id, tx, mut rx) = self.manager.allocate_channel().await;
 
-        tx.send((channel_id, OpenChannel::default().into_frame()))
-            .await?;
-
-        match rx.recv().await.ok_or_else(|| Error::ChannelOpenError)? {
-            Frame::OpenChannelOk(_, _) => Ok(Channel::new(channel_id, tx, rx)),
-            _ => Err(Error::ChannelOpenError),
-        }
+        macros::synchronous_request!(
+            tx,
+            (channel_id, OpenChannel::default().into_frame()),
+            rx,
+            Frame::OpenChannelOk,
+            Channel::new(channel_id, tx, rx),
+            Error::ChannelOpenError
+        )
     }
 }
 
