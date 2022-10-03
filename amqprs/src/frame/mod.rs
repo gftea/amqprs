@@ -55,7 +55,8 @@ pub enum Frame {
     OpenChannel(&'static MethodHeader, OpenChannel),
     #[serde(skip_serializing)]
     OpenChannelOk(&'static MethodHeader, OpenChannelOk),
-
+    Flow(&'static MethodHeader, Flow),
+    FlowOk(&'static MethodHeader, FlowOk),
     CloseChannel(&'static MethodHeader, CloseChannel),
     CloseChannelOk(&'static MethodHeader, CloseChannelOk),
 
@@ -68,6 +69,21 @@ pub enum Frame {
     ContentHeader(ContentHeader),
 
     ContentBody(ContentBody),
+}
+
+macro_rules! decode_method_frame {
+    ($header:ident, $content:ident, $method:ident, $($others:ident),*) => {
+        if &$header == $method::header() {
+            from_bytes::<$method>($content)?.into_frame()
+        } $(else if &$header == $others::header() {
+            from_bytes::<$others>($content)?.into_frame()
+        })*
+        else {
+            println!("header: {:?}", $header);
+            println!("content: {:?}", $content);
+            unreachable!("unknown frame");
+        }
+    };
 }
 
 impl Frame {
@@ -127,29 +143,22 @@ impl Frame {
                     None => unreachable!("out of bound"),
                 };
 
-                let frame = if &header == Start::header() {
-                    from_bytes::<Start>(content)?.into_frame()
-                } else if &header == Tune::header() {
-                    from_bytes::<Tune>(content)?.into_frame()
-                } else if &header == OpenOk::header() {
-                    from_bytes::<OpenOk>(content)?.into_frame()
-                } else if &header == Close::header() {
-                    from_bytes::<Close>(content)?.into_frame()
-                } else if &header == CloseOk::header() {
-                    from_bytes::<CloseOk>(content)?.into_frame()
-                } else if &header == OpenChannelOk::header() {
-                    from_bytes::<OpenChannelOk>(content)?.into_frame()
-                } else if &header == DeclareOk::header() {
-                    from_bytes::<DeclareOk>(content)?.into_frame()
-                } else if &header == CloseChannel::header() {
-                    from_bytes::<CloseChannel>(content)?.into_frame()
-                } else if &header == CloseChannelOk::header() {
-                    from_bytes::<CloseChannelOk>(content)?.into_frame()
-                } else {
-                    println!("header: {:?}", header);
-                    println!("content: {:?}", content);
-                    unreachable!("unknown frame");
-                };
+                let frame = decode_method_frame!(
+                    header,
+                    content,
+                    Start,
+                    Tune,
+                    OpenOk,
+                    Close,
+                    CloseOk,
+                    OpenChannelOk,
+                    Flow,
+                    FlowOk,
+                    CloseChannel,
+                    CloseChannelOk,
+                    DeclareOk
+                );
+
                 Ok(Some((total_size, channel, frame)))
             }
             FRAME_HEARTBEAT => Ok(Some((total_size, channel, Frame::HeartBeat(HeartBeat)))),

@@ -122,10 +122,5 @@ impl Close {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct CloseOk;
-impl Default for CloseOk {
-    fn default() -> Self {
-        Self
-    }
-}

@@ -1,4 +1,4 @@
-use amqp_serde::types::{LongStr, ShortStr, ShortUint};
+use amqp_serde::types::{LongStr, ShortStr, ShortUint, Boolean};
 use serde::{Deserialize, Serialize};
 
 use super::impl_mapping;
@@ -6,6 +6,8 @@ use crate::frame::{Frame, MethodHeader, REPLY_SUCCESS};
 
 impl_mapping!(OpenChannel, 20, 10);
 impl_mapping!(OpenChannelOk, 20, 11);
+impl_mapping!(Flow, 20, 20);
+impl_mapping!(FlowOk, 20, 21);
 impl_mapping!(CloseChannel, 20, 40);
 impl_mapping!(CloseChannelOk, 20, 41);
 
@@ -49,10 +51,25 @@ impl Default for CloseChannel {
         }
     }
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct CloseChannelOk;
-impl Default for CloseChannelOk {
-    fn default() -> Self {
-        Self {}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct Flow {
+    pub active: Boolean
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct FlowOk {
+    pub active: Boolean
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Flow;
+
+    #[test]
+    fn test_default() {
+        assert_eq!(0, Flow::default().active);
     }
 }
