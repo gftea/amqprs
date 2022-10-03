@@ -18,12 +18,118 @@ pub struct ReaderHandler {
     stream: BufferReader,
     response_tx: Sender<Frame>,
     request_tx: Sender<Message>,
+    notify_shutdown: broadcast::Sender<()>,
     channel_manager: Arc<RwLock<ChannelManager>>,
+}
+
+impl ReaderHandler {
+    async fn run(&mut self) {
+        while let Ok((channel_id, frame)) = self.stream.read_frame().await {
+            // handle close request from server
+            match &frame {
+                Frame::Close(..) => {
+                    assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
+                    println!("forward close ok to writer");
+                    self.request_tx
+                        .send((DEFAULT_CONNECTION_CHANNEL, CloseOk::default().into_frame()))
+                        .await
+                        .unwrap();
+                    break;
+                }
+                Frame::CloseOk(..) => {
+                    assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
+                    println!("got close connection ok");
+                    self.response_tx.send(frame).await.unwrap();
+                    break;
+                }
+                Frame::CloseChannel(..) => {
+                    self.channel_manager.write().await.delete(channel_id);
+                    println!("forward close channel ok to writer, id: {channel_id} ");
+                    self.request_tx
+                        .send((channel_id, CloseChannelOk::default().into_frame()))
+                        .await
+                        .unwrap();
+                    continue;
+                }
+
+                Frame::CloseChannelOk(..) => {
+                    println!("got close channel ok, id: {channel_id} ");
+                    let tx = self.channel_manager.write().await.delete(channel_id);
+                    if let Some(tx) = tx {
+                        if let Err(_) = tx.send(frame).await {
+                            println!("channel already closed");
+                        }
+                    }
+                    continue;
+                }
+                Frame::HeartBeat(_) => {
+                    println!("heartbeat ok");
+                    continue;
+                }
+                _ => (),
+            }
+            // forward response to corresponding channel
+            if channel_id == 0 {
+                // connection's control channel
+                self.response_tx.send(frame).await.unwrap();
+            } else {
+                if let Some(tx) = self.channel_manager.read().await.get(&channel_id) {
+                    if let Err(_) = tx.send(frame).await {
+                        // drop  channel
+                        self.channel_manager.write().await.delete(channel_id);
+                    }
+                }
+            }
+        }
+
+        self.channel_manager.write().await.clear();
+        // When `notify_shutdown` is dropped, all tasks which have `subscribe`d will
+        // receive the shutdown signal and can exit
+        println!("shutdown read connection handler!");
+    }
 }
 pub struct WriterHandler {
     stream: BufferWriter,
     request_rx: Receiver<Message>,
+    shutdown: broadcast::Receiver<()>,
     channel_manager: Arc<RwLock<ChannelManager>>,
+}
+
+impl WriterHandler {
+    async fn run(&mut self) {
+        loop {
+            tokio::select! {
+                _ = self.shutdown.recv() => {
+                    println!("received shutdown");
+                    break;
+                },
+                msg = self.request_rx.recv() => {
+                    match msg {
+                        Some((channel_id, frame)) => {
+                            // handle server close request internally
+                            match &frame {
+                                Frame::CloseOk(..) => {
+                                    assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
+                                    println!("respond close ok to server");
+                                    self.stream.write_frame(channel_id, frame).await.unwrap();
+                                    break;
+                                }
+                                Frame::CloseChannelOk(..) => {
+                                    println!("respond close channel ok to server");
+                                }
+                                _ => (),
+                            }
+
+                            self.stream.write_frame(channel_id, frame).await.unwrap();
+                        },
+                        None => break,
+                    }
+                }
+            };
+        }
+        self.channel_manager.write().await.clear();
+        println!("shutdown write connection handler!");
+    }
 }
 
 pub struct ChannelManager {
@@ -101,41 +207,10 @@ impl ConnectionManager {
             stream: writer,
             channel_manager: channel_manager.clone(),
             request_rx,
+            shutdown,
         };
         tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    _ = shutdown.recv() => {
-                        println!("received shutdown");
-                        break;
-                    },
-                    msg = handler.request_rx.recv() => {
-
-                            match msg {
-                                Some((channel_id, frame)) => {
-                                    // handle server close request internally
-                                    match &frame {
-                                        Frame::CloseOk(..) => {
-                                            assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
-                                            println!("respond close ok to server");
-                                            handler.stream.write_frame(channel_id, frame).await.unwrap();
-                                            break;
-                                        }
-                                        Frame::CloseChannelOk(..) => {
-                                            println!("respond close channel ok to server");
-                                        }
-                                        _ => (),
-                                    }
-
-                                     handler.stream.write_frame(channel_id, frame).await.unwrap();
-                                },
-                                None => break,
-                            }
-                    }
-                };
-            }
-            handler.channel_manager.write().await.clear();
-            println!("shutdown write connection handler!");
+            handler.run().await;
         });
 
         // spawn task for read connection
@@ -143,74 +218,11 @@ impl ConnectionManager {
             stream: reader,
             response_tx,
             request_tx: request_tx.clone(),
+            notify_shutdown,
             channel_manager: channel_manager.clone(),
         };
         tokio::spawn(async move {
-            while let Ok((channel_id, frame)) = handler.stream.read_frame().await {
-                // handle close request from server
-                match &frame {
-                    Frame::Close(..) => {
-                        assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
-                        println!("forward close ok to writer");
-                        handler
-                            .request_tx
-                            .send((DEFAULT_CONNECTION_CHANNEL, CloseOk::default().into_frame()))
-                            .await
-                            .unwrap();
-                        break;
-                    }
-                    Frame::CloseOk(..) => {
-                        assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
-                        println!("got close connection ok");
-                        handler.response_tx.send(frame).await.unwrap();
-                        break;
-                    }
-                    Frame::CloseChannel(..) => {
-                        handler.channel_manager.write().await.delete(channel_id);
-                        println!("forward close channel ok to writer, id: {channel_id} ");
-                        handler
-                            .request_tx
-                            .send((channel_id, CloseChannelOk::default().into_frame()))
-                            .await
-                            .unwrap();
-                        continue;
-                    }
-
-                    Frame::CloseChannelOk(..) => {
-                        println!("got close channel ok, id: {channel_id} ");
-                        let tx = handler.channel_manager.write().await.delete(channel_id);
-                        if let Some(tx) = tx {
-                            if let Err(_) = tx.send(frame).await {
-                                println!("channel already closed");
-                            }
-                        }
-                        continue;
-                    }
-                    Frame::HeartBeat(_) => {
-                        println!("heartbeat ok");
-                        continue;
-                    }
-                    _ => (),
-                }
-                // forward response to corresponding channel
-                if channel_id == 0 {
-                    // connection's control channel
-                    handler.response_tx.send(frame).await.unwrap();
-                } else {
-                    if let Some(tx) = handler.channel_manager.read().await.get(&channel_id) {
-                        if let Err(_) = tx.send(frame).await {
-                            // drop  channel
-                            handler.channel_manager.write().await.delete(channel_id);
-                        }
-                    }
-                }
-            }
-
-            handler.channel_manager.write().await.clear();
-            // When `notify_shutdown` is dropped, all tasks which have `subscribe`d will
-            // receive the shutdown signal and can exit
-            drop(notify_shutdown);
-            println!("shutdown read connection handler!");
+            handler.run().await;
         });
 
         //

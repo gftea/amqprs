@@ -14,6 +14,7 @@ pub struct Channel {
     rx: Receiver<Frame>,
 }
 impl Channel {
+    /// new channel can only be created by Connection type
     pub(crate) fn new(channel_id: AmqpChannelId, tx: Sender<Message>, rx: Receiver<Frame>) -> Self {
         Self { channel_id, tx, rx }
     }

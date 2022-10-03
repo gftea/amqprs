@@ -1,8 +1,5 @@
-use amqp_serde::types::AmqpChannelId;
-use tokio::sync::mpsc::{Receiver, Sender};
-
-use crate::frame::{Close, Declare, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk};
-use crate::net::{ConnectionManager, Message, SplitConnection};
+use crate::frame::{Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk};
+use crate::net::{ConnectionManager, SplitConnection};
 
 use super::channel::Channel;
 use super::error::Error;
@@ -83,7 +80,8 @@ impl Connection {
 #[cfg(test)]
 mod tests {
     use super::Connection;
-    use tokio::{task::JoinHandle, time};
+    use tokio::time;
+
     #[tokio::test]
     async fn test_channel_open_use_close() {
         let mut client = Connection::open("localhost:5672").await.unwrap();
@@ -104,9 +102,8 @@ mod tests {
         for i in 0..10 {
             let mut ch = client.channel().await.unwrap();
             handles.push(tokio::spawn(async move {
-                time::sleep(time::Duration::from_secs(10)).await;
+                time::sleep(time::Duration::from_secs(1)).await;
                 ch.exchange_declare().await.unwrap();
-
             }));
         }
         for h in handles {
