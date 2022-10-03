@@ -24,7 +24,11 @@ pub type Double = f64;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ShortStr(u8, String);
-
+impl Default for ShortStr {
+    fn default() -> Self {
+        Self(0, "".to_string())
+    }
+}
 impl From<ShortStr> for String {
     fn from(s: ShortStr) -> Self {
         s.1
@@ -49,6 +53,13 @@ impl TryFrom<&str> for ShortStr {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct LongStr(u32, String);
+
+impl Default for LongStr {
+    fn default() -> Self {
+        Self(0, "".to_string())
+    }
+}
+
 impl TryFrom<String> for LongStr {
     type Error = TryFromIntError;
 

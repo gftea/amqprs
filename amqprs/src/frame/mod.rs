@@ -37,21 +37,28 @@ pub struct FrameHeader {
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub enum Frame {
+    //==  CONNECTION  =======================================================     
     #[serde(skip_serializing)]
     Start(&'static MethodHeader, Start),
     StartOk(&'static MethodHeader, StartOk),
-
+    Secure(&'static MethodHeader, Secure),
+    #[serde(skip_serializing)]
+    SecureOk(&'static MethodHeader, SecureOk),
     #[serde(skip_serializing)]
     Tune(&'static MethodHeader, Tune),
     TuneOk(&'static MethodHeader, TuneOk),
-
     Open(&'static MethodHeader, Open),
     #[serde(skip_serializing)]
     OpenOk(&'static MethodHeader, OpenOk),
-
     Close(&'static MethodHeader, Close),
     CloseOk(&'static MethodHeader, CloseOk),
+    Blocked(&'static MethodHeader, Blocked),
+    Unblocked(&'static MethodHeader, Unblocked),
+    #[serde(skip_serializing)]
+    UpdateSecret(&'static MethodHeader, UpdateSecret),
+    UpdateSecretOk(&'static MethodHeader, UpdateSecretOk),
 
+    // ==  CHANNEL  ==========================================================
     OpenChannel(&'static MethodHeader, OpenChannel),
     #[serde(skip_serializing)]
     OpenChannelOk(&'static MethodHeader, OpenChannelOk),
@@ -60,14 +67,22 @@ pub enum Frame {
     CloseChannel(&'static MethodHeader, CloseChannel),
     CloseChannelOk(&'static MethodHeader, CloseChannelOk),
 
+    // ==  EXCHANGE  =========================================================
     Declare(&'static MethodHeader, Declare),
     #[serde(skip_serializing)]
     DeclareOk(&'static MethodHeader, DeclareOk),
 
+    // ==  QUEUE  ============================================================
+
+    //  ==  BASIC  ============================================================
+
+    // ==  TX  ===============================================================
+
+    // ==  CONFIRM  ==========================================================
+
+    // == Heart Beat, Content Header, Content ==
     HeartBeat(HeartBeat),
-
     ContentHeader(ContentHeader),
-
     ContentBody(ContentBody),
 }
 
@@ -147,16 +162,20 @@ impl Frame {
                     header,
                     content,
                     Start,
+                    SecureOk,
                     Tune,
                     OpenOk,
                     Close,
                     CloseOk,
+                    Blocked,
+                    Unblocked,
                     OpenChannelOk,
                     Flow,
                     FlowOk,
                     CloseChannel,
                     CloseChannelOk,
-                    DeclareOk
+                    DeclareOk,
+                    UpdateSecret
                 );
 
                 Ok(Some((total_size, channel, frame)))

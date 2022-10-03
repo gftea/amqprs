@@ -5,13 +5,18 @@ use serde::{Deserialize, Serialize};
 
 impl_mapping!(Start, 10, 10);
 impl_mapping!(StartOk, 10, 11);
+impl_mapping!(Secure, 10, 20);
+impl_mapping!(SecureOk, 10, 21);
 impl_mapping!(Tune, 10, 30);
 impl_mapping!(TuneOk, 10, 31);
 impl_mapping!(Open, 10, 40);
 impl_mapping!(OpenOk, 10, 41);
 impl_mapping!(Close, 10, 50);
 impl_mapping!(CloseOk, 10, 51);
-
+impl_mapping!(Blocked, 10, 60);
+impl_mapping!(Unblocked, 10, 61);
+impl_mapping!(UpdateSecret, 10, 70);
+impl_mapping!(UpdateSecretOk, 10, 71);
 /////////////////////////////////
 /// Connection
 /////////////////////////////////
@@ -49,25 +54,16 @@ pub struct Tune {
     pub frame_max: LongUint,
     pub heartbeat: ShortUint,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct TuneOk {
+    // RabbitMQ doesn't put a limit on channel-max, and treats any number in tune-ok as valid.
+    // It does put a limit on frame-max, and checks that the value sent in tune-ok
+    // is less than or equal.
     pub channel_max: ShortUint,
     pub frame_max: LongUint,
     pub heartbeat: ShortUint,
 }
-// RabbitMQ doesn't put a limit on channel-max, and treats any number in tune-ok as valid.
-// It does put a limit on frame-max, and checks that the value sent in tune-ok
-// is less than or equal.
 
-impl Default for TuneOk {
-    fn default() -> Self {
-        Self {
-            channel_max: 0,
-            frame_max: 0,
-            heartbeat: 0,
-        }
-    }
-}
 #[derive(Debug, Serialize)]
 pub struct Open {
     pub virtual_host: ShortStr,
@@ -79,7 +75,7 @@ impl Default for Open {
     fn default() -> Self {
         Self {
             virtual_host: "/".try_into().unwrap(),
-            capabilities: "".try_into().unwrap(),
+            capabilities: ShortStr::default(),
             insist: false as Bit,
         }
     }
@@ -100,7 +96,7 @@ impl Default for Close {
     fn default() -> Self {
         Self {
             reply_code: REPLY_SUCCESS,
-            reply_text: "".try_into().unwrap(),
+            reply_text: ShortStr::default(),
             class_id: 0,
             method_id: 0,
         }
@@ -124,3 +120,33 @@ impl Close {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct CloseOk;
+
+
+#[derive(Debug, Serialize, Default)]
+pub struct Secure {
+    challenge: LongStr,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SecureOk {
+    response: LongStr,
+}
+
+// below from https://www.rabbitmq.com/resources/specs/amqp0-9-1.extended.xml
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct Blocked {
+    reason: ShortStr,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct Unblocked;
+
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSecret {
+    pub new_secret: LongStr,
+    pub reason: ShortStr,
+}
+
+#[derive(Debug, Serialize, Default)]
+pub struct UpdateSecretOk;

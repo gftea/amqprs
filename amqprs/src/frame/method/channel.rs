@@ -1,4 +1,4 @@
-use amqp_serde::types::{LongStr, ShortStr, ShortUint, Boolean};
+use amqp_serde::types::{Boolean, LongStr, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
 
 use super::impl_mapping;
@@ -11,29 +11,16 @@ impl_mapping!(FlowOk, 20, 21);
 impl_mapping!(CloseChannel, 20, 40);
 impl_mapping!(CloseChannelOk, 20, 41);
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct OpenChannel {
     out_of_band: ShortStr,
-}
-impl Default for OpenChannel {
-    fn default() -> Self {
-        Self {
-            out_of_band: "".try_into().unwrap(),
-        }
-    }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct OpenChannelOk {
     channel_id: LongStr,
 }
-impl Default for OpenChannelOk {
-    fn default() -> Self {
-        Self {
-            channel_id: "".try_into().unwrap(),
-        }
-    }
-}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CloseChannel {
     pub reply_code: ShortUint,
@@ -45,7 +32,7 @@ impl Default for CloseChannel {
     fn default() -> Self {
         Self {
             reply_code: REPLY_SUCCESS,
-            reply_text: "".try_into().unwrap(),
+            reply_text: ShortStr::default(),
             class_id: 0,
             method_id: 0,
         }
@@ -56,12 +43,12 @@ pub struct CloseChannelOk;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Flow {
-    pub active: Boolean
+    pub active: Boolean,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct FlowOk {
-    pub active: Boolean
+    pub active: Boolean,
 }
 
 #[cfg(test)]
