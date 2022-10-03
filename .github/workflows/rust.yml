@@ -18,11 +18,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Start RabbitMQ
-      working-directory: .
-      run:  docker-compose up 
 
     - uses: actions/checkout@v3
+    - name: Start RabbitMQ
+      run:  docker-compose up 
+
     - name: Build
       run: cargo build --verbose
     - name: Run tests
