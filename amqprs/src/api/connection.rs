@@ -56,7 +56,7 @@ impl Connection {
     }
 
     pub async fn close(mut self) -> Result<(), Error> {
-        macros::synchronous_request!(
+        synchronous_request!(
             self.manager.tx,
             (DEFAULT_CONNECTION_CHANNEL, Close::default().into_frame()),
             self.manager.rx,
@@ -69,7 +69,7 @@ impl Connection {
     pub async fn channel(&mut self) -> Result<Channel, Error> {
         let (channel_id, tx, mut rx) = self.manager.allocate_channel().await;
 
-        macros::synchronous_request!(
+        synchronous_request!(
             tx,
             (channel_id, OpenChannel::default().into_frame()),
             rx,

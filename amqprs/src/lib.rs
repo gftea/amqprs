@@ -1,5 +1,5 @@
 pub(crate) mod frame;
 pub(crate) mod net;
 
-// public api
+// public API layer
 pub mod api;

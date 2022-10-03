@@ -6,7 +6,7 @@ use crate::{
     net::Message,
 };
 
-use super::{error::Error, macros};
+use super::{error::Error};
 
 pub struct Channel {
     channel_id: AmqpChannelId,
@@ -25,7 +25,7 @@ impl Channel {
         let mut declare = Declare::default();
         declare.set_passive();
 
-        macros::synchronous_request!(
+        synchronous_request!(
             self.tx,
             (self.channel_id, declare.into_frame()),
             self.rx,
@@ -36,7 +36,7 @@ impl Channel {
     }
 
     pub async fn close(mut self) -> Result<()> {
-        macros::synchronous_request!(
+        synchronous_request!(
             self.tx,
             (self.channel_id, CloseChannel::default().into_frame()),
             self.rx,

@@ -1,4 +1,3 @@
-use super::impl_mapping;
 use crate::frame::{Frame, MethodHeader, REPLY_SUCCESS};
 use amqp_serde::types::{AmqpPeerProperties, Bit, LongStr, LongUint, Octect, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};

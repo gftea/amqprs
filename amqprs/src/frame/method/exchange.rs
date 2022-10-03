@@ -1,5 +1,9 @@
+use crate::frame::{Frame, MethodHeader};
 use amqp_serde::types::{FieldTable, Octect, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
+
+impl_mapping!(Declare, 40, 10);
+impl_mapping!(DeclareOk, 40, 11);
 
 // continous bits packed into one or more octets, starting from the low bit in each octet.
 const NO_WAIT: u8 = 0b0001_0000;
@@ -8,11 +12,7 @@ const AUTO_DELETE: u8 = 0b0000_0100;
 const DURABLE: u8 = 0b0000_0010;
 const PASSIVE: u8 = 0b0000_0001;
 
-use super::impl_mapping;
-use crate::frame::{Frame, MethodHeader};
 
-impl_mapping!(Declare, 40, 10);
-impl_mapping!(DeclareOk, 40, 11);
 
 #[derive(Debug, Serialize)]
 pub struct Declare {

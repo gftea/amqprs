@@ -1,7 +1,5 @@
-pub mod channel;
-pub mod connection;
-pub mod error;
-
+// macro should appear before module declaration
+#[macro_use]
 mod macros {
     macro_rules! synchronous_request {
         ($tx:expr, $msg:expr, $rx:expr, $response:path, $result:expr, $err:expr) => {{
@@ -12,5 +10,9 @@ mod macros {
             }
         }};
     }
-    pub(super) use synchronous_request;
 }
+
+////////////////////////////////////////////7
+pub mod channel;
+pub mod connection;
+pub mod error;

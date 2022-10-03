@@ -1,7 +1,5 @@
 use amqp_serde::types::{Boolean, LongStr, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
-
-use super::impl_mapping;
 use crate::frame::{Frame, MethodHeader, REPLY_SUCCESS};
 
 impl_mapping!(OpenChannel, 20, 10);
