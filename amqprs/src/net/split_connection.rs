@@ -89,6 +89,10 @@ impl BufferWriter {
 
     // write a AMQP frame over a specific channel
     pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
+
+        // TODO: tracing
+        println!("SENT: {}, {:?}", channel, frame);
+
         // reserve bytes for frame header, which to be updated after encoding payload
         let header = FrameHeader {
             frame_type: frame.get_frame_type(),
@@ -138,7 +142,7 @@ impl BufferReader {
                 // discard parsed data in read buffer
                 self.buffer.advance(len);
                 // TODO: tracing
-                println!("{}, {:?}", channel_id, frame);
+                println!("RECV: {}, {:?}", channel_id, frame);
                 Ok(Some((channel_id, frame)))
             }
             None => Ok(None),
@@ -163,7 +167,7 @@ impl BufferReader {
                 }
             }
             // TODO:  tracing
-            println!("number of bytes read from network {len}");
+            // println!("number of bytes read from network {len}");
             let result = self.decode().await?;
             match result {
                 Some(frame) => return Ok(frame),
@@ -212,7 +216,6 @@ mod test {
 
         // S: 'Start'
         let start = rx_resp.recv().await.unwrap();
-        println!(" {start:?}");
 
         // C: 'StartOk'
         let start_ok = StartOk::default().into_frame();
@@ -223,7 +226,6 @@ mod test {
 
         // S: 'Tune'
         let tune = rx_resp.recv().await.unwrap();
-        println!("{tune:?}");
 
         // C: TuneOk
         let mut tune_ok = TuneOk::default();
@@ -250,7 +252,6 @@ mod test {
 
         // S: OpenOk
         let open_ok = rx_resp.recv().await.unwrap();
-        println!("{open_ok:?}");
 
         // C: Close
         tx_req
@@ -260,7 +261,6 @@ mod test {
 
         // S: CloseOk
         let close_ok = rx_resp.recv().await.unwrap();
-        println!("{close_ok:?}");
     }
 
     #[tokio::test]

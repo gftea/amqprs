@@ -209,7 +209,7 @@ pub struct ConnectionManager {
 // AMQP connection manager per a AMQP connection
 // AMQP client message is forwarded to the manager first, then the manager's write handler task forward to server
 // AMQP server message is received by manager's read handler task first, and forwarded to the client.
-// Server's request will be handled internnaly within manager, e.g. hearbeat, close request from servers, etc
+// Incoming server's request will be handled internnaly within manager, e.g. hearbeat, close request from servers, etc
 impl ConnectionManager {
     pub async fn spawn(connection: SplitConnection, channel_max: ShortUint) -> Self {
         // The Connection Manager will Spawn two  tasks for connection
