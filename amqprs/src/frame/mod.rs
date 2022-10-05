@@ -5,6 +5,60 @@ use amqp_serde::{
 
 use serde::{Deserialize, Serialize};
 
+////////////////////////////////////////////////////////////////////////
+// macros should appear before module declaration
+#[macro_use]
+mod helpers {
+    macro_rules! impl_method_frame {
+        ($name:ident, $class_id:literal, $method_id:literal) => {
+            impl $name {
+                pub fn header() -> &'static MethodHeader {
+                    static __METHOD_HEADER: MethodHeader = MethodHeader::new($class_id, $method_id);
+                    &__METHOD_HEADER
+                }
+                pub fn into_frame(self) -> Frame {
+                    Frame::$name(Self::header(), self)
+                }
+            }
+        };
+    }
+
+    macro_rules! impl_frame {
+    ($($class_id:literal => $($method_id:literal : $method:ident),+);+) => {
+        // function to decode method frame
+        fn decode_method_frame(header: MethodHeader, content: &[u8]) -> Result<Frame, Error> {
+            match header.class_id() {
+                $($class_id => {
+                    match header.method_id() {
+                        $($method_id => Ok(from_bytes::<$method>(content)?.into_frame()),)+
+                        _ => unimplemented!("unknown method id"),
+                    }
+                })+
+                _ => unimplemented!("unknown class id"),
+            }
+        }
+        // common interfaces of each method type
+        $($(impl_method_frame!{$method, $class_id, $method_id})+)+
+
+        // `Frame` enum to generailize various frames.
+        // To avoid generic type parameter for new type depends on `Frame`.
+        // Only wrap the frame payload in enum variant, excluding the `FrameHeader` and FRAME_END byte
+        // The `Frame` type only need to implement Serialize, because when decoding a `Frame`, 
+        // `FrameHeader`, its payload, and `FRAME_END` bytes are desrialized separately
+        #[derive(Debug, Serialize)]
+        #[serde(untagged)]
+        pub enum Frame {
+            // method frame payload = method header + method 
+            $($($method(&'static MethodHeader, $method),)+)+
+
+            HeartBeat(HeartBeat),
+            ContentHeader(ContentHeader),
+            ContentBody(ContentBody),
+        }
+    };
+
+}
+}
 ///////////////////////////////////////////////////////////
 mod constants;
 mod content_body;
@@ -21,84 +75,56 @@ pub use error::*;
 pub use heartbeat::*;
 pub use method::*;
 pub use protocol_header::*;
+
+/////////////////////////////////////////////////////////////////
+impl_frame! {
+    10 =>   10: Start,
+            11: StartOk,
+            20: Secure,
+            21: SecureOk,
+            30: Tune,
+            31: TuneOk,
+            40: Open,
+            41: OpenOk,
+            50: Close,
+            51: CloseOk,
+            60: Blocked,
+            61: Unblocked,
+            70: UpdateSecret,
+            71: UpdateSecretOk;
+    20 =>   10: OpenChannel,
+            11: OpenChannelOk,
+            20: Flow,
+            21: FlowOk,
+            40: CloseChannel,
+            41: CloseChannelOk;
+    40 =>   10: Declare,
+            11: DeclareOk,
+            20: Delete,
+            21: DeleteOk,
+            30: Bind,
+            31: BindOk,
+            40: Unbind,
+            51: UnbindOk;
+    50 =>   10: DeclareQueue,
+            11: DeclareQueueOk,
+            20: BindQueue,
+            21: BindQueueOk,
+            30: PurgeQueue,
+            31: PurgeQueueOk,
+            40: DeleteQueue,
+            41: DeleteQueueOk,
+            50: UnbindQueue,
+            51: UnbindQueueOk
+}
+
+//////////////////////////////////////////////////////////////////////
+
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct FrameHeader {
     pub frame_type: Octect, // 1: method, 2: content-header, 3: content-body, 8: heartbeat
     pub channel: ShortUint,
     pub payload_size: LongUint,
-}
-
-/// Frame type design choice:
-/// Use enum to generailize the types instead of generic type parameter, which avoid generic type parameter in
-/// interfaces or new type depends on Frame
-/// Only wrap the payload  instead of complete frame struture, reduce the size of type but leaving
-/// the responsibility of constructing a complete frame in other placaes
-
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
-pub enum Frame {
-    //==  CONNECTION  =======================================================     
-    #[serde(skip_serializing)]
-    Start(&'static MethodHeader, Start),
-    StartOk(&'static MethodHeader, StartOk),
-    #[serde(skip_serializing)]
-    Secure(&'static MethodHeader, Secure),
-    SecureOk(&'static MethodHeader, SecureOk),
-    #[serde(skip_serializing)]
-    Tune(&'static MethodHeader, Tune),
-    TuneOk(&'static MethodHeader, TuneOk),
-    Open(&'static MethodHeader, Open),
-    #[serde(skip_serializing)]
-    OpenOk(&'static MethodHeader, OpenOk),
-    Close(&'static MethodHeader, Close),
-    CloseOk(&'static MethodHeader, CloseOk),
-    Blocked(&'static MethodHeader, Blocked),
-    Unblocked(&'static MethodHeader, Unblocked),
-    #[serde(skip_serializing)]
-    UpdateSecret(&'static MethodHeader, UpdateSecret),
-    UpdateSecretOk(&'static MethodHeader, UpdateSecretOk),
-
-    // ==  CHANNEL  ==========================================================
-    OpenChannel(&'static MethodHeader, OpenChannel),
-    #[serde(skip_serializing)]
-    OpenChannelOk(&'static MethodHeader, OpenChannelOk),
-    Flow(&'static MethodHeader, Flow),
-    FlowOk(&'static MethodHeader, FlowOk),
-    CloseChannel(&'static MethodHeader, CloseChannel),
-    CloseChannelOk(&'static MethodHeader, CloseChannelOk),
-
-    // ==  EXCHANGE  =========================================================
-    Declare(&'static MethodHeader, Declare),
-    #[serde(skip_serializing)]
-    DeclareOk(&'static MethodHeader, DeclareOk),
-
-    // ==  QUEUE  ============================================================
-
-    //  ==  BASIC  ============================================================
-
-    // ==  TX  ===============================================================
-
-    // ==  CONFIRM  ==========================================================
-
-    // == Heart Beat, Content Header, Content ==
-    HeartBeat(HeartBeat),
-    ContentHeader(ContentHeader),
-    ContentBody(ContentBody),
-}
-
-macro_rules! decode_method_frame {
-    ($header:ident, $content:ident, $method:ident, $($others:ident),*) => {
-        if &$header == $method::header() {
-            from_bytes::<$method>($content)?.into_frame()
-        } $(else if &$header == $others::header() {
-            from_bytes::<$others>($content)?.into_frame()
-        })*
-        else {
-            println!("header: {:?}", $header);
-            println!("content: {:?}", $content);
-            unreachable!("unknown frame");
-        }
-    };
 }
 
 impl Frame {
@@ -159,25 +185,7 @@ impl Frame {
                     None => unreachable!("out of bound"),
                 };
 
-                let frame = decode_method_frame!(
-                    header,
-                    content,
-                    Start,
-                    Secure,
-                    Tune,
-                    OpenOk,
-                    Close,
-                    CloseOk,
-                    Blocked,
-                    Unblocked,
-                    OpenChannelOk,
-                    Flow,
-                    FlowOk,
-                    CloseChannel,
-                    CloseChannelOk,
-                    DeclareOk,
-                    UpdateSecret
-                );
+                let frame = decode_method_frame(header, content)?;
 
                 Ok(Some((total_size, channel, frame)))
             }

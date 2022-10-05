@@ -1,27 +1,6 @@
 use amqp_serde::types::ShortUint;
 use serde::{Deserialize, Serialize};
 
-// macro  should appear before module declaration
-macro_rules! impl_header_and_frame_mapping {
-    ($name:ident, $class_id:literal, $method_id:literal) => {
-        impl $name {
-            pub fn header() -> &'static MethodHeader {                
-                static __METHOD_HEADER: MethodHeader = 
-                MethodHeader {
-                    class_id: $class_id,
-                    method_id: $method_id,
-                };
-                &__METHOD_HEADER
-            }
-            pub fn into_frame(self) -> Frame {                
-                Frame::$name(
-                    Self::header(),
-                    self,
-                )
-            }
-        }
-    };
-}
 //////////////////////////////////////////////////////////
 mod basic;
 mod channel;
@@ -43,4 +22,19 @@ pub struct MethodHeader {
     method_id: ShortUint,
 }
 
+impl MethodHeader {
+    pub const fn new(class_id: ShortUint, method_id: ShortUint) -> Self {
+        Self {
+            class_id,
+            method_id,
+        }
+    }
 
+    pub fn class_id(&self) -> ShortUint {
+        self.class_id
+    }
+
+    pub fn method_id(&self) -> ShortUint {
+        self.method_id
+    }
+}

@@ -183,8 +183,7 @@ impl BufferReader {
 mod test {
 
     use super::SplitConnection;
-    use crate::frame::*;
-    use amqp_serde::types::LongStr;
+    use crate::frame::*;    
     use tokio::sync::mpsc;
 
     #[tokio::test]
@@ -215,7 +214,7 @@ mod test {
         });
 
         // S: 'Start'
-        let start = rx_resp.recv().await.unwrap();
+        let _start = rx_resp.recv().await.unwrap();
 
         // C: 'StartOk'
         let mut start_ok = StartOk::default();
@@ -288,7 +287,7 @@ mod test {
             .unwrap();
 
         // S: OpenOk
-        let open_ok = rx_resp.recv().await.unwrap();
+        let _open_ok = rx_resp.recv().await.unwrap();
 
         // C: Close
         tx_req
@@ -297,7 +296,7 @@ mod test {
             .unwrap();
 
         // S: CloseOk
-        let close_ok = rx_resp.recv().await.unwrap();
+        let _close_ok = rx_resp.recv().await.unwrap();
     }
 
     #[tokio::test]

@@ -180,4 +180,6 @@ pub type AmqpPath = ShortStr;
 pub type AmqpReplyCode = ShortUint;
 pub type AmqpReplyText = ShortStr;
 pub type AmqpChannelId = ShortUint;
-
+pub type AmqpExchangeName = ShortStr;
+pub type AmqpQueueName = ShortStr;
+pub type AmqpMessageCount = LongUint;

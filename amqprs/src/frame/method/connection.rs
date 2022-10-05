@@ -1,25 +1,11 @@
-use crate::frame::{Frame, MethodHeader, REPLY_SUCCESS};
+use crate::frame::REPLY_SUCCESS;
 use amqp_serde::types::{AmqpPeerProperties, Bit, LongStr, LongUint, Octect, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
 
-impl_header_and_frame_mapping!(Start, 10, 10);
-impl_header_and_frame_mapping!(StartOk, 10, 11);
-impl_header_and_frame_mapping!(Secure, 10, 20);
-impl_header_and_frame_mapping!(SecureOk, 10, 21);
-impl_header_and_frame_mapping!(Tune, 10, 30);
-impl_header_and_frame_mapping!(TuneOk, 10, 31);
-impl_header_and_frame_mapping!(Open, 10, 40);
-impl_header_and_frame_mapping!(OpenOk, 10, 41);
-impl_header_and_frame_mapping!(Close, 10, 50);
-impl_header_and_frame_mapping!(CloseOk, 10, 51);
-impl_header_and_frame_mapping!(Blocked, 10, 60);
-impl_header_and_frame_mapping!(Unblocked, 10, 61);
-impl_header_and_frame_mapping!(UpdateSecret, 10, 70);
-impl_header_and_frame_mapping!(UpdateSecretOk, 10, 71);
 
 
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Start {
     pub version_major: Octect,
     pub version_minor: Octect,
@@ -28,7 +14,7 @@ pub struct Start {
     pub locales: LongStr,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StartOk {
     pub client_properties: AmqpPeerProperties,
     pub machanisms: ShortStr,
@@ -47,13 +33,13 @@ impl Default for StartOk {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Tune {
     pub channel_max: ShortUint,
     pub frame_max: LongUint,
     pub heartbeat: ShortUint,
 }
-#[derive(Debug, Serialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct TuneOk {
     // RabbitMQ doesn't put a limit on channel-max, and treats any number in tune-ok as valid.
     // It does put a limit on frame-max, and checks that the value sent in tune-ok
@@ -63,7 +49,7 @@ pub struct TuneOk {
     pub heartbeat: ShortUint,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Open {
     pub virtual_host: ShortStr,
     pub capabilities: ShortStr,
@@ -79,7 +65,7 @@ impl Default for Open {
         }
     }
 }
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OpenOk {
     pub know_hosts: ShortStr,
 }
@@ -107,12 +93,12 @@ impl Default for Close {
 pub struct CloseOk;
 
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Secure {
     pub challenge: LongStr,
 }
 
-#[derive(Debug, Serialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct SecureOk {
     pub response: LongStr,
 }
@@ -127,11 +113,11 @@ pub struct Blocked {
 pub struct Unblocked;
 
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateSecret {
     pub new_secret: LongStr,
     pub reason: ShortStr,
 }
 
-#[derive(Debug, Serialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct UpdateSecretOk;

@@ -1,20 +1,14 @@
 use amqp_serde::types::{Boolean, LongStr, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
-use crate::frame::{Frame, MethodHeader, REPLY_SUCCESS};
+use crate::frame::REPLY_SUCCESS;
 
-impl_header_and_frame_mapping!(OpenChannel, 20, 10);
-impl_header_and_frame_mapping!(OpenChannelOk, 20, 11);
-impl_header_and_frame_mapping!(Flow, 20, 20);
-impl_header_and_frame_mapping!(FlowOk, 20, 21);
-impl_header_and_frame_mapping!(CloseChannel, 20, 40);
-impl_header_and_frame_mapping!(CloseChannelOk, 20, 41);
 
-#[derive(Debug, Serialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct OpenChannel {
     out_of_band: ShortStr,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OpenChannelOk {
     pub channel_id: LongStr,
 }

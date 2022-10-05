@@ -1,11 +1,10 @@
 use crate::frame::{
-    Close, Frame, Open, OpenChannel, ProtocolHeader, Start, StartOk, TuneOk, CTRL_CHANNEL,
+    Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CTRL_CHANNEL,
 };
 use crate::net::{ConnectionManager, SplitConnection};
 
 use super::channel::Channel;
 use super::error::Error;
-use super::helpers;
 
 pub struct Connection {
     manager: ConnectionManager,
@@ -94,7 +93,7 @@ mod tests {
         let mut channel = client.channel().await.unwrap();
         channel.exchange_declare().await.unwrap();
         // time::sleep(time::Duration::from_secs(160)).await;
-        channel.close().await;
+        channel.close().await.unwrap();
         client.close().await.unwrap();
     }
 
