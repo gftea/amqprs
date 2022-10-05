@@ -10,6 +10,15 @@ mod macros {
             }
         }};
     }
+
+    macro_rules! get_expected_method {
+        ($frame:expr, $variant:path, $err:expr) => {
+            match $frame {
+                $variant(_, method) => Ok(method),
+                _ => Err($err),
+            }
+        };
+    }
 }
 
 ////////////////////////////////////////////7

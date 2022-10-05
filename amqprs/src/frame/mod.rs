@@ -110,6 +110,7 @@ impl Frame {
             _ => FRAME_METHOD,
         }
     }
+
     /// To support channels multiplex on one connection, need to populate the channel id
     /// to support update of read buffer cursor, need to populate the number of bytes are read
     /// Return :

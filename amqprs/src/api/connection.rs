@@ -1,5 +1,5 @@
 use crate::frame::{
-    Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CTRL_CHANNEL,
+    Close, Frame, Open, OpenChannel, ProtocolHeader, Start, StartOk, TuneOk, CTRL_CHANNEL,
 };
 use crate::net::{ConnectionManager, SplitConnection};
 
@@ -16,40 +16,42 @@ pub struct Connection {
 impl Connection {
     /// Open a AMQP connection
     pub async fn open(uri: &str) -> Result<Self, Error> {
+        // TODO: uri parsing
         let mut connection = SplitConnection::open(uri).await?;
+
         // TODO: protocol header negotiation ?
         connection.write(&ProtocolHeader::default()).await?;
 
         // S: 'Start'
-        let (_, start) = connection.read_frame().await?;
+        let (_, frame) = connection.read_frame().await?;
+        get_expected_method!(frame, Frame::Start, Error::ConnectionOpenError)?;
 
         // C: 'StartOk'
         let start_ok = StartOk::default().into_frame();
-        connection.write_frame(0, start_ok).await?;
+        connection.write_frame(CTRL_CHANNEL, start_ok).await?;
 
         // S: 'Tune'
-        let (_, tune) = connection.read_frame().await?;
-
+        let (_, frame) = connection.read_frame().await?;
+        let tune = get_expected_method!(frame, Frame::Tune, Error::ConnectionOpenError)?;
         // C: TuneOk
         let mut tune_ok = TuneOk::default();
-        match tune {
-            Frame::Tune(_, method) => {
-                tune_ok.channel_max = method.channel_max;
-                tune_ok.frame_max = method.frame_max;
-                tune_ok.heartbeat = method.heartbeat;
-            }
-            _ => return Err(Error::ConnectionOpenError),
-        };
+        tune_ok.channel_max = tune.channel_max;
+        tune_ok.frame_max = tune.frame_max;
+        tune_ok.heartbeat = tune.heartbeat;
+
         let channel_max = tune_ok.channel_max;
-        let heartbeat = tune_ok.channel_max;
-        connection.write_frame(0, tune_ok.into_frame()).await?;
+        let _heartbeat = tune_ok.channel_max;
+        connection
+            .write_frame(CTRL_CHANNEL, tune_ok.into_frame())
+            .await?;
 
         // C: Open
         let open = Open::default().into_frame();
-        connection.write_frame(0, open).await?;
+        connection.write_frame(CTRL_CHANNEL, open).await?;
 
         // S: OpenOk
-        let (_, open_ok) = connection.read_frame().await?;
+        let (_, frame) = connection.read_frame().await?;
+        get_expected_method!(frame, Frame::OpenOk, Error::ChannelOpenError)?;
 
         let manager = ConnectionManager::spawn(connection, channel_max).await;
         Ok(Self { manager })
