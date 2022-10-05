@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 // macros should appear before module declaration
 #[macro_use]
 mod helpers {
+    // common interfaces of each method type
     macro_rules! impl_method_frame {
         ($name:ident, $class_id:literal, $method_id:literal) => {
             impl $name {
@@ -37,18 +38,19 @@ mod helpers {
                 _ => unimplemented!("unknown class id"),
             }
         }
+        
         // common interfaces of each method type
         $($(impl_method_frame!{$method, $class_id, $method_id})+)+
 
         // `Frame` enum to generailize various frames.
         // To avoid generic type parameter for new type depends on `Frame`.
         // Only wrap the frame payload in enum variant, excluding the `FrameHeader` and FRAME_END byte
-        // The `Frame` type only need to implement Serialize, because when decoding a `Frame`, 
+        // The `Frame` type only need to implement Serialize, because when decoding a `Frame`,
         // `FrameHeader`, its payload, and `FRAME_END` bytes are desrialized separately
         #[derive(Debug, Serialize)]
         #[serde(untagged)]
         pub enum Frame {
-            // method frame payload = method header + method 
+            // method frame payload = method header + method
             $($($method(&'static MethodHeader, $method),)+)+
 
             HeartBeat(HeartBeat),
@@ -78,6 +80,7 @@ pub use protocol_header::*;
 
 /////////////////////////////////////////////////////////////////
 impl_frame! {
+    // == Connection ==
     10 =>   10: Start,
             11: StartOk,
             20: Secure,
@@ -92,12 +95,14 @@ impl_frame! {
             61: Unblocked,
             70: UpdateSecret,
             71: UpdateSecretOk;
+    // == Channel ==
     20 =>   10: OpenChannel,
             11: OpenChannelOk,
             20: Flow,
             21: FlowOk,
             40: CloseChannel,
             41: CloseChannelOk;
+    // == Exchange ==
     40 =>   10: Declare,
             11: DeclareOk,
             20: Delete,
@@ -106,6 +111,7 @@ impl_frame! {
             31: BindOk,
             40: Unbind,
             51: UnbindOk;
+    // == Queue ==
     50 =>   10: DeclareQueue,
             11: DeclareQueueOk,
             20: BindQueue,
