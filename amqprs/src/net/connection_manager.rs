@@ -7,7 +7,7 @@ use tokio::sync::{
     RwLock,
 };
 
-use crate::frame::{CloseChannelOk, CloseOk, Frame, DEFAULT_CONNECTION_CHANNEL};
+use crate::frame::{CloseChannelOk, CloseOk, Frame, CTRL_CHANNEL};
 
 use super::{BufferReader, BufferWriter, SplitConnection};
 const CHANNEL_BUFFER_SIZE: usize = 8;
@@ -29,16 +29,16 @@ impl ReaderHandler {
             // handle close request from server
             match &frame {
                 Frame::Close(..) => {
-                    assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
+                    assert_eq!(CTRL_CHANNEL, channel_id);
                     println!("forward close ok to writer");
                     self.request_tx
-                        .send((DEFAULT_CONNECTION_CHANNEL, CloseOk::default().into_frame()))
+                        .send((CTRL_CHANNEL, CloseOk::default().into_frame()))
                         .await
                         .unwrap();
                     break;
                 }
                 Frame::CloseOk(..) => {
-                    assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
+                    assert_eq!(CTRL_CHANNEL, channel_id);
                     println!("got close connection ok");
                     self.response_tx.send(frame).await.unwrap();
                     break;
@@ -110,7 +110,7 @@ impl WriterHandler {
                             // handle server close request internally
                             match &frame {
                                 Frame::CloseOk(..) => {
-                                    assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
+                                    assert_eq!(CTRL_CHANNEL, channel_id);
                                     println!("respond close ok to server");
                                     self.stream.write_frame(channel_id, frame).await.unwrap();
                                     break;
@@ -147,7 +147,7 @@ impl ChannelManager {
         // the channel manager only allocate id above DEFAULT_CONNECTION_CHANNEL
         Self {
             channel_max,
-            last_allocated_id: DEFAULT_CONNECTION_CHANNEL,
+            last_allocated_id: CTRL_CHANNEL,
             free_ids: vec![],
             channels: BTreeMap::new(),
         }
@@ -196,7 +196,7 @@ impl ChannelManager {
     fn clear(&mut self) {
         self.channels.clear();
         self.free_ids.clear();
-        self.last_allocated_id = DEFAULT_CONNECTION_CHANNEL;
+        self.last_allocated_id = CTRL_CHANNEL;
     }
 }
 

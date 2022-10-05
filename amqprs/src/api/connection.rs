@@ -1,5 +1,5 @@
 use crate::frame::{
-    Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, DEFAULT_CONNECTION_CHANNEL,
+    Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CTRL_CHANNEL,
 };
 use crate::net::{ConnectionManager, SplitConnection};
 
@@ -58,7 +58,7 @@ impl Connection {
     pub async fn close(mut self) -> Result<(), Error> {
         synchronous_request!(
             self.manager.tx,
-            (DEFAULT_CONNECTION_CHANNEL, Close::default().into_frame()),
+            (CTRL_CHANNEL, Close::default().into_frame()),
             self.manager.rx,
             Frame::CloseOk,
             (),

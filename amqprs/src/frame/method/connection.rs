@@ -112,7 +112,7 @@ pub struct Secure {
     pub challenge: LongStr,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct SecureOk {
     pub response: LongStr,
 }

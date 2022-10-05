@@ -22,7 +22,10 @@ services:
       - RABBITMQ_USERNAME=user
       - RABBITMQ_PASSWORD=bitnami
       - RABBITMQ_VHOST=/
-
+    volumes:
+      - type: bind
+        source: ./rabbitmq_conf/custom.conf
+        target: /bitnami/rabbitmq/conf/custom.conf
 networks:
   integration-net:
     driver: bridge

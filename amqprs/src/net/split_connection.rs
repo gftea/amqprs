@@ -89,7 +89,6 @@ impl BufferWriter {
 
     // write a AMQP frame over a specific channel
     pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
-
         // TODO: tracing
         println!("SENT: {}, {:?}", channel, frame);
 
@@ -185,6 +184,7 @@ mod test {
 
     use super::SplitConnection;
     use crate::frame::*;
+    use amqp_serde::types::LongStr;
     use tokio::sync::mpsc;
 
     #[tokio::test]
@@ -218,11 +218,48 @@ mod test {
         let start = rx_resp.recv().await.unwrap();
 
         // C: 'StartOk'
-        let start_ok = StartOk::default().into_frame();
-        tx_req
-            .send((DEFAULT_CONNECTION_CHANNEL, start_ok))
-            .await
-            .unwrap();
+        let mut start_ok = StartOk::default();
+        let auth_machanism = 2;
+        match auth_machanism {
+            1 => {
+                // default: PLAIN
+                tx_req
+                    .send((CTRL_CHANNEL, start_ok.into_frame()))
+                    .await
+                    .unwrap();
+            }
+            2 => {
+
+                start_ok.machanisms = "AMQPLAIN".try_into().unwrap();
+                let user = "user";
+                let password = "bitnami";
+                let s = format!(
+                    "\x05LOGIN\x53\x00\x00\x00\x04{user}\x08PASSWORD\x53\x00\x00\x00\x07{password}"
+                );
+                start_ok.response = s.try_into().unwrap();
+                tx_req
+                    .send((CTRL_CHANNEL, start_ok.into_frame()))
+                    .await
+                    .unwrap();
+            }
+            3 => {
+                start_ok.machanisms = "RABBIT-CR-DEMO".try_into().unwrap();
+                start_ok.response = "user".try_into().unwrap();
+                tx_req
+                .send((CTRL_CHANNEL, start_ok.into_frame()))
+                .await
+                .unwrap();
+
+                // S: Secure
+                rx_resp.recv().await.unwrap();
+                
+                // C: SecureOk
+                let secure_ok = SecureOk { response: "My password is bitnami".try_into().unwrap() };
+                tx_req.send((CTRL_CHANNEL, secure_ok.into_frame())).await.unwrap();
+
+            }
+            _ => unimplemented!(),
+        }
 
         // S: 'Tune'
         let tune = rx_resp.recv().await.unwrap();
@@ -239,14 +276,14 @@ mod test {
         tune_ok.heartbeat = tune.heartbeat;
 
         tx_req
-            .send((DEFAULT_CONNECTION_CHANNEL, tune_ok.into_frame()))
+            .send((CTRL_CHANNEL, tune_ok.into_frame()))
             .await
             .unwrap();
 
         // C: Open
         let open = Open::default().into_frame();
         tx_req
-            .send((DEFAULT_CONNECTION_CHANNEL, open))
+            .send((CTRL_CHANNEL, open))
             .await
             .unwrap();
 
@@ -255,7 +292,7 @@ mod test {
 
         // C: Close
         tx_req
-            .send((DEFAULT_CONNECTION_CHANNEL, Close::default().into_frame()))
+            .send((CTRL_CHANNEL, Close::default().into_frame()))
             .await
             .unwrap();
 
@@ -269,7 +306,7 @@ mod test {
 
         connection.write(&ProtocolHeader::default()).await.unwrap();
         let (channel_id, frame) = connection.read_frame().await.unwrap();
-        assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
+        assert_eq!(CTRL_CHANNEL, channel_id);
         println!(" {frame:?}");
         connection
             .write_frame(channel_id, StartOk::default().into_frame())
@@ -287,7 +324,7 @@ mod test {
 
         writer.write(&ProtocolHeader::default()).await.unwrap();
         let (channel_id, frame) = reader.read_frame().await.unwrap();
-        assert_eq!(DEFAULT_CONNECTION_CHANNEL, channel_id);
+        assert_eq!(CTRL_CHANNEL, channel_id);
         println!(" {frame:?}");
         writer
             .write_frame(channel_id, StartOk::default().into_frame())
