@@ -2,8 +2,8 @@ use crate::frame::{Frame, MethodHeader};
 use amqp_serde::types::{FieldTable, Octect, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
 
-impl_mapping!(Declare, 40, 10);
-impl_mapping!(DeclareOk, 40, 11);
+impl_header_and_frame_mapping!(Declare, 40, 10);
+impl_header_and_frame_mapping!(DeclareOk, 40, 11);
 
 // continous bits packed into one or more octets, starting from the low bit in each octet.
 const NO_WAIT: u8 = 0b0001_0000;

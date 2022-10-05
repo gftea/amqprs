@@ -5,7 +5,7 @@ use crate::net::{ConnectionManager, SplitConnection};
 
 use super::channel::Channel;
 use super::error::Error;
-use super::macros;
+use super::helpers;
 
 pub struct Connection {
     manager: ConnectionManager,

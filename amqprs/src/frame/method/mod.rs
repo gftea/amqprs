@@ -2,7 +2,7 @@ use amqp_serde::types::ShortUint;
 use serde::{Deserialize, Serialize};
 
 // macro  should appear before module declaration
-macro_rules! impl_mapping {
+macro_rules! impl_header_and_frame_mapping {
     ($name:ident, $class_id:literal, $method_id:literal) => {
         impl $name {
             pub fn header() -> &'static MethodHeader {                

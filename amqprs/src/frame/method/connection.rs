@@ -2,20 +2,20 @@ use crate::frame::{Frame, MethodHeader, REPLY_SUCCESS};
 use amqp_serde::types::{AmqpPeerProperties, Bit, LongStr, LongUint, Octect, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
 
-impl_mapping!(Start, 10, 10);
-impl_mapping!(StartOk, 10, 11);
-impl_mapping!(Secure, 10, 20);
-impl_mapping!(SecureOk, 10, 21);
-impl_mapping!(Tune, 10, 30);
-impl_mapping!(TuneOk, 10, 31);
-impl_mapping!(Open, 10, 40);
-impl_mapping!(OpenOk, 10, 41);
-impl_mapping!(Close, 10, 50);
-impl_mapping!(CloseOk, 10, 51);
-impl_mapping!(Blocked, 10, 60);
-impl_mapping!(Unblocked, 10, 61);
-impl_mapping!(UpdateSecret, 10, 70);
-impl_mapping!(UpdateSecretOk, 10, 71);
+impl_header_and_frame_mapping!(Start, 10, 10);
+impl_header_and_frame_mapping!(StartOk, 10, 11);
+impl_header_and_frame_mapping!(Secure, 10, 20);
+impl_header_and_frame_mapping!(SecureOk, 10, 21);
+impl_header_and_frame_mapping!(Tune, 10, 30);
+impl_header_and_frame_mapping!(TuneOk, 10, 31);
+impl_header_and_frame_mapping!(Open, 10, 40);
+impl_header_and_frame_mapping!(OpenOk, 10, 41);
+impl_header_and_frame_mapping!(Close, 10, 50);
+impl_header_and_frame_mapping!(CloseOk, 10, 51);
+impl_header_and_frame_mapping!(Blocked, 10, 60);
+impl_header_and_frame_mapping!(Unblocked, 10, 61);
+impl_header_and_frame_mapping!(UpdateSecret, 10, 70);
+impl_header_and_frame_mapping!(UpdateSecretOk, 10, 71);
 
 
 

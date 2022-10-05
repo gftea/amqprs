@@ -1,6 +1,6 @@
 // macro should appear before module declaration
 #[macro_use]
-mod macros {
+mod helpers {
     macro_rules! synchronous_request {
         ($tx:expr, $msg:expr, $rx:expr, $response:path, $result:expr, $err:expr) => {{
             $tx.send($msg).await?;
