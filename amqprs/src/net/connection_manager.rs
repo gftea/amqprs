@@ -16,8 +16,13 @@ pub type Message = (AmqpChannelId, Frame);
 
 pub struct ReaderHandler {
     stream: BufferReader,
+    /// sender half to forward received server response to client
     response_tx: Sender<Frame>,
+    /// sender half to forward message to `WriterHandler` task
     request_tx: Sender<Message>,
+    /// to notify WriterHandler task to shutdown
+    /// Socket connection will be shutdown as long as the writer half is shutdown
+    /// so reader half do not need to listen for shutdown signal.
     #[allow(dead_code /* notify shutdown just by dropping the instance */)]
     notify_shutdown: broadcast::Sender<()>,
     channel_manager: Arc<RwLock<ChannelManager>>,
@@ -91,7 +96,9 @@ impl ReaderHandler {
 }
 pub struct WriterHandler {
     stream: BufferWriter,
+    /// receiver half to receive client initiated message
     request_rx: Receiver<Message>,
+    /// listen to shutdown signal
     shutdown: broadcast::Receiver<()>,
     channel_manager: Arc<RwLock<ChannelManager>>,
 }
@@ -200,17 +207,27 @@ impl ChannelManager {
     }
 }
 
+/// This hides the AMQP connection and channel management for the user.
+/// It spawns tasks for `WriterHandler` and `ReaderHandler` to handle outgoing/incoming messages cocurrently.
+/// The `tx` send message to `WriterHandler`, and `rx` is to receive message from `ReaderHandler`
+/// Requests initiated from server are handled internally, e.g. hearbeat, close request from servers, etc
 pub struct ConnectionManager {
-    pub tx: Sender<Message>,
-    pub rx: Receiver<Frame>,
-    pub channel_manager: Arc<RwLock<ChannelManager>>,
+    /// The sender half to forward message to `WriterHandler`
+    tx: Sender<Message>,
+    /// The receiver half to receive message from  `ReaderHandler`
+    rx: Receiver<Frame>,
+    /// The channel id allocation and management
+    channel_manager: Arc<RwLock<ChannelManager>>,
 }
 
-// AMQP connection manager per a AMQP connection
-// AMQP client message is forwarded to the manager first, then the manager's write handler task forward to server
-// AMQP server message is received by manager's read handler task first, and forwarded to the client.
-// Incoming server's request will be handled internnaly within manager, e.g. hearbeat, close request from servers, etc
+
 impl ConnectionManager {
+    pub async fn send(&self, value: Message) -> Result<(), mpsc::error::SendError<(u16, Frame)>> {
+        self.tx.send(value).await
+    }
+    pub async fn recv(&mut self) -> Option<Frame>  {
+        self.rx.recv().await
+    }
     pub async fn spawn(connection: SplitConnection, channel_max: ShortUint) -> Self {
         // The Connection Manager will Spawn two  tasks for connection
         // - one task for writer handler

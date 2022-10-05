@@ -59,9 +59,9 @@ impl Connection {
 
     pub async fn close(mut self) -> Result<(), Error> {
         synchronous_request!(
-            self.manager.tx,
+            self.manager,
             (CTRL_CHANNEL, Close::default().into_frame()),
-            self.manager.rx,
+            self.manager,
             Frame::CloseOk,
             (),
             Error::ConnectionCloseError

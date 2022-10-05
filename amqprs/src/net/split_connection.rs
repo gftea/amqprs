@@ -132,9 +132,9 @@ impl BufferWriter {
 type ChannelFrame = (AmqpChannelId, Frame);
 
 impl BufferReader {
-    // try to decode a whole frame from the bufferred data
-    // If it is incomplete data, return None
-    // If the frame syntax is corrupted, return Error
+    // try to decode a whole frame from the bufferred data.
+    // If it is incomplete data, return None;
+    // If the frame syntax is corrupted, return Error.
     async fn decode(&mut self) -> Result<Option<ChannelFrame>> {
         match Frame::decode(&self.buffer)? {
             Some((len, channel_id, frame)) => {
