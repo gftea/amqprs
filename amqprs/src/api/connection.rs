@@ -7,6 +7,7 @@ use super::channel::Channel;
 use super::error::Error;
 
 pub struct Connection {
+    uri: String,
     manager: ConnectionManager,
 }
 
@@ -23,7 +24,11 @@ impl Connection {
 
         // S: 'Start'
         let (_, frame) = connection.read_frame().await?;
-        get_expected_method!(frame, Frame::Start, Error::ConnectionOpenError)?;
+        get_expected_method!(
+            frame,
+            Frame::Start,
+            Error::ConnectionOpenError("start".to_string())
+        )?;
 
         // C: 'StartOk'
         let start_ok = StartOk::default().into_frame();
@@ -31,7 +36,11 @@ impl Connection {
 
         // S: 'Tune'
         let (_, frame) = connection.read_frame().await?;
-        let tune = get_expected_method!(frame, Frame::Tune, Error::ConnectionOpenError)?;
+        let tune = get_expected_method!(
+            frame,
+            Frame::Tune,
+            Error::ConnectionOpenError("tune".to_string())
+        )?;
         // C: TuneOk
         let mut tune_ok = TuneOk::default();
         tune_ok.channel_max = tune.channel_max;
@@ -50,10 +59,13 @@ impl Connection {
 
         // S: OpenOk
         let (_, frame) = connection.read_frame().await?;
-        get_expected_method!(frame, Frame::OpenOk, Error::ChannelOpenError)?;
+        get_expected_method!(frame, Frame::OpenOk, Error::ChannelOpenError(CTRL_CHANNEL.to_string()))?;
 
         let manager = ConnectionManager::spawn(connection, channel_max).await;
-        Ok(Self { manager })
+        Ok(Self {
+            uri: uri.to_string(),
+            manager,
+        })
     }
 
     pub async fn close(mut self) -> Result<(), Error> {
@@ -63,7 +75,7 @@ impl Connection {
             self.manager,
             Frame::CloseOk,
             (),
-            Error::ConnectionCloseError
+            Error::ConnectionCloseError(CTRL_CHANNEL.to_string())
         )
     }
 
@@ -76,7 +88,7 @@ impl Connection {
             rx,
             Frame::OpenChannelOk,
             Channel::new(channel_id, tx, rx),
-            Error::ChannelOpenError
+            Error::ChannelOpenError(channel_id.to_string())
         )
     }
 }

@@ -21,6 +21,7 @@ impl Channel {
     pub(crate) fn new(channel_id: AmqpChannelId, tx: Sender<Message>, rx: Receiver<Frame>) -> Self {
         Self { channel_id, tx, rx }
     }
+    
     pub async fn exchange_declare(&mut self) -> Result<()> {
         let mut declare = Declare::default();
         declare.set_passive();
@@ -31,7 +32,7 @@ impl Channel {
             self.rx,
             Frame::DeclareOk,
             (),
-            Error::ChannelUseError
+            Error::ChannelUseError(self.channel_id.to_string())
         )
     }
 
@@ -42,7 +43,7 @@ impl Channel {
             self.rx,
             Frame::CloseChannelOk,
             (),
-            Error::ChannelCloseError
+            Error::ChannelCloseError(self.channel_id.to_string())
         )
     }
 }

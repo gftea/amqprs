@@ -1,15 +1,16 @@
 use std::fmt;
+use amqp_serde::types::AmqpChannelId;
 use tokio::sync::mpsc::error::SendError;
 use crate::net;
 
 #[derive(Debug)]
 pub enum Error {
-    ConnectionOpenError,
-    ConnectionCloseError,
-    ConnectionUseError,
-    ChannelOpenError,
-    ChannelCloseError,
-    ChannelUseError,
+    ConnectionOpenError(String),
+    ConnectionCloseError(String),
+    ConnectionUseError(String),
+    ChannelOpenError(String),
+    ChannelCloseError(String),
+    ChannelUseError(String),
     CommunicationError(String),
 }
 
@@ -27,13 +28,14 @@ impl<T> From<SendError<T>> for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::ConnectionOpenError => f.write_str("failed to open amqp connection"),
             Error::CommunicationError(msg) => write!(f, "{}", msg),
-            Error::ChannelOpenError => f.write_str("failed to open amqp channel"),
-            Error::ChannelUseError => f.write_str("error occurred in channel"),
-            Error::ConnectionCloseError => todo!(),
-            Error::ConnectionUseError => todo!(),
-            Error::ChannelCloseError => todo!(),
+
+            Error::ConnectionOpenError(msg) => write!(f, "AMQP connection open error: {msg}"),
+            Error::ConnectionCloseError(msg)=> write!(f, "AMQP connection close error: {msg}"),
+            Error::ConnectionUseError(msg) => write!(f, "AMQP connection error: {msg}"),
+            Error::ChannelOpenError(msg) => write!(f, "AMQP channel open error: {msg}"),
+            Error::ChannelUseError(msg) => write!(f, "AMQP channel close error: {msg}"),
+            Error::ChannelCloseError(msg) => write!(f, "AMQP channel error: {msg}"),
             
         }
     }

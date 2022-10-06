@@ -121,7 +121,36 @@ impl_frame! {
             40: DeleteQueue,
             41: DeleteQueueOk,
             50: UnbindQueue,
-            51: UnbindQueueOk
+            51: UnbindQueueOk;
+    // == Basic ==
+    60 =>   10: Qos,
+            11: QosOk,
+            20: Consume,
+            21: ConsumeOk,
+            30: Cancel,
+            31: CancelOk,
+            40: Publish,
+            50: Return,
+            60: Deliver,
+            70: Get,
+            71: GetOk,
+            72: GetEmpty,
+            80: Ack,
+            90: Reject,
+            100: RecoverAsync,
+            110: Recover,
+            111: RecoverOk,
+            120: Nack;
+    // == Confirm ==            
+    85 =>   10: Select,
+            11: SelectOk;
+    // == Transaction ==
+    90 =>   10: SelectTx,
+            11: SelectTxOk,
+            20: Commit,
+            21: CommitOk,
+            30: Rollback,
+            31: RollbackOk            
 }
 
 //////////////////////////////////////////////////////////////////////
