@@ -1,4 +1,6 @@
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ContentBody {}
+pub struct ContentBody {
+    inner: Vec<u8>
+}
