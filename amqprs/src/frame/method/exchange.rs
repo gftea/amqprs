@@ -1,4 +1,4 @@
-use amqp_serde::types::{AmqpExchangeName, FieldTable, Octect, ShortStr, ShortUint, Boolean};
+use amqp_serde::types::{AmqpExchangeName, Boolean, FieldTable, Octect, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
 
 mod bit_flag {
@@ -19,56 +19,61 @@ mod bit_flag {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Declare {
-    pub ticket: ShortUint,
-    pub exchange: AmqpExchangeName,
-    pub typ: ShortStr,
+    ticket: ShortUint,
+    exchange: AmqpExchangeName,
+    typ: ShortStr,
     bits: Octect,
-    pub arguments: FieldTable,
+    arguments: FieldTable,
 }
 
-impl Default for Declare {
-    fn default() -> Self {
+impl Declare {
+    pub fn new(exchange: AmqpExchangeName, typ: ShortStr, arguments: FieldTable) -> Self {
         Self {
             ticket: 0,
-            exchange: "amq.direct".try_into().unwrap(),
-            typ: "direct".try_into().unwrap(),
+            exchange,
+            typ,
             bits: 0b0000_0000,
-            arguments: FieldTable::new(),
+            arguments,
         }
     }
-}
-impl Declare {
-    /// set passive to `true`
-    pub fn set_passive(&mut self) {
-        self.bits |= bit_flag::declare::PASSIVE;
+
+    pub fn set_passive(&mut self, value: bool) {
+        if value {
+            self.bits |= bit_flag::declare::PASSIVE;
+        } else {
+            self.bits &= !bit_flag::declare::PASSIVE;
+        }
     }
-    /// set passive to `false`
-    pub fn clear_passive(&mut self) {
-        self.bits &= !bit_flag::declare::PASSIVE;
+    pub fn set_durable(&mut self, value: bool) {
+        if value {
+            self.bits |= bit_flag::declare::DURABLE;
+        } else {
+            self.bits &= !bit_flag::declare::DURABLE;
+        }
     }
-    pub fn set_durable(&mut self) {
-        self.bits |= bit_flag::declare::DURABLE;
+
+    pub fn set_auto_delete(&mut self, value: bool) {
+        if value {
+            self.bits |= bit_flag::declare::AUTO_DELETE;
+        } else {
+            self.bits &= !bit_flag::declare::AUTO_DELETE;
+        }
     }
-    pub fn clear_durable(&mut self) {
-        self.bits &= !bit_flag::declare::DURABLE;
+
+    pub fn set_internal(&mut self, value: bool) {
+        if value {
+            self.bits |= bit_flag::declare::INTERNAL;
+        } else {
+            self.bits &= !bit_flag::declare::INTERNAL;
+        }
     }
-    pub fn set_auto_delete(&mut self) {
-        self.bits |= bit_flag::declare::AUTO_DELETE;
-    }
-    pub fn clear_auto_delete(&mut self) {
-        self.bits &= !bit_flag::declare::AUTO_DELETE;
-    }
-    pub fn set_internal(&mut self) {
-        self.bits |= bit_flag::declare::INTERNAL;
-    }
-    pub fn clear_internal(&mut self) {
-        self.bits &= !bit_flag::declare::INTERNAL;
-    }
-    pub fn set_no_wait(&mut self) {
-        self.bits |= bit_flag::declare::NO_WAIT;
-    }
-    pub fn clear_no_wait(&mut self) {
-        self.bits &= !bit_flag::declare::NO_WAIT;
+
+    pub fn set_no_wait(&mut self, value: bool) {
+        if value {
+            self.bits |= bit_flag::declare::NO_WAIT;
+        } else {
+            self.bits &= !bit_flag::declare::NO_WAIT;
+        }
     }
 }
 
@@ -82,24 +87,35 @@ pub struct Delete {
     bits: Octect,
 }
 impl Delete {
-    pub fn set_if_unused(&mut self) {
-        self.bits |= bit_flag::delete::IF_UNUSED;
+    pub fn new(exchange: AmqpExchangeName) -> Self {
+        Self {
+            ticket: 0,
+            exchange,
+            bits: 0b0000_0000,
+        }
     }
-    pub fn clear_if_unused(&mut self) {
-        self.bits &= !bit_flag::delete::IF_UNUSED;
+
+    pub fn set_if_unused(&mut self, value: bool) {
+        if value {
+            self.bits |= bit_flag::delete::IF_UNUSED;
+        } else {
+            self.bits &= !bit_flag::delete::IF_UNUSED;
+        }
     }
-    pub fn set_no_wait(&mut self) {
-        self.bits |= bit_flag::delete::NO_WAIT;
-    }
-    pub fn clear_no_wait(&mut self) {
-        self.bits &= !bit_flag::delete::NO_WAIT;
+
+    pub fn set_no_wait(&mut self, value: bool) {
+        if value {
+            self.bits |= bit_flag::delete::NO_WAIT;
+        } else {
+            self.bits &= !bit_flag::delete::NO_WAIT;
+        }
     }
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeleteOk;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
-pub struct Bind{
+pub struct Bind {
     ticket: ShortUint,
     destination: AmqpExchangeName,
     source: AmqpExchangeName,
@@ -112,7 +128,7 @@ pub struct Bind{
 pub struct BindOk;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
-pub struct Unbind{
+pub struct Unbind {
     ticket: ShortUint,
     destination: AmqpExchangeName,
     source: AmqpExchangeName,
@@ -120,7 +136,6 @@ pub struct Unbind{
     nowait: Boolean,
     arguments: FieldTable,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UnbindOk;

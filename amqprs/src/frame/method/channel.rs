@@ -49,6 +49,6 @@ mod tests {
 
     #[test]
     fn test_default() {
-        assert_eq!(0, Flow::default().active);
+        assert_eq!(false, Flow::default().active);
     }
 }

@@ -2,7 +2,7 @@ use amqp_serde::{
     from_bytes,
     types::{AmqpChannelId, LongUint, Octect, ShortUint},
 };
-
+use std::fmt;
 use serde::{Deserialize, Serialize};
 
 ////////////////////////////////////////////////////////////////////////
@@ -162,6 +162,12 @@ pub struct FrameHeader {
     pub payload_size: LongUint,
 }
 
+impl fmt::Display for Frame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 impl Frame {
     pub fn get_frame_type(&self) -> Octect {
         match self {
@@ -231,4 +237,4 @@ impl Frame {
     }
 }
 
-///////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////

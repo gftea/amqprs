@@ -12,6 +12,7 @@ pub enum Error {
     ChannelCloseError(String),
     ChannelUseError(String),
     CommunicationError(String),
+    
 }
 
 impl From<net::Error> for Error {

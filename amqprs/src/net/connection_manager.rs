@@ -12,14 +12,18 @@ use crate::frame::{CloseChannelOk, CloseOk, Frame, CTRL_CHANNEL};
 use super::{BufferReader, BufferWriter, SplitConnection};
 const CHANNEL_BUFFER_SIZE: usize = 8;
 
-pub type Message = (AmqpChannelId, Frame);
-
+pub type Request = (AmqpChannelId, Frame);
+#[derive(Debug)]
+pub enum Response {
+    Ok(Frame),
+    Exception(ShortUint, String),
+}
 pub struct ReaderHandler {
     stream: BufferReader,
     /// sender half to forward received server response to client
-    response_tx: Sender<Frame>,
+    response_tx: Sender<Response>,
     /// sender half to forward message to `WriterHandler` task
-    request_tx: Sender<Message>,
+    request_tx: Sender<Request>,
     /// to notify WriterHandler task to shutdown
     /// Socket connection will be shutdown as long as the writer half is shutdown
     /// so reader half do not need to listen for shutdown signal.
@@ -33,36 +37,60 @@ impl ReaderHandler {
         while let Ok((channel_id, frame)) = self.stream.read_frame().await {
             // handle close request from server
             match &frame {
-                Frame::Close(..) => {
+                Frame::Close(_, close) => {
                     assert_eq!(CTRL_CHANNEL, channel_id);
-                    println!("forward close ok to writer");
+                    println!("forward CloseOk to writer");
                     self.request_tx
                         .send((CTRL_CHANNEL, CloseOk::default().into_frame()))
                         .await
                         .unwrap();
+                    // Server request close connection due to Exception
+                    // self.response_tx
+                    //     .send(Response::Exception(
+                    //         close.reply_code,
+                    //         close.reply_text.clone().into(),
+                    //     ))
+                    //     .await
+                    //     .unwrap();
                     break;
                 }
                 Frame::CloseOk(..) => {
                     assert_eq!(CTRL_CHANNEL, channel_id);
-                    println!("got close connection ok");
-                    self.response_tx.send(frame).await.unwrap();
+                    println!("got CloseOk");
+                    self.response_tx.send(Response::Ok(frame)).await.unwrap();
                     break;
                 }
-                Frame::CloseChannel(..) => {
-                    self.channel_manager.write().await.remove(channel_id);
-                    println!("forward close channel ok to writer, id: {channel_id} ");
+                Frame::CloseChannel(_, close_channel) => {
+                    println!("forward CloseChannelOk to writer, id: {channel_id} ");
                     self.request_tx
-                        .send((channel_id, CloseChannelOk::default().into_frame()))
+                    .send((channel_id, CloseChannelOk::default().into_frame()))
+                    .await
+                    .unwrap();
+                    // Server request close channel due to Exception
+                    let response_tx = self
+                        .channel_manager
+                        .write()
                         .await
+                        .remove(channel_id)
                         .unwrap();
+
+                    response_tx
+                        .send(Response::Exception(
+                            close_channel.reply_code,
+                            close_channel.reply_text.clone().into(),
+                        ))
+                        .await.unwrap();
+
+                    
+
                     continue;
                 }
 
                 Frame::CloseChannelOk(..) => {
-                    println!("got close channel ok, id: {channel_id} ");
+                    println!("got CloseChannelOk, id: {channel_id} ");
                     let tx = self.channel_manager.write().await.remove(channel_id);
                     if let Some(tx) = tx {
-                        if let Err(_) = tx.send(frame).await {
+                        if let Err(_) = tx.send(Response::Ok(frame)).await {
                             println!("channel already closed");
                         }
                     }
@@ -77,10 +105,10 @@ impl ReaderHandler {
             // forward response to corresponding channel
             if channel_id == 0 {
                 // connection's control channel
-                self.response_tx.send(frame).await.unwrap();
+                self.response_tx.send(Response::Ok(frame)).await.unwrap();
             } else {
                 if let Some(tx) = self.channel_manager.read().await.get(&channel_id) {
-                    if let Err(_) = tx.send(frame).await {
+                    if let Err(_) = tx.send(Response::Ok(frame)).await {
                         // drop  channel
                         self.channel_manager.write().await.remove(channel_id);
                     }
@@ -97,7 +125,7 @@ impl ReaderHandler {
 pub struct WriterHandler {
     stream: BufferWriter,
     /// receiver half to receive client initiated message
-    request_rx: Receiver<Message>,
+    request_rx: Receiver<Request>,
     /// listen to shutdown signal
     shutdown: broadcast::Receiver<()>,
     channel_manager: Arc<RwLock<ChannelManager>>,
@@ -118,12 +146,12 @@ impl WriterHandler {
                             match &frame {
                                 Frame::CloseOk(..) => {
                                     assert_eq!(CTRL_CHANNEL, channel_id);
-                                    println!("respond close ok to server");
+                                    println!("respond CloseOk to server");
                                     self.stream.write_frame(channel_id, frame).await.unwrap();
                                     break;
                                 }
                                 Frame::CloseChannelOk(..) => {
-                                    println!("respond close channel ok to server");
+                                    println!("respond CloseChannelOk to server");
                                 }
                                 _ => (),
                             }
@@ -144,7 +172,7 @@ pub struct ChannelManager {
     channel_max: ShortUint,
     last_allocated_id: AmqpChannelId,
     free_ids: Vec<AmqpChannelId>,
-    channels: BTreeMap<AmqpChannelId, Sender<Frame>>,
+    channels: BTreeMap<AmqpChannelId, Sender<Response>>,
 }
 
 // AMQP channel manager handle allocation of AMQP channel id and messaging channel
@@ -180,19 +208,19 @@ impl ChannelManager {
     }
 
     // get sender half to be used for forwarding mesaage to AMQP channel
-    fn get(&self, channel_id: &AmqpChannelId) -> Option<&Sender<Frame>> {
+    fn get(&self, channel_id: &AmqpChannelId) -> Option<&Sender<Response>> {
         self.channels.get(channel_id)
     }
 
     // store sender half associated with the channel id
-    // if channel id already exist, it will silently overwrite the associated value 
-    fn store(&mut self, channel_id: AmqpChannelId, sender: Sender<Frame>)  {
+    // if channel id already exist, it will silently overwrite the associated value
+    fn store(&mut self, channel_id: AmqpChannelId, sender: Sender<Response>) {
         self.channels.insert(channel_id, sender);
     }
 
     // remove sender half
     // if exist, return the Sender half, else None
-    fn remove(&mut self, channel_id: AmqpChannelId) -> Option<Sender<Frame>> {
+    fn remove(&mut self, channel_id: AmqpChannelId) -> Option<Sender<Response>> {
         let sender = self.channels.remove(&channel_id);
         if !self.free_ids.contains(&channel_id) {
             self.free_ids.push(channel_id);
@@ -213,19 +241,18 @@ impl ChannelManager {
 /// Requests initiated from server are handled internally, e.g. hearbeat, close request from servers, etc
 pub struct ConnectionManager {
     /// The sender half to forward message to `WriterHandler`
-    tx: Sender<Message>,
+    tx: Sender<Request>,
     /// The receiver half to receive message from  `ReaderHandler`
-    rx: Receiver<Frame>,
+    rx: Receiver<Response>,
     /// The channel id allocation and management
     channel_manager: Arc<RwLock<ChannelManager>>,
 }
 
-
 impl ConnectionManager {
-    pub async fn send(&self, value: Message) -> Result<(), mpsc::error::SendError<(u16, Frame)>> {
+    pub async fn send(&self, value: Request) -> Result<(), mpsc::error::SendError<(u16, Frame)>> {
         self.tx.send(value).await
     }
-    pub async fn recv(&mut self) -> Option<Frame>  {
+    pub async fn recv(&mut self) -> Option<Response> {
         self.rx.recv().await
     }
     pub async fn spawn(connection: SplitConnection, channel_max: ShortUint) -> Self {
@@ -270,7 +297,9 @@ impl ConnectionManager {
         }
     }
 
-    pub async fn allocate_channel(&mut self) -> (AmqpChannelId, Sender<Message>, Receiver<Frame>) {
+    pub async fn allocate_channel(
+        &mut self,
+    ) -> (AmqpChannelId, Sender<Request>, Receiver<Response>) {
         // A channel has
         // - a sender to send message to write connection handler,  created by cloning sender of channel manager
         // - a receiver to receive message from read connection handler, the sender half will be stored in channel manager

@@ -52,7 +52,7 @@ where
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 macro_rules! impl_inner {
     ($self:ident, $typ:tt, $($index:literal),+) => {{
         let size = std::mem::size_of::<$typ>();
@@ -76,7 +76,7 @@ macro_rules! impl_parse_num {
     };
 }
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
 // SERDE IS NOT A PARSING LIBRARY. This impl block defines a few basic parsing
 // functions from scratch. More complicated formats may wish to use a dedicated
@@ -580,7 +580,7 @@ impl<'de, 'a> VariantAccess<'de> for Enum<'a, 'de> {
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
@@ -622,7 +622,7 @@ mod tests {
         let input = vec![b't', 0x01, b'u', 0x00, 0x09, b'f', 0x3F, 0xC0, 0, 0, b'V'];
         let result: Test = from_bytes(&input).unwrap();
         let expected = Test(
-            FieldValue::t(true as Boolean),
+            FieldValue::t(true),
             FieldValue::u(9),
             FieldValue::f(1.5),
             FieldValue::V,
@@ -640,7 +640,7 @@ mod tests {
 
         fn create_field_table() -> FieldTable {
             let mut table = FieldTable::new();
-            table.insert("A".try_into().unwrap(), FieldValue::t(true as Boolean));
+            table.insert("A".try_into().unwrap(), FieldValue::t(true));
             table.insert("B".try_into().unwrap(), FieldValue::u(9));
             table.insert("C".try_into().unwrap(), FieldValue::f(1.5));
             table

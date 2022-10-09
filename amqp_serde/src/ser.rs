@@ -390,7 +390,7 @@ where
         Ok(())
     }
 }
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod test {
     use crate::to_bytes;
@@ -401,7 +401,7 @@ mod test {
     fn test_size() {
         println!("{:?}", std::mem::size_of_val(&String::from("s")));
         println!("{:?}", std::mem::size_of_val("s"));
-        println!("{:?}", std::mem::size_of_val(&FieldValue::t(1)));
+        println!("{:?}", std::mem::size_of_val(&FieldValue::t(true)));
     }
     #[test]
     fn test_struct() {
@@ -436,7 +436,7 @@ mod test {
     fn test_field_table() {
         fn create_field_table() -> FieldTable {
             let mut table = FieldTable::new();
-            table.insert("A".try_into().unwrap(), FieldValue::t(true as Boolean));
+            table.insert("A".try_into().unwrap(), FieldValue::t(true));
             table.insert("B".try_into().unwrap(), FieldValue::u(9));
             table.insert("C".try_into().unwrap(), FieldValue::f(1.5));
             table.insert("D".try_into().unwrap(), FieldValue::V);

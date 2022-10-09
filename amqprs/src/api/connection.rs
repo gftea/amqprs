@@ -1,13 +1,15 @@
 use crate::frame::{
     Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CTRL_CHANNEL,
 };
-use crate::net::{ConnectionManager, SplitConnection};
+use crate::net::{ConnectionManager, SplitConnection, Response};
 
 use super::channel::Channel;
 use super::error::Error;
 
+pub struct ClientCapabilities {}
+pub struct ServerCapabilities {}
 pub struct Connection {
-    uri: String,
+    capabilities: Option<ServerCapabilities>,
     manager: ConnectionManager,
 }
 
@@ -59,11 +61,15 @@ impl Connection {
 
         // S: OpenOk
         let (_, frame) = connection.read_frame().await?;
-        get_expected_method!(frame, Frame::OpenOk, Error::ChannelOpenError(CTRL_CHANNEL.to_string()))?;
+        get_expected_method!(
+            frame,
+            Frame::OpenOk,
+            Error::ChannelOpenError("open".to_string())
+        )?;
 
         let manager = ConnectionManager::spawn(connection, channel_max).await;
         Ok(Self {
-            uri: uri.to_string(),
+            capabilities: None,
             manager,
         })
     }
@@ -75,7 +81,7 @@ impl Connection {
             self.manager,
             Frame::CloseOk,
             (),
-            Error::ConnectionCloseError(CTRL_CHANNEL.to_string())
+            Error::ConnectionCloseError
         )
     }
 
@@ -88,7 +94,7 @@ impl Connection {
             rx,
             Frame::OpenChannelOk,
             Channel::new(channel_id, tx, rx),
-            Error::ChannelOpenError(channel_id.to_string())
+            Error::ChannelOpenError
         )
     }
 }
@@ -103,8 +109,7 @@ mod tests {
         let mut client = Connection::open("localhost:5672").await.unwrap();
 
         let mut channel = client.channel().await.unwrap();
-        channel.exchange_declare().await.unwrap();
-        // time::sleep(time::Duration::from_secs(160)).await;
+
         channel.close().await.unwrap();
         client.close().await.unwrap();
     }
@@ -119,7 +124,6 @@ mod tests {
             let mut ch = client.channel().await.unwrap();
             handles.push(tokio::spawn(async move {
                 time::sleep(time::Duration::from_secs(1)).await;
-                ch.exchange_declare().await.unwrap();
             }));
         }
         for h in handles {

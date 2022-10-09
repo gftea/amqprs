@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 
 pub type Bit = u8; //TODO: continuous bits packed in octect
 pub type Octect = u8;
-pub type Boolean = Octect; // 0 = FALSE, else TRUE
+pub type Boolean = bool; // 0 = FALSE, else TRUE
 pub type ShortShortUint = u8;
 pub type ShortShortInt = i8;
 pub type ShortUint = u16;
@@ -172,7 +172,7 @@ impl From<FieldArray> for Vec<FieldValue> {
     }
 }
 
-//////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 // AMQP domains mapping to types
 pub type AmqpPeerProperties = FieldTable;
 pub type AmqpSecurityToken = LongStr;
