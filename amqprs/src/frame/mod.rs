@@ -102,6 +102,9 @@ impl_frame! {
             21: FlowOk,
             40: CloseChannel,
             41: CloseChannelOk;
+    // == Access ==
+    30 =>   10: Request,
+            11: RequestOk;            
     // == Exchange ==
     40 =>   10: Declare,
             11: DeclareOk,

@@ -9,6 +9,7 @@ mod exchange;
 mod queue;
 mod tx;
 mod confirm;
+mod access;
 
 pub use basic::*;
 pub use channel::*;
@@ -17,6 +18,7 @@ pub use exchange::*;
 pub use queue::*;
 pub use tx::*;
 pub use confirm::*;
+pub use access::*;
 //////////////////////////////////////////////////////////
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct MethodHeader {

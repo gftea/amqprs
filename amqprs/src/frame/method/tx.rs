@@ -11,4 +11,4 @@ pub struct CommitOk;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Rollback;
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RollbackOk; 
+pub struct RollbackOk;

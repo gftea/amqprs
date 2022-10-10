@@ -1,9 +1,9 @@
-use amqp_serde::types::{FieldTable, FieldValue};
+use amqp_serde::types::{FieldTable, FieldValue, ShortUint};
 
 use crate::{
     api::error::Error,
-    frame::{Declare, Frame, Delete},
-    net::Response
+    frame::{Bind, Declare, Delete, Frame, Unbind},
+    net::Response,
 };
 
 use super::{Channel, Result};
@@ -20,7 +20,7 @@ pub struct ExchangeDeclareArguments {
     pub auto_delete: bool,
     pub internal: bool,
     pub no_wait: bool,
-    pub arguments: ServerSpecificArguments,
+    pub arguments: DeclareExtensionArguments,
 }
 
 impl ExchangeDeclareArguments {
@@ -34,18 +34,18 @@ impl ExchangeDeclareArguments {
             auto_delete: false,
             internal: false,
             no_wait: false,
-            arguments: ServerSpecificArguments::new(),
+            arguments: DeclareExtensionArguments::new(),
         }
     }
 }
 /// A set of arguments for the declaration.
 /// The syntax and semantics of these arguments depends on the server implementation.
 #[derive(Debug, Clone)]
-pub struct ServerSpecificArguments {
+pub struct DeclareExtensionArguments {
     alternate_exchange: Option<String>,
 }
 
-impl ServerSpecificArguments {
+impl DeclareExtensionArguments {
     pub fn new() -> Self {
         Self {
             alternate_exchange: None,
@@ -72,7 +72,6 @@ impl ServerSpecificArguments {
     }
 }
 
-
 /// Arguments for [`exchange_delete`]
 ///
 /// [`exchange_delete`]: crate::api::channel::Channel::exchange_delete
@@ -94,15 +93,97 @@ impl ExchangeDeleteArguments {
     }
 }
 
+/// Arguments for [`exchange_bind`]
+///
+/// [`exchange_bind`]: crate::api::channel::Channel::exchange_bind
+#[derive(Debug, Clone)]
+pub struct ExchangeBindArguments {
+    pub destination: String,
+    pub source: String,
+    pub routing_key: String,
+    pub no_wait: bool,
+    /// A set of arguments for the binding.
+    /// The syntax and semantics of these arguments depends on the exchange class
+    /// What is accepted arguments?
+    pub arguments: BindExtentionArguments,
+}
+
+#[derive(Debug, Clone)]
+pub struct BindExtentionArguments {}
+impl BindExtentionArguments {
+    pub fn new() -> Self {
+        Self {}
+    }
+    fn into_field_table(self) -> FieldTable {
+        let mut table = FieldTable::new();
+        table
+    }
+}
+
+impl ExchangeBindArguments {
+    /// Create arguments with defaults
+    pub fn new(destination: &str, source: &str, routing_key: &str) -> Self {
+        Self {
+            destination: destination.to_string(),
+            source: source.to_string(),
+            routing_key: routing_key.to_string(),
+            no_wait: false,
+            arguments: BindExtentionArguments::new(),
+        }
+    }
+}
+
+/// Arguments for [`exchange_unbind`]
+///
+/// [`exchange_unbind`]: crate::api::channel::Channel::exchange_unbind
+#[derive(Debug, Clone)]
+pub struct ExchangeUnbindArguments {
+    pub destination: String,
+    pub source: String,
+    pub routing_key: String,
+    pub no_wait: bool,
+    /// A set of arguments for the Unbinding.
+    /// The syntax and semantics of these arguments depends on the exchange class
+    /// What is accepted arguments?
+    pub arguments: UnbindExtentionArguments,
+}
+
+#[derive(Debug, Clone)]
+pub struct UnbindExtentionArguments {}
+impl UnbindExtentionArguments {
+    pub fn new() -> Self {
+        Self {}
+    }
+    fn into_field_table(self) -> FieldTable {
+        let mut table = FieldTable::new();
+        table
+    }
+}
+
+impl ExchangeUnbindArguments {
+    /// Create arguments with defaults
+    pub fn new(destination: &str, source: &str, routing_key: &str) -> Self {
+        Self {
+            destination: destination.to_string(),
+            source: source.to_string(),
+            routing_key: routing_key.to_string(),
+            no_wait: false,
+            arguments: UnbindExtentionArguments::new(),
+        }
+    }
+}
 /////////////////////////////////////////////////////////////////////////////
 /// API for Exchange methods
 impl Channel {
     pub async fn exchange_declare(&mut self, args: ExchangeDeclareArguments) -> Result<()> {
-        let mut declare = Declare::new(
-            args.name.try_into().unwrap(),
-            args.typ.try_into().unwrap(),
-            args.arguments.into_field_table(),
-        );
+        let mut declare = Declare {
+            ticket: 0,
+            exchange: args.name.try_into().unwrap(),
+            typ: args.typ.try_into().unwrap(),
+            bits: 0,
+            arguments: args.arguments.into_field_table(),
+        };
+
         declare.set_passive(args.passive);
         declare.set_durable(args.durable);
         declare.set_auto_delete(args.auto_delete);
@@ -127,7 +208,11 @@ impl Channel {
     }
 
     pub async fn exchange_delete(&mut self, args: ExchangeDeleteArguments) -> Result<()> {
-        let mut delete = Delete::new(args.name.try_into().unwrap());
+        let mut delete = Delete {
+            ticket: 0,
+            exchange: args.name.try_into().unwrap(),
+            bits: 0,
+        };
         delete.set_if_unused(args.if_unused);
         delete.set_no_wait(args.no_wait);
         if args.no_wait {
@@ -143,15 +228,55 @@ impl Channel {
                 Error::ChannelUseError
             )
         }
-
     }
 
-    pub async fn exchange_bind() {
-        
+    pub async fn exchange_bind(&mut self, args: ExchangeBindArguments) -> Result<()> {
+        let bind = Bind {
+            ticket: 0,
+            destination: args.destination.try_into().unwrap(),
+            source: args.source.try_into().unwrap(),
+            routing_key: args.routing_key.try_into().unwrap(),
+            nowait: args.no_wait,
+            arguments: args.arguments.into_field_table(),
+        };
+        if args.no_wait {
+            self.tx.send((self.channel_id, bind.into_frame())).await?;
+            Ok(())
+        } else {
+            synchronous_request!(
+                self.tx,
+                (self.channel_id, bind.into_frame()),
+                self.rx,
+                Frame::BindOk,
+                (),
+                Error::ChannelUseError
+            )
+        }
     }
 
-    pub async fn exchange_unbind() {
-        
+    pub async fn exchange_unbind(&mut self, args: ExchangeUnbindArguments) -> Result<()> {
+        let unbind = Unbind {
+            ticket: 0,
+            destination: args.destination.try_into().unwrap(),
+            source: args.source.try_into().unwrap(),
+            routing_key: args.routing_key.try_into().unwrap(),
+            nowait: args.no_wait,
+            arguments: args.arguments.into_field_table(),
+        };
+        if args.no_wait {
+            self.tx.send((self.channel_id, unbind.into_frame())).await?;
+            Ok(())
+        } else {
+            synchronous_request!(
+                self.tx,
+                (self.channel_id, unbind.into_frame()),
+                self.rx,
+                Frame::UnbindOk,
+                (),
+                Error::ChannelUseError
+            )
+        }
+
     }
 }
 
