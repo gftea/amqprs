@@ -11,32 +11,33 @@ pub enum Error {
     ChannelOpenError(String),
     ChannelCloseError(String),
     ChannelUseError(String),
-    CommunicationError(String),
-    
+    NetworkError(String),
+    ChannelAlreadyClosed(String),
+
 }
 
 impl From<net::Error> for Error {
     fn from(err: net::Error) -> Self {
-        Self::CommunicationError(err.to_string())
+        Self::NetworkError(err.to_string())
     }
 }
 impl<T> From<SendError<T>> for Error {
     fn from(err: SendError<T>) -> Self {
-        Self::CommunicationError(err.to_string())
+        Self::ChannelAlreadyClosed(err.to_string())
     }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::CommunicationError(msg) => write!(f, "{}", msg),
-
+            Error::NetworkError(msg) => write!(f, "Network error: {}", msg),
             Error::ConnectionOpenError(msg) => write!(f, "AMQP connection open error: {msg}"),
             Error::ConnectionCloseError(msg)=> write!(f, "AMQP connection close error: {msg}"),
             Error::ConnectionUseError(msg) => write!(f, "AMQP connection error: {msg}"),
             Error::ChannelOpenError(msg) => write!(f, "AMQP channel open error: {msg}"),
             Error::ChannelUseError(msg) => write!(f, "AMQP channel close error: {msg}"),
             Error::ChannelCloseError(msg) => write!(f, "AMQP channel error: {msg}"),
+            Error::ChannelAlreadyClosed(msg) => write!(f, "AMQP channel already closed: {msg}"),
             
         }
     }
