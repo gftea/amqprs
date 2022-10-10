@@ -69,4 +69,9 @@ impl Drop for Channel {
 }
 /////////////////////////////////////////////////////////////////////////////
 mod exchange;
+mod queue;
+mod basic;
+
 pub use exchange::*;
+pub use queue::*;
+pub use basic::*;
