@@ -1,5 +1,5 @@
 use crate::frame::{
-    Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CTRL_CHANNEL,
+    Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CONN_CTRL_CHANNEL,
 };
 use crate::net::{ConnectionManager, SplitConnection, Response};
 
@@ -34,7 +34,7 @@ impl Connection {
 
         // C: 'StartOk'
         let start_ok = StartOk::default().into_frame();
-        connection.write_frame(CTRL_CHANNEL, start_ok).await?;
+        connection.write_frame(CONN_CTRL_CHANNEL, start_ok).await?;
 
         // S: 'Tune'
         let (_, frame) = connection.read_frame().await?;
@@ -52,12 +52,12 @@ impl Connection {
         let channel_max = tune_ok.channel_max;
         let _heartbeat = tune_ok.channel_max;
         connection
-            .write_frame(CTRL_CHANNEL, tune_ok.into_frame())
+            .write_frame(CONN_CTRL_CHANNEL, tune_ok.into_frame())
             .await?;
 
         // C: Open
         let open = Open::default().into_frame();
-        connection.write_frame(CTRL_CHANNEL, open).await?;
+        connection.write_frame(CONN_CTRL_CHANNEL, open).await?;
 
         // S: OpenOk
         let (_, frame) = connection.read_frame().await?;
@@ -77,7 +77,7 @@ impl Connection {
     pub async fn close(mut self) -> Result<(), Error> {
         synchronous_request!(
             self.manager,
-            (CTRL_CHANNEL, Close::default().into_frame()),
+            (CONN_CTRL_CHANNEL, Close::default().into_frame()),
             self.manager,
             Frame::CloseOk,
             (),

@@ -6,7 +6,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{
     api::error::Error,
-    frame::{CloseChannel, Frame},
+    frame::{CloseChannel, Frame, Flow},
     net::{Request, Response},
 };
 
@@ -33,7 +33,16 @@ impl Channel {
     ) -> Self {
         Self { channel_id, tx, rx }
     }
-
+    pub async fn flow(&mut self, active: bool) -> Result<()> {
+        synchronous_request!(
+            self.tx,
+            (self.channel_id, Flow { active }.into_frame()),
+            self.rx,
+            Frame::FlowOk,
+            (),
+            Error::ChannelUseError
+        )
+    }
     pub async fn close(mut self) -> Result<()> {
         synchronous_request!(
             self.tx,

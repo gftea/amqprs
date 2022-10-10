@@ -223,7 +223,7 @@ mod test {
             1 => {
                 // default: PLAIN
                 tx_req
-                    .send((CTRL_CHANNEL, start_ok.into_frame()))
+                    .send((CONN_CTRL_CHANNEL, start_ok.into_frame()))
                     .await
                     .unwrap();
             }
@@ -237,7 +237,7 @@ mod test {
                 );
                 start_ok.response = s.try_into().unwrap();
                 tx_req
-                    .send((CTRL_CHANNEL, start_ok.into_frame()))
+                    .send((CONN_CTRL_CHANNEL, start_ok.into_frame()))
                     .await
                     .unwrap();
             }
@@ -245,7 +245,7 @@ mod test {
                 start_ok.machanisms = "RABBIT-CR-DEMO".try_into().unwrap();
                 start_ok.response = "user".try_into().unwrap();
                 tx_req
-                .send((CTRL_CHANNEL, start_ok.into_frame()))
+                .send((CONN_CTRL_CHANNEL, start_ok.into_frame()))
                 .await
                 .unwrap();
 
@@ -254,7 +254,7 @@ mod test {
                 
                 // C: SecureOk
                 let secure_ok = SecureOk { response: "My password is bitnami".try_into().unwrap() };
-                tx_req.send((CTRL_CHANNEL, secure_ok.into_frame())).await.unwrap();
+                tx_req.send((CONN_CTRL_CHANNEL, secure_ok.into_frame())).await.unwrap();
 
             }
             _ => unimplemented!(),
@@ -275,14 +275,14 @@ mod test {
         tune_ok.heartbeat = tune.heartbeat;
 
         tx_req
-            .send((CTRL_CHANNEL, tune_ok.into_frame()))
+            .send((CONN_CTRL_CHANNEL, tune_ok.into_frame()))
             .await
             .unwrap();
 
         // C: Open
         let open = Open::default().into_frame();
         tx_req
-            .send((CTRL_CHANNEL, open))
+            .send((CONN_CTRL_CHANNEL, open))
             .await
             .unwrap();
 
@@ -291,7 +291,7 @@ mod test {
 
         // C: Close
         tx_req
-            .send((CTRL_CHANNEL, Close::default().into_frame()))
+            .send((CONN_CTRL_CHANNEL, Close::default().into_frame()))
             .await
             .unwrap();
 
@@ -305,7 +305,7 @@ mod test {
 
         connection.write(&ProtocolHeader::default()).await.unwrap();
         let (channel_id, frame) = connection.read_frame().await.unwrap();
-        assert_eq!(CTRL_CHANNEL, channel_id);
+        assert_eq!(CONN_CTRL_CHANNEL, channel_id);
         println!(" {frame:?}");
         connection
             .write_frame(channel_id, StartOk::default().into_frame())
@@ -323,7 +323,7 @@ mod test {
 
         writer.write(&ProtocolHeader::default()).await.unwrap();
         let (channel_id, frame) = reader.read_frame().await.unwrap();
-        assert_eq!(CTRL_CHANNEL, channel_id);
+        assert_eq!(CONN_CTRL_CHANNEL, channel_id);
         println!(" {frame:?}");
         writer
             .write_frame(channel_id, StartOk::default().into_frame())

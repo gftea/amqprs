@@ -7,7 +7,7 @@ use tokio::sync::{
     RwLock,
 };
 
-use crate::frame::{CloseChannelOk, CloseOk, Frame, CTRL_CHANNEL};
+use crate::frame::{CloseChannelOk, CloseOk, Frame, CONN_CTRL_CHANNEL};
 
 use super::{BufferReader, BufferWriter, SplitConnection};
 const CHANNEL_BUFFER_SIZE: usize = 8;
@@ -20,10 +20,10 @@ pub enum Response {
 }
 pub struct ReaderHandler {
     stream: BufferReader,
-    /// sender half to forward received server response to client
-    response_tx: Sender<Response>,
+    /// sender half to forward received server response to connection
+    connection_response_tx: Sender<Response>,
     /// sender half to forward message to `WriterHandler` task
-    request_tx: Sender<Request>,
+    forward_writer: Sender<Request>,
     /// to notify WriterHandler task to shutdown
     /// Socket connection will be shutdown as long as the writer half is shutdown
     /// so reader half do not need to listen for shutdown signal.
@@ -37,32 +37,33 @@ impl ReaderHandler {
         while let Ok((channel_id, frame)) = self.stream.read_frame().await {
             // handle close request from server
             match &frame {
-                Frame::Close(_, close) => {
-                    assert_eq!(CTRL_CHANNEL, channel_id);
+                // TODO: handle Blocked and Unblocked from server
+                Frame::Blocked(..) => todo!(),
+                Frame::Unblocked(..) => todo!(),
+                // Server request close connection
+                Frame::Close(_, _) => {
+                    assert_eq!(CONN_CTRL_CHANNEL, channel_id);
                     println!("forward CloseOk to writer");
-                    self.request_tx
-                        .send((CTRL_CHANNEL, CloseOk::default().into_frame()))
+                    self.forward_writer
+                        .send((CONN_CTRL_CHANNEL, CloseOk::default().into_frame()))
                         .await
                         .unwrap();
-                    // Server request close connection due to Exception
-                    // self.response_tx
-                    //     .send(Response::Exception(
-                    //         close.reply_code,
-                    //         close.reply_text.clone().into(),
-                    //     ))
-                    //     .await
-                    //     .unwrap();
+                    // Connection shutdown is handled by just exiting read and write handler.
+                    // Here, exit the read handler, and notify write handler to exit.
+                    // The sender half of all channels are dropped, so channel's receiver half know it is closed
+                    // The receiver half for requests is dropped, so channel's sender half know it is closed
                     break;
                 }
                 Frame::CloseOk(..) => {
-                    assert_eq!(CTRL_CHANNEL, channel_id);
+                    assert_eq!(CONN_CTRL_CHANNEL, channel_id);
                     println!("got CloseOk");
-                    self.response_tx.send(Response::Ok(frame)).await.unwrap();
+                    self.connection_response_tx.send(Response::Ok(frame)).await.unwrap();
                     break;
                 }
+                // Server request close channel
                 Frame::CloseChannel(_, close_channel) => {
                     println!("forward CloseChannelOk to writer, id: {channel_id} ");
-                    self.request_tx
+                    self.forward_writer
                     .send((channel_id, CloseChannelOk::default().into_frame()))
                     .await
                     .unwrap();
@@ -80,8 +81,6 @@ impl ReaderHandler {
                             close_channel.reply_text.clone().into(),
                         ))
                         .await.unwrap();
-
-                    
 
                     continue;
                 }
@@ -103,13 +102,14 @@ impl ReaderHandler {
                 _ => (),
             }
             // forward response to corresponding channel
-            if channel_id == 0 {
-                // connection's control channel
-                self.response_tx.send(Response::Ok(frame)).await.unwrap();
+            if channel_id == CONN_CTRL_CHANNEL {
+                // forward connection level message
+                self.connection_response_tx.send(Response::Ok(frame)).await.unwrap();
             } else {
+                // forward channel level message
                 if let Some(tx) = self.channel_manager.read().await.get(&channel_id) {
                     if let Err(_) = tx.send(Response::Ok(frame)).await {
-                        // drop  channel
+                        // drop channel if receiver half already drop                        
                         self.channel_manager.write().await.remove(channel_id);
                     }
                 }
@@ -124,7 +124,7 @@ impl ReaderHandler {
 }
 pub struct WriterHandler {
     stream: BufferWriter,
-    /// receiver half to receive client initiated message
+    /// receiver half to receive messages from connection and channels
     request_rx: Receiver<Request>,
     /// listen to shutdown signal
     shutdown: broadcast::Receiver<()>,
@@ -145,7 +145,7 @@ impl WriterHandler {
                             // handle server close request internally
                             match &frame {
                                 Frame::CloseOk(..) => {
-                                    assert_eq!(CTRL_CHANNEL, channel_id);
+                                    assert_eq!(CONN_CTRL_CHANNEL, channel_id);
                                     println!("respond CloseOk to server");
                                     self.stream.write_frame(channel_id, frame).await.unwrap();
                                     break;
@@ -182,7 +182,7 @@ impl ChannelManager {
         // the channel manager only allocate id above DEFAULT_CONNECTION_CHANNEL
         Self {
             channel_max,
-            last_allocated_id: CTRL_CHANNEL,
+            last_allocated_id: CONN_CTRL_CHANNEL,
             free_ids: vec![],
             channels: BTreeMap::new(),
         }
@@ -231,7 +231,7 @@ impl ChannelManager {
     fn clear(&mut self) {
         self.channels.clear();
         self.free_ids.clear();
-        self.last_allocated_id = CTRL_CHANNEL;
+        self.last_allocated_id = CONN_CTRL_CHANNEL;
     }
 }
 
@@ -281,8 +281,8 @@ impl ConnectionManager {
         // spawn task for read connection hanlder
         let mut handler = ReaderHandler {
             stream: reader,
-            response_tx,
-            request_tx: request_tx.clone(),
+            connection_response_tx: response_tx,
+            forward_writer: request_tx.clone(),
             notify_shutdown,
             channel_manager: channel_manager.clone(),
         };
