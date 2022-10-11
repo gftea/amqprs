@@ -1,12 +1,10 @@
-use amqp_serde::types::{FieldTable, FieldValue, ShortUint};
-
 use crate::{
     api::error::Error,
     frame::{Bind, Declare, Delete, Frame, Unbind},
     net::Response,
 };
 
-use super::{Channel, Result};
+use super::{Channel, Result, ServerSpecificArguments};
 
 /// Arguments for [`exchange_declare`]
 ///
@@ -20,7 +18,7 @@ pub struct ExchangeDeclareArguments {
     pub auto_delete: bool,
     pub internal: bool,
     pub no_wait: bool,
-    pub arguments: DeclareExtensionArguments,
+    pub arguments: ServerSpecificArguments,
 }
 
 impl ExchangeDeclareArguments {
@@ -34,43 +32,11 @@ impl ExchangeDeclareArguments {
             auto_delete: false,
             internal: false,
             no_wait: false,
-            arguments: DeclareExtensionArguments::new(),
+            arguments: ServerSpecificArguments::new(),
         }
     }
 }
-/// A set of arguments for the declaration.
-/// The syntax and semantics of these arguments depends on the server implementation.
-#[derive(Debug, Clone)]
-pub struct DeclareExtensionArguments {
-    alternate_exchange: Option<String>,
-}
 
-impl DeclareExtensionArguments {
-    pub fn new() -> Self {
-        Self {
-            alternate_exchange: None,
-        }
-    }
-    /// RabbitMQ server's feature [`Alternate Exchange`]
-    ///
-    /// [`Alternate Exchange`]: https://www.rabbitmq.com/ae.html
-    pub fn set_alternate_exchange(&mut self, alternate_exchange: String) {
-        self.alternate_exchange = Some(alternate_exchange);
-    }
-
-    // the field table type should be hidden from API
-    fn into_field_table(self) -> FieldTable {
-        let mut table = FieldTable::new();
-        if let Some(alt_exchange) = self.alternate_exchange {
-            table.insert(
-                "alternate_exchange".try_into().unwrap(),
-                FieldValue::S(alt_exchange.try_into().unwrap()),
-            );
-        }
-
-        table
-    }
-}
 
 /// Arguments for [`exchange_delete`]
 ///
@@ -105,20 +71,9 @@ pub struct ExchangeBindArguments {
     /// A set of arguments for the binding.
     /// The syntax and semantics of these arguments depends on the exchange class
     /// What is accepted arguments?
-    pub arguments: BindExtentionArguments,
+    pub arguments: ServerSpecificArguments,
 }
 
-#[derive(Debug, Clone)]
-pub struct BindExtentionArguments {}
-impl BindExtentionArguments {
-    pub fn new() -> Self {
-        Self {}
-    }
-    fn into_field_table(self) -> FieldTable {
-        let mut table = FieldTable::new();
-        table
-    }
-}
 
 impl ExchangeBindArguments {
     /// Create arguments with defaults
@@ -128,7 +83,7 @@ impl ExchangeBindArguments {
             source: source.to_string(),
             routing_key: routing_key.to_string(),
             no_wait: false,
-            arguments: BindExtentionArguments::new(),
+            arguments: ServerSpecificArguments::new(),
         }
     }
 }
@@ -145,20 +100,9 @@ pub struct ExchangeUnbindArguments {
     /// A set of arguments for the Unbinding.
     /// The syntax and semantics of these arguments depends on the exchange class
     /// What is accepted arguments?
-    pub arguments: UnbindExtentionArguments,
+    pub arguments: ServerSpecificArguments,
 }
 
-#[derive(Debug, Clone)]
-pub struct UnbindExtentionArguments {}
-impl UnbindExtentionArguments {
-    pub fn new() -> Self {
-        Self {}
-    }
-    fn into_field_table(self) -> FieldTable {
-        let mut table = FieldTable::new();
-        table
-    }
-}
 
 impl ExchangeUnbindArguments {
     /// Create arguments with defaults
@@ -168,7 +112,7 @@ impl ExchangeUnbindArguments {
             source: source.to_string(),
             routing_key: routing_key.to_string(),
             no_wait: false,
-            arguments: UnbindExtentionArguments::new(),
+            arguments: ServerSpecificArguments::new(),
         }
     }
 }

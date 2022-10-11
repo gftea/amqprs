@@ -1,7 +1,7 @@
 //! API implementation of AMQP Channel
 //!
 
-use amqp_serde::types::AmqpChannelId;
+use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{
@@ -65,6 +65,44 @@ impl Drop for Channel {
                 .await
                 .unwrap();
         });
+    }
+}
+
+/// A set of arguments for the declaration.
+/// The syntax and semantics of these arguments depends on the server implementation.
+#[derive(Debug, Clone)]
+pub struct ServerSpecificArguments {
+    table: FieldTable
+}
+
+impl ServerSpecificArguments {
+    pub fn new() -> Self {
+        Self {
+            table: FieldTable::new(),
+        }
+    }
+    
+    pub fn insert_str(&mut self, key: String, value: &str ) {
+        self.table.insert(key.try_into().unwrap(), FieldValue::S(value.try_into().unwrap()));
+    }
+    pub fn insert_bool(&mut self, key: String, value: bool ) {
+        self.table.insert(key.try_into().unwrap(), FieldValue::t(value.try_into().unwrap()));
+    }   
+    pub fn insert_u8(&mut self, key: String, value: u8 ) {
+        self.table.insert(key.try_into().unwrap(), FieldValue::B(value.try_into().unwrap()));
+    }
+    pub fn insert_u16(&mut self, key: String, value: u8 ) {
+        self.table.insert(key.try_into().unwrap(), FieldValue::u(value.try_into().unwrap()));
+    }    
+    pub fn insert_u32(&mut self, key: String, value: u32 ) {
+        self.table.insert(key.try_into().unwrap(), FieldValue::i(value.try_into().unwrap()));
+    }    
+    pub fn insert_i64(&mut self, key: String, value: i64 ) {
+        self.table.insert(key.try_into().unwrap(), FieldValue::l(value.try_into().unwrap()));
+    }        
+    // the field table type should be hidden from API
+    fn into_field_table(self) -> FieldTable {
+        self.table
     }
 }
 /////////////////////////////////////////////////////////////////////////////
