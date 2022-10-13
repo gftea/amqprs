@@ -140,14 +140,14 @@ impl Channel {
                 .await?;
             Ok(())
         } else {
-            synchronous_request!(
+            let _method = synchronous_request!(
                 self.tx,
                 (self.channel_id, declare.into_frame()),
                 self.rx,
                 Frame::DeclareOk,
-                (),
                 Error::ChannelUseError
-            )
+            )?;
+            Ok(())
         }
     }
 
@@ -163,14 +163,14 @@ impl Channel {
             self.tx.send((self.channel_id, delete.into_frame())).await?;
             Ok(())
         } else {
-            synchronous_request!(
+            let _method =synchronous_request!(
                 self.tx,
                 (self.channel_id, delete.into_frame()),
                 self.rx,
                 Frame::DeleteOk,
-                (),
                 Error::ChannelUseError
-            )
+            )?;
+            Ok(())
         }
     }
 
@@ -192,9 +192,9 @@ impl Channel {
                 (self.channel_id, bind.into_frame()),
                 self.rx,
                 Frame::BindOk,
-                (),
                 Error::ChannelUseError
-            )
+            )?;
+            Ok(())
         }
     }
 
@@ -216,9 +216,9 @@ impl Channel {
                 (self.channel_id, unbind.into_frame()),
                 self.rx,
                 Frame::UnbindOk,
-                (),
                 Error::ChannelUseError
-            )
+            )?;
+            Ok(())
         }
 
     }

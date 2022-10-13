@@ -173,7 +173,7 @@ impl From<FieldArray> for Vec<FieldValue> {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-// AMQP domains mapping to types
+// AMQP domains
 pub type AmqpPeerProperties = FieldTable;
 pub type AmqpSecurityToken = LongStr;
 pub type AmqpPath = ShortStr;
@@ -183,3 +183,6 @@ pub type AmqpChannelId = ShortUint;
 pub type AmqpExchangeName = ShortStr;
 pub type AmqpQueueName = ShortStr;
 pub type AmqpMessageCount = LongUint;
+pub type AmqpConsumerTag = ShortStr;
+pub type AmqpDeliveryTag = LongLongUint;
+pub type AmqpDuration = LongLongUint;

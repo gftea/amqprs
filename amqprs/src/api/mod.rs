@@ -3,7 +3,7 @@
 mod helpers {
 
     macro_rules! synchronous_request {
-        ($tx:expr, $msg:expr, $rx:expr, $response:path, $result:expr, $err:path) => {{
+        ($tx:expr, $msg:expr, $rx:expr, $response:path, $err:path) => {{
             $tx.send($msg).await?;
             match $rx
                 .recv()
@@ -11,7 +11,7 @@ mod helpers {
                 .ok_or_else(|| Error::ChannelAlreadyClosed("receiver half closed".to_string()))?
             {
                 Response::Ok(frame) => match frame {
-                    $response(..) => Ok($result),
+                    $response(_, method) => Ok(method),
                     unexpected => Err($err(unexpected.to_string())),
                 },
                 Response::Exception(error_code, error_msg) => {

@@ -130,9 +130,9 @@ impl Channel {
                 (self.channel_id, declare.into_frame()),
                 self.rx,
                 Frame::DeclareQueueOk,
-                (),
                 Error::ChannelUseError
-            )
+            )?;
+            Ok(())
         }
     }
     pub async fn queue_bind(&mut self, args: QueueBindArguments) -> Result<()> {
@@ -154,9 +154,9 @@ impl Channel {
                 (self.channel_id, bind.into_frame()),
                 self.rx,
                 Frame::BindQueueOk,
-                (),
                 Error::ChannelUseError
-            )
+            )?;
+            Ok(())
         }
     }
     pub async fn queue_purge(&mut self, args: QueuePurgeArguments) -> Result<()> {
@@ -175,9 +175,9 @@ impl Channel {
                 (self.channel_id, purge.into_frame()),
                 self.rx,
                 Frame::PurgeQueueOk,
-                (),
                 Error::ChannelUseError
-            )
+            )?;
+            Ok(())
         }
     }
 
@@ -199,9 +199,9 @@ impl Channel {
                 (self.channel_id, delete.into_frame()),
                 self.rx,
                 Frame::DeleteQueueOk,
-                (),
                 Error::ChannelUseError
-            )
+            )?;
+            Ok(())
         }
     }
     pub async fn queue_unbind(&mut self, args: QueueUnbindArguments) -> Result<()> {
@@ -218,8 +218,8 @@ impl Channel {
             (self.channel_id, unbind.into_frame()),
             self.rx,
             Frame::UnbindQueueOk,
-            (),
             Error::ChannelUseError
-        )
+        )?;
+        Ok(())
     }
 }

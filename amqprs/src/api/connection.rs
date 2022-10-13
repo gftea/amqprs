@@ -1,7 +1,7 @@
 use crate::frame::{
     Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CONN_CTRL_CHANNEL,
 };
-use crate::net::{ConnectionManager, SplitConnection, Response};
+use crate::net::{ConnectionManager, Response, SplitConnection};
 
 use super::channel::Channel;
 use super::error::Error;
@@ -80,22 +80,22 @@ impl Connection {
             (CONN_CTRL_CHANNEL, Close::default().into_frame()),
             self.manager,
             Frame::CloseOk,
-            (),
             Error::ConnectionCloseError
-        )
+        )?;
+        Ok(())
     }
 
     pub async fn channel(&mut self) -> Result<Channel, Error> {
-        let (channel_id, tx, mut rx) = self.manager.allocate_channel().await;
+        let (channel_id, tx, mut rx, manager) = self.manager.allocate_channel().await;
 
         synchronous_request!(
             tx,
             (channel_id, OpenChannel::default().into_frame()),
             rx,
             Frame::OpenChannelOk,
-            Channel::new(channel_id, tx, rx),
             Error::ChannelOpenError
-        )
+        )?;
+        Ok(Channel::new(channel_id, tx, rx, manager))
     }
 }
 

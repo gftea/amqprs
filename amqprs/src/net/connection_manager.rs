@@ -7,7 +7,7 @@ use tokio::sync::{
     RwLock,
 };
 
-use crate::frame::{CloseChannelOk, CloseOk, Frame, CONN_CTRL_CHANNEL};
+use crate::frame::{BasicPropertities, CloseChannelOk, CloseOk, Frame, CONN_CTRL_CHANNEL};
 
 use super::{BufferReader, BufferWriter, SplitConnection};
 const CHANNEL_BUFFER_SIZE: usize = 8;
@@ -37,6 +37,11 @@ impl ReaderHandler {
         while let Ok((channel_id, frame)) = self.stream.read_frame().await {
             // handle close request from server
             match &frame {
+                Frame::ConsumeOk(..) => {
+                    for cb in self.channel_manager.read().await.callback_queue.values() {
+                        cb();
+                    }
+                }
                 // TODO: handle Blocked and Unblocked from server
                 Frame::Blocked(..) => todo!(),
                 Frame::Unblocked(..) => todo!(),
@@ -57,16 +62,19 @@ impl ReaderHandler {
                 Frame::CloseOk(..) => {
                     assert_eq!(CONN_CTRL_CHANNEL, channel_id);
                     println!("got CloseOk");
-                    self.connection_response_tx.send(Response::Ok(frame)).await.unwrap();
+                    self.connection_response_tx
+                        .send(Response::Ok(frame))
+                        .await
+                        .unwrap();
                     break;
                 }
                 // Server request close channel
                 Frame::CloseChannel(_, close_channel) => {
                     println!("forward CloseChannelOk to writer, id: {channel_id} ");
                     self.forward_writer
-                    .send((channel_id, CloseChannelOk::default().into_frame()))
-                    .await
-                    .unwrap();
+                        .send((channel_id, CloseChannelOk::default().into_frame()))
+                        .await
+                        .unwrap();
                     // Server request close channel due to Exception
                     let response_tx = self
                         .channel_manager
@@ -80,7 +88,8 @@ impl ReaderHandler {
                             close_channel.reply_code,
                             close_channel.reply_text.clone().into(),
                         ))
-                        .await.unwrap();
+                        .await
+                        .unwrap();
 
                     continue;
                 }
@@ -104,12 +113,15 @@ impl ReaderHandler {
             // forward response to corresponding channel
             if channel_id == CONN_CTRL_CHANNEL {
                 // forward connection level message
-                self.connection_response_tx.send(Response::Ok(frame)).await.unwrap();
+                self.connection_response_tx
+                    .send(Response::Ok(frame))
+                    .await
+                    .unwrap();
             } else {
                 // forward channel level message
                 if let Some(tx) = self.channel_manager.read().await.get(&channel_id) {
                     if let Err(_) = tx.send(Response::Ok(frame)).await {
-                        // drop channel if receiver half already drop                        
+                        // drop channel if receiver half already drop
                         self.channel_manager.write().await.remove(channel_id);
                     }
                 }
@@ -137,6 +149,7 @@ impl WriterHandler {
             tokio::select! {
                 _ = self.shutdown.recv() => {
                     println!("received shutdown");
+                    // TODO: send close to server?
                     break;
                 },
                 msg = self.request_rx.recv() => {
@@ -168,11 +181,13 @@ impl WriterHandler {
     }
 }
 
+pub type OnMessageCallback = Box<dyn Fn() -> () + Send + Sync>;
 pub struct ChannelManager {
     channel_max: ShortUint,
     last_allocated_id: AmqpChannelId,
     free_ids: Vec<AmqpChannelId>,
     channels: BTreeMap<AmqpChannelId, Sender<Response>>,
+    callback_queue: BTreeMap<(AmqpChannelId, String), OnMessageCallback>,
 }
 
 // AMQP channel manager handle allocation of AMQP channel id and messaging channel
@@ -185,7 +200,18 @@ impl ChannelManager {
             last_allocated_id: CONN_CTRL_CHANNEL,
             free_ids: vec![],
             channels: BTreeMap::new(),
+            callback_queue: BTreeMap::new(),
         }
+    }
+
+    pub fn insert_callback(
+        &mut self,
+        channel_id: AmqpChannelId,
+        consumer_tag: String,
+        boxed_callback: OnMessageCallback,
+    ) {
+        self.callback_queue
+            .insert((channel_id, consumer_tag), boxed_callback);
     }
 
     // allocate a channel id or reuse a previous free id
@@ -299,7 +325,12 @@ impl ConnectionManager {
 
     pub async fn allocate_channel(
         &mut self,
-    ) -> (AmqpChannelId, Sender<Request>, Receiver<Response>) {
+    ) -> (
+        AmqpChannelId,
+        Sender<Request>,
+        Receiver<Response>,
+        Arc<RwLock<ChannelManager>>,
+    ) {
         // A channel has
         // - a sender to send message to write connection handler,  created by cloning sender of channel manager
         // - a receiver to receive message from read connection handler, the sender half will be stored in channel manager
@@ -311,6 +342,11 @@ impl ConnectionManager {
             unreachable!("duplicated channel id: {channel_id}");
         }
         self.channel_manager.write().await.store(channel_id, tx);
-        (channel_id, self.tx.clone(), rx)
+        (
+            channel_id,
+            self.tx.clone(),
+            rx,
+            self.channel_manager.clone(),
+        )
     }
 }
