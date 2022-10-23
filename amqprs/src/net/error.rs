@@ -1,21 +1,23 @@
 use std::{fmt, io};
 
 use crate::frame;
-
+use tokio::sync::mpsc::error::SendError;
 
 
 #[derive(Debug)]
 pub enum Error {
-    NetIOFailure(String),
+    NetworkIoError(String),
+    InternalChannelError(String),
     SerdeError(String),
     FramingError(String),
+    AMQPError(String),
     PeerShutdown,
     Interrupted,
 }
 
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Self {
-        Error::NetIOFailure(err.to_string())
+        Error::NetworkIoError(err.to_string())
     }
 }
 impl From<amqp_serde::Error> for Error {
@@ -28,12 +30,19 @@ impl From<frame::Error> for Error {
         Error::FramingError(err.to_string())
     }
 }
+impl<T> From<SendError<T>> for Error {
+    fn from(err: SendError<T>) -> Self {
+        Error::InternalChannelError(err.to_string())
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::NetIOFailure(msg) => write!(f, "{}", msg),
-            Error::SerdeError(msg) => write!(f, "{}", msg),
-            Error::FramingError(msg) => write!(f, "{}", msg),
+            Error::NetworkIoError(msg) => write!(f, "{}", msg),
+            Error::InternalChannelError(msg) | Error::SerdeError(msg) | Error::FramingError(msg) => write!(f, "{}", msg),
+            Error::AMQPError(msg) => write!(f, "{}", msg),
+
             Error::PeerShutdown => f.write_str("Peer shutdown"),
             Error::Interrupted => f.write_str("connection exceptionally interrupted"),
             

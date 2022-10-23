@@ -9,7 +9,7 @@ use tokio::sync::{
 
 use crate::frame::{BasicPropertities, CloseChannelOk, CloseOk, Frame, CONN_CTRL_CHANNEL};
 
-use super::{BufReader, BufWriter, SplitConnection};
+use super::{BufferReader, BufferWriter, SplitConnection};
 const CHANNEL_BUFFER_SIZE: usize = 8;
 
 pub type Request = (AmqpChannelId, Frame);
@@ -19,7 +19,7 @@ pub enum Response {
     Exception(ShortUint, String),
 }
 pub struct ReaderHandler {
-    stream: BufReader,
+    stream: BufferReader,
     /// sender half to forward received server response to connection
     connection_response_tx: Sender<Response>,
     /// sender half to forward message to `WriterHandler` task
@@ -135,7 +135,7 @@ impl ReaderHandler {
     }
 }
 pub struct WriterHandler {
-    stream: BufWriter,
+    stream: BufferWriter,
     /// receiver half to receive messages from connection and channels
     request_rx: Receiver<Request>,
     /// listen to shutdown signal

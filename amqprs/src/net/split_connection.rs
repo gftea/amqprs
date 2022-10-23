@@ -17,14 +17,14 @@ type Result<T> = std::result::Result<T, Error>;
 const DEFAULT_BUFFER_SIZE: usize = 8192;
 
 pub struct SplitConnection {
-    reader: BufferReader,
-    writer: BufferWriter,
+    reader: BufReader,
+    writer: BufWriter,
 }
-pub struct BufferReader {
+pub struct BufReader {
     stream: OwnedReadHalf,
     buffer: BytesMut,
 }
-pub struct BufferWriter {
+pub struct BufWriter {
     stream: OwnedWriteHalf,
     buffer: BytesMut,
 }
@@ -40,11 +40,11 @@ impl SplitConnection {
         let write_buffer = BytesMut::with_capacity(DEFAULT_BUFFER_SIZE);
 
         Ok(Self {
-            reader: BufferReader {
+            reader: BufReader {
                 stream: reader,
                 buffer: read_buffer,
             },
-            writer: BufferWriter {
+            writer: BufWriter {
                 stream: writer,
                 buffer: write_buffer,
             },
@@ -52,7 +52,7 @@ impl SplitConnection {
     }
 
     // split connection into reader half and writer half
-    pub fn into_split(self) -> (BufferReader, BufferWriter) {
+    pub fn into_split(self) -> (BufReader, BufWriter) {
         (self.reader, self.writer)
     }
 
@@ -76,7 +76,7 @@ impl SplitConnection {
     }
 }
 
-impl BufferWriter {
+impl BufWriter {
     // write any serializable value to socket
     pub async fn write<T: Serialize>(&mut self, value: &T) -> Result<usize> {
         to_buffer(value, &mut self.buffer)
@@ -131,7 +131,7 @@ impl BufferWriter {
 
 type ChannelFrame = (AmqpChannelId, Frame);
 
-impl BufferReader {
+impl BufReader {
     // try to decode a whole frame from the bufferred data.
     // If it is incomplete data, return None;
     // If the frame syntax is corrupted, return Error.
