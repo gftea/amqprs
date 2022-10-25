@@ -3,7 +3,6 @@ use std::{fmt, io};
 use crate::frame;
 use tokio::sync::mpsc::error::SendError;
 
-
 #[derive(Debug)]
 pub(crate) enum Error {
     NetworkIoError(String),
@@ -40,12 +39,13 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::NetworkIoError(msg) => write!(f, "{}", msg),
-            Error::InternalChannelError(msg) | Error::SerdeError(msg) | Error::FramingError(msg) => write!(f, "{}", msg),
+            Error::InternalChannelError(msg)
+            | Error::SerdeError(msg)
+            | Error::FramingError(msg) => write!(f, "{}", msg),
             Error::AMQPError(msg) => write!(f, "{}", msg),
 
             Error::PeerShutdown => f.write_str("Peer shutdown"),
             Error::Interrupted => f.write_str("connection exceptionally interrupted"),
-            
         }
     }
 }

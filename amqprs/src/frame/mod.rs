@@ -2,8 +2,8 @@ use amqp_serde::{
     from_bytes,
     types::{AmqpChannelId, LongUint, Octect, ShortUint},
 };
-use std::fmt;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 ////////////////////////////////////////////////////////////////////////
 // macros should appear before module declaration
@@ -38,7 +38,7 @@ mod helpers {
                 _ => unimplemented!("unknown class id"),
             }
         }
-        
+
         // common interfaces of each method type
         $($(impl_method_frame!{$method, $class_id, $method_id})+)+
 
@@ -104,7 +104,7 @@ impl_frame! {
             41: CloseChannelOk;
     // == Access ==
     30 =>   10: Request,
-            11: RequestOk;            
+            11: RequestOk;
     // == Exchange ==
     40 =>   10: Declare,
             11: DeclareOk,
@@ -144,7 +144,7 @@ impl_frame! {
             110: Recover,
             111: RecoverOk,
             120: Nack;
-    // == Confirm ==            
+    // == Confirm ==
     85 =>   10: Select,
             11: SelectOk;
     // == Transaction ==
@@ -153,7 +153,7 @@ impl_frame! {
             20: Commit,
             21: CommitOk,
             30: Rollback,
-            31: RollbackOk            
+            31: RollbackOk
 }
 
 //////////////////////////////////////////////////////////////////////

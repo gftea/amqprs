@@ -36,7 +36,6 @@ impl ExchangeDeclareArguments {
     }
 }
 
-
 /// Arguments for [`exchange_delete`]
 ///
 /// [`exchange_delete`]: crate::api::channel::Channel::exchange_delete
@@ -73,7 +72,6 @@ pub struct ExchangeBindArguments {
     pub arguments: ServerSpecificArguments,
 }
 
-
 impl ExchangeBindArguments {
     /// Create arguments with defaults
     pub fn new(destination: &str, source: &str, routing_key: &str) -> Self {
@@ -101,7 +99,6 @@ pub struct ExchangeUnbindArguments {
     /// What is accepted arguments?
     pub arguments: ServerSpecificArguments,
 }
-
 
 impl ExchangeUnbindArguments {
     /// Create arguments with defaults
@@ -159,10 +156,12 @@ impl Channel {
         delete.set_if_unused(args.if_unused);
         delete.set_no_wait(args.no_wait);
         if args.no_wait {
-            self.outgoing_tx.send((self.channel_id, delete.into_frame())).await?;
+            self.outgoing_tx
+                .send((self.channel_id, delete.into_frame()))
+                .await?;
             Ok(())
         } else {
-            let _method =synchronous_request!(
+            let _method = synchronous_request!(
                 self.outgoing_tx,
                 (self.channel_id, delete.into_frame()),
                 self.incoming_rx,
@@ -183,7 +182,9 @@ impl Channel {
             arguments: args.arguments.into_field_table(),
         };
         if args.no_wait {
-            self.outgoing_tx.send((self.channel_id, bind.into_frame())).await?;
+            self.outgoing_tx
+                .send((self.channel_id, bind.into_frame()))
+                .await?;
             Ok(())
         } else {
             synchronous_request!(
@@ -207,7 +208,9 @@ impl Channel {
             arguments: args.arguments.into_field_table(),
         };
         if args.no_wait {
-            self.outgoing_tx.send((self.channel_id, unbind.into_frame())).await?;
+            self.outgoing_tx
+                .send((self.channel_id, unbind.into_frame()))
+                .await?;
             Ok(())
         } else {
             synchronous_request!(
@@ -219,7 +222,6 @@ impl Channel {
             )?;
             Ok(())
         }
-
     }
 }
 

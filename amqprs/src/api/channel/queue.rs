@@ -145,7 +145,9 @@ impl Channel {
         };
 
         if args.no_wait {
-            self.outgoing_tx.send((self.channel_id, bind.into_frame())).await?;
+            self.outgoing_tx
+                .send((self.channel_id, bind.into_frame()))
+                .await?;
             Ok(())
         } else {
             synchronous_request!(
@@ -166,7 +168,9 @@ impl Channel {
         };
 
         if args.no_wait {
-            self.outgoing_tx.send((self.channel_id, purge.into_frame())).await?;
+            self.outgoing_tx
+                .send((self.channel_id, purge.into_frame()))
+                .await?;
             Ok(())
         } else {
             synchronous_request!(
@@ -190,7 +194,9 @@ impl Channel {
         delete.set_if_empty(args.if_empty);
         delete.set_no_wait(args.no_wait);
         if args.no_wait {
-            self.outgoing_tx.send((self.channel_id, delete.into_frame())).await?;
+            self.outgoing_tx
+                .send((self.channel_id, delete.into_frame()))
+                .await?;
             Ok(())
         } else {
             synchronous_request!(

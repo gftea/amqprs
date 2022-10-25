@@ -1,7 +1,6 @@
+use crate::frame::REPLY_SUCCESS;
 use amqp_serde::types::{Boolean, LongStr, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
-use crate::frame::REPLY_SUCCESS;
-
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct OpenChannel {

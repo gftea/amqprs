@@ -2,23 +2,23 @@ use amqp_serde::types::ShortUint;
 use serde::{Deserialize, Serialize};
 
 //////////////////////////////////////////////////////////
+mod access;
 mod basic;
 mod channel;
+mod confirm;
 mod connection;
 mod exchange;
 mod queue;
 mod tx;
-mod confirm;
-mod access;
 
+pub use access::*;
 pub use basic::*;
 pub use channel::*;
+pub use confirm::*;
 pub use connection::*;
 pub use exchange::*;
 pub use queue::*;
 pub use tx::*;
-pub use confirm::*;
-pub use access::*;
 //////////////////////////////////////////////////////////
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct MethodHeader {

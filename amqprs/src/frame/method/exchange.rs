@@ -106,8 +106,6 @@ pub struct Bind {
     pub arguments: FieldTable,
 }
 
-
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BindOk;
 

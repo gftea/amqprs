@@ -32,7 +32,7 @@ pub enum Error {
     Incomplete,
     ExpectedLength,
     ExpectedBoolean,
-    ExpectedString,    
+    ExpectedString,
 }
 
 impl ser::Error for Error {
@@ -46,7 +46,6 @@ impl de::Error for Error {
         Error::Message(msg.to_string())
     }
 }
-
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

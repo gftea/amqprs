@@ -2,9 +2,6 @@ use crate::frame::REPLY_SUCCESS;
 use amqp_serde::types::{AmqpPeerProperties, Bit, LongStr, LongUint, Octect, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
 
-
-
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Start {
     pub version_major: Octect,
@@ -88,10 +85,8 @@ impl Default for Close {
     }
 }
 
-
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct CloseOk;
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Secure {
@@ -111,7 +106,6 @@ pub struct Blocked {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Unblocked;
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateSecret {

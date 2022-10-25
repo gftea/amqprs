@@ -1,14 +1,10 @@
-
-
 use std::fmt;
-
 
 #[derive(Debug)]
 pub enum Error {
     // Incomplete,
     Corrupted,
     Inner(String),
-
 }
 
 impl From<amqp_serde::Error> for Error {

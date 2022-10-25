@@ -1,7 +1,7 @@
-use std::ops::DerefMut;
 use crate::error::{Error, Result};
 use bytes::BufMut;
 use serde::{ser, Serialize};
+use std::ops::DerefMut;
 
 pub struct Serializer<'a, W: BufMut> {
     output: &'a mut W, // TODO: buffer generic interfaces?
@@ -427,7 +427,7 @@ mod test {
         let test = Frame::new();
         let expected = vec![
             0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, b'A', b'B', b'C',
-            b'D', 
+            b'D',
         ];
         assert_eq!(to_bytes(&test).unwrap(), expected);
     }

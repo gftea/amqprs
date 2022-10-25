@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{DeriveInput};
+use syn::DeriveInput;
 
 #[proc_macro_derive(FieldCount)]
 pub fn derive_field_count(input: TokenStream) -> TokenStream {
@@ -25,8 +25,3 @@ pub fn derive_field_count(input: TokenStream) -> TokenStream {
 
     expanded.into()
 }
-
-
-
-
-

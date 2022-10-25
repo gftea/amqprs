@@ -179,18 +179,14 @@ impl BufReader {
     pub async fn close(self) {}
 }
 
-
-
 /////////////////////////////////////////////////////////////////////////////
-
-
 
 /////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod test {
 
     use super::SplitConnection;
-    use crate::frame::*;    
+    use crate::frame::*;
     use tokio::sync::mpsc;
 
     #[tokio::test]
@@ -235,7 +231,6 @@ mod test {
                     .unwrap();
             }
             2 => {
-
                 start_ok.machanisms = "AMQPLAIN".try_into().unwrap();
                 let user = "user";
                 let password = "bitnami";
@@ -252,17 +247,21 @@ mod test {
                 start_ok.machanisms = "RABBIT-CR-DEMO".try_into().unwrap();
                 start_ok.response = "user".try_into().unwrap();
                 tx_req
-                .send((CONN_CTRL_CHANNEL, start_ok.into_frame()))
-                .await
-                .unwrap();
+                    .send((CONN_CTRL_CHANNEL, start_ok.into_frame()))
+                    .await
+                    .unwrap();
 
                 // S: Secure
                 rx_resp.recv().await.unwrap();
-                
-                // C: SecureOk
-                let secure_ok = SecureOk { response: "My password is bitnami".try_into().unwrap() };
-                tx_req.send((CONN_CTRL_CHANNEL, secure_ok.into_frame())).await.unwrap();
 
+                // C: SecureOk
+                let secure_ok = SecureOk {
+                    response: "My password is bitnami".try_into().unwrap(),
+                };
+                tx_req
+                    .send((CONN_CTRL_CHANNEL, secure_ok.into_frame()))
+                    .await
+                    .unwrap();
             }
             _ => unimplemented!(),
         }
@@ -288,10 +287,7 @@ mod test {
 
         // C: Open
         let open = Open::default().into_frame();
-        tx_req
-            .send((CONN_CTRL_CHANNEL, open))
-            .await
-            .unwrap();
+        tx_req.send((CONN_CTRL_CHANNEL, open)).await.unwrap();
 
         // S: OpenOk
         let _open_ok = rx_resp.recv().await.unwrap();

@@ -1,7 +1,7 @@
-use std::fmt;
-use amqp_serde::types::AmqpChannelId;
-use tokio::sync::mpsc::error::SendError;
 use crate::net;
+use amqp_serde::types::AmqpChannelId;
+use std::fmt;
+use tokio::sync::mpsc::error::SendError;
 
 #[derive(Debug)]
 pub enum Error {
@@ -40,7 +40,7 @@ impl fmt::Display for Error {
         //     Error::ChannelUseError(msg) => write!(f, "AMQP channel close error: {msg}"),
         //     Error::ChannelCloseError(msg) => write!(f, "AMQP channel error: {msg}"),
         //     Error::ChannelAlreadyClosed(msg) => write!(f, "AMQP channel already closed: {msg}"),
-        //     err => write!(f, "{}", err)            
+        //     err => write!(f, "{}", err)
         // }
     }
 }

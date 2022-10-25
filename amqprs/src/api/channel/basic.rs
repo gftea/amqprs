@@ -116,7 +116,6 @@ impl Channel {
         consume.set_nowait(no_wait);
 
         // TODO: register consumer
-        
 
         if args.no_wait {
             self.outgoing_tx
@@ -140,14 +139,19 @@ impl Channel {
             delivery_tag: args.delivery_tag,
             mutiple: args.multiple,
         };
-        self.outgoing_tx.send((self.channel_id, ack.into_frame())).await?;
+        self.outgoing_tx
+            .send((self.channel_id, ack.into_frame()))
+            .await?;
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::api::{connection::Connection, channel::{QueueDeclareArguments, QueueBindArguments}};
+    use crate::api::{
+        channel::{QueueBindArguments, QueueDeclareArguments},
+        connection::Connection,
+    };
 
     use super::BasicConsumeArguments;
 
@@ -156,8 +160,14 @@ mod tests {
         let mut client = Connection::open("localhost:5672").await.unwrap();
 
         let mut channel = client.open_channel().await.unwrap();
-        channel.queue_declare(QueueDeclareArguments::new("queue")).await.unwrap();
-        channel.queue_bind(QueueBindArguments::new("queue", "amq.direct", "")).await.unwrap();
+        channel
+            .queue_declare(QueueDeclareArguments::new("queue"))
+            .await
+            .unwrap();
+        channel
+            .queue_bind(QueueBindArguments::new("queue", "amq.direct", ""))
+            .await
+            .unwrap();
         channel
             .basic_consume(BasicConsumeArguments::new("", ""), || {
                 println!("consume a message!");

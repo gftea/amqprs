@@ -4,7 +4,9 @@ mod helpers {
 
     macro_rules! synchronous_request {
         ($tx:expr, $msg:expr, $rx:expr, $response:path, $err:path) => {{
-            $tx.send($msg).await.map_err(|err| crate::api::error::Error::InternalChannelError("send error".to_string()))?;
+            $tx.send($msg).await.map_err(|err| {
+                crate::api::error::Error::InternalChannelError("send error".to_string())
+            })?;
             match $rx
                 .recv()
                 .await

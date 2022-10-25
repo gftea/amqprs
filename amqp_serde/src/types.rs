@@ -3,7 +3,6 @@ use std::{collections::HashMap, num::TryFromIntError};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
-
 pub type Bit = u8; //TODO: continuous bits packed in octect
 pub type Octect = u8;
 pub type Boolean = bool; // 0 = FALSE, else TRUE
@@ -18,9 +17,6 @@ pub type LongLongInt = i64;
 pub type TimeStamp = u64;
 pub type Float = f32;
 pub type Double = f64;
-
-
-
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ShortStr(u8, String);
@@ -39,15 +35,15 @@ impl TryFrom<String> for ShortStr {
     type Error = TryFromIntError;
 
     fn try_from(s: String) -> Result<Self, Self::Error> {
-       let len = u8::try_from(s.len())?;
-       Ok(Self(len, s))
+        let len = u8::try_from(s.len())?;
+        Ok(Self(len, s))
     }
 }
 impl TryFrom<&str> for ShortStr {
     type Error = TryFromIntError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-       s.to_string().try_into()
+        s.to_string().try_into()
     }
 }
 
@@ -64,15 +60,15 @@ impl TryFrom<String> for LongStr {
     type Error = TryFromIntError;
 
     fn try_from(s: String) -> Result<Self, Self::Error> {
-       let len = u32::try_from(s.len())?;
-       Ok(Self(len, s))
+        let len = u32::try_from(s.len())?;
+        Ok(Self(len, s))
     }
 }
 impl TryFrom<&str> for LongStr {
     type Error = TryFromIntError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-       s.to_string().try_into()
+        s.to_string().try_into()
     }
 }
 impl From<LongStr> for String {
@@ -80,7 +76,6 @@ impl From<LongStr> for String {
         s.1
     }
 }
-
 
 // Follow Rabbit definitions below
 // Ref: // https://www.rabbitmq.com/amqp-0-9-1-errata.html#section_3
@@ -111,15 +106,14 @@ impl From<LongStr> for String {
 //long-uint * 10^(-scale)
 pub struct DecimalValue(Octect, LongUint);
 
-
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct ByteArray(LongUint, Vec<u8>);
 impl TryFrom<Vec<u8>> for ByteArray {
     type Error = TryFromIntError;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-       let len = LongUint::try_from(bytes.len())?;
-       Ok(Self(len, bytes))
+        let len = LongUint::try_from(bytes.len())?;
+        Ok(Self(len, bytes))
     }
 }
 impl From<ByteArray> for Vec<u8> {
@@ -162,8 +156,8 @@ impl TryFrom<Vec<FieldValue>> for FieldArray {
     type Error = TryFromIntError;
 
     fn try_from(values: Vec<FieldValue>) -> Result<Self, Self::Error> {
-       let len = LongUint::try_from(values.len())?;
-       Ok(Self(len, values))
+        let len = LongUint::try_from(values.len())?;
+        Ok(Self(len, values))
     }
 }
 impl From<FieldArray> for Vec<FieldValue> {

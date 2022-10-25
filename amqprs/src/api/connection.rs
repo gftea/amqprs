@@ -1,4 +1,4 @@
-use std::{time, thread};
+use std::{thread, time};
 
 use amqp_serde::types::AmqpChannelId;
 use tokio::sync::{
@@ -178,11 +178,10 @@ impl Drop for Connection {
                 tx.send((CONN_CTRL_CHANNEL, Close::default().into_frame()))
                     .await
                     .unwrap();
-            });            
+            });
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -196,14 +195,12 @@ mod tests {
             let client = Connection::open("localhost:5672").await.unwrap();
 
             {
-                // test close on drop 
+                // test close on drop
                 let channel = client.open_channel().await.unwrap();
                 // channel.close().await.unwrap();
-                
             }
             time::sleep(time::Duration::from_millis(10)).await;
             // client.close().await.unwrap();
-
         }
         // wait for finished, otherwise runtime exit before all tasks are done
         time::sleep(time::Duration::from_millis(100)).await;
