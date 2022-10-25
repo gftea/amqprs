@@ -3,17 +3,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ContentHeader {
-    class_id: ShortUint,
+    class: ShortUint,
     weight: ShortUint,
     body_size: LongLongUint,
-    properties: BasicPropertities,
+    // TODO: customized deserialzer
+    property_flags: (Octect, Octect),
 }
+// TODO: customized deserialzer
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BasicPropertities {
-    // property flags is included in this type
-    // in order to manage the value according to optional property
-    property_flags: ShortUint,
+    // // property flags is included in this type
+    // // in order to manage the value according to optional property
+    // property_flags: ShortUint,
     content_type: Option<ShortStr>,
     content_encoding: Option<ShortStr>,
     headers: Option<FieldTable>,

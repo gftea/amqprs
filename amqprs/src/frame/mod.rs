@@ -1,9 +1,9 @@
 use amqp_serde::{
     from_bytes,
-    types::{AmqpChannelId, LongUint, Octect, ShortUint},
+    types::{AmqpChannelId, LongUint, Octect, ShortStr, ShortUint},
 };
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{fmt, str::from_utf8};
 
 ////////////////////////////////////////////////////////////////////////
 // macros should appear before module declaration
@@ -175,8 +175,8 @@ impl Frame {
     pub fn get_frame_type(&self) -> Octect {
         match self {
             Frame::HeartBeat(_) => FRAME_HEARTBEAT,
-            Frame::ContentHeader(_) => FRAME_HEADER,
-            Frame::ContentBody(_) => FRAME_BODY,
+            Frame::ContentHeader(_) => FRAME_CONTENT_HEADER,
+            Frame::ContentBody(_) => FRAME_CONTENT_BODY,
             _ => FRAME_METHOD,
         }
     }
@@ -199,7 +199,10 @@ impl Frame {
             Some(s) => s,
             None => unreachable!("out of bound"),
         })?;
-
+        println!(
+            ">>> frame type: {}, channel: {}, payload size: {}",
+            frame_type, channel, payload_size
+        );
         // check full frame is received payload_size + 8 octects
         let total_size = payload_size as usize + FRAME_HEADER_SIZE + 1;
         if total_size > buf.len() {
@@ -224,17 +227,42 @@ impl Frame {
                         Some(s) => s,
                         None => unreachable!("out of bound"),
                     })?;
-                let content = match buf.get(FRAME_HEADER_SIZE + 4..total_size as usize - 1) {
+                let method_raw = match buf.get(FRAME_HEADER_SIZE + 4..total_size as usize - 1) {
                     Some(s) => s,
                     None => unreachable!("out of bound"),
                 };
 
-                let frame = decode_method_frame(header, content)?;
+                let frame = decode_method_frame(header, method_raw)?;
 
                 Ok(Some((total_size, channel, frame)))
             }
             FRAME_HEARTBEAT => Ok(Some((total_size, channel, Frame::HeartBeat(HeartBeat)))),
-            FRAME_HEADER | FRAME_BODY => todo!(),
+            FRAME_CONTENT_HEADER => {
+                let mut start = FRAME_HEADER_SIZE;
+                let mut end = start + 14;
+                let header: ContentHeader = from_bytes(match buf.get(start..end) {
+                    Some(s) => s,
+                    None => unreachable!("out of bound"),
+                })?;
+                // TODO: decode basic propertities
+                #[derive(Deserialize, Debug)]
+                struct TestData {
+                    content_type: Option<ShortStr>,
+                    delivery_mode: Option<Octect>,
+                }
+
+                start = end;
+                end = total_size as usize - 1;
+                let basic_propertities: TestData = from_bytes(match buf.get(start..end) {
+                    Some(s) => s,
+                    None => unreachable!("out of bound"),
+                })?;
+                println!("basic propertities > {:?}", basic_propertities);
+                Ok(Some((total_size, channel, Frame::ContentHeader(header))))
+            }
+            FRAME_CONTENT_BODY => {
+                unimplemented!()
+            }
             _ => Err(Error::Corrupted),
         }
     }

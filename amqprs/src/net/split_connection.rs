@@ -135,7 +135,7 @@ impl BufReader {
     // try to decode a whole frame from the bufferred data.
     // If it is incomplete data, return None;
     // If the frame syntax is corrupted, return Error.
-    async fn decode(&mut self) -> Result<Option<ChannelFrame>> {
+    fn decode(&mut self) -> Result<Option<ChannelFrame>> {
         match Frame::decode(&self.buffer)? {
             Some((len, channel_id, frame)) => {
                 // discard parsed data in read buffer
@@ -151,7 +151,7 @@ impl BufReader {
     // Read a complete frame from socket connection, return channel id and decoded frame.
     pub async fn read_frame(&mut self) -> Result<ChannelFrame> {
         // check if there is remaining data in buffer to decode first
-        let result = self.decode().await?;
+        let result = self.decode()?;
         if let Some(frame) = result {
             return Ok(frame);
         }
@@ -167,7 +167,7 @@ impl BufReader {
             }
             // TODO:  tracing
             // println!("number of bytes read from network {len}");
-            let result = self.decode().await?;
+            let result = self.decode()?;
             match result {
                 Some(frame) => return Ok(frame),
                 None => continue,

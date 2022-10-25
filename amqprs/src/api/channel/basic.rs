@@ -148,6 +148,8 @@ impl Channel {
 
 #[cfg(test)]
 mod tests {
+    use tokio::time;
+
     use crate::api::{
         channel::{QueueBindArguments, QueueDeclareArguments},
         connection::Connection,
@@ -155,24 +157,25 @@ mod tests {
 
     use super::BasicConsumeArguments;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
     async fn test_basic_consume() {
         let mut client = Connection::open("localhost:5672").await.unwrap();
 
         let mut channel = client.open_channel().await.unwrap();
         channel
-            .queue_declare(QueueDeclareArguments::new("queue"))
+            .queue_declare(QueueDeclareArguments::new("amqprs"))
             .await
             .unwrap();
         channel
-            .queue_bind(QueueBindArguments::new("queue", "amq.direct", ""))
+            .queue_bind(QueueBindArguments::new("amqprs", "amq.topic", "eiffel.#"))
             .await
             .unwrap();
         channel
-            .basic_consume(BasicConsumeArguments::new("", ""), || {
+            .basic_consume(BasicConsumeArguments::new("amqprs", "tester"), || {
                 println!("consume a message!");
             })
             .await
             .unwrap();
+        time::sleep(time::Duration::from_secs(2)).await;
     }
 }

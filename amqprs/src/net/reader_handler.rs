@@ -130,9 +130,10 @@ impl ReaderHandler {
 
         // if receiver half has drop, which means client no longer care about the message,
         // so always returns OK and ignore SendError
+        // use `try_send` instead of `send` because client may not start receiver
+        // it will return immediately instead of blocking wait
         responder
-            .send(IncomingMessage::Ok(frame))
-            .await
+            .try_send(IncomingMessage::Ok(frame))
             .or_else(|_| Ok(()))
     }
 
@@ -157,13 +158,14 @@ impl ReaderHandler {
             })?;
 
         // respond as Exception message
+        // use `try_send` instead of `send` because client may not start receiver
+        // it will return immediately instead of blocking wait
         responder
-            .send(IncomingMessage::Exception(
+            .try_send(IncomingMessage::Exception(
                 close_channel.reply_code,
                 close_channel.reply_text.clone().into(),
             ))
-            .await?;
-        Ok(())
+            .or_else(|_| Ok(()))
     }
     async fn handle_close_channel_ok(
         &mut self,
@@ -183,9 +185,10 @@ impl ReaderHandler {
 
         // if receiver half has drop, which means client no longer care about the message,
         // so always returns OK and ignore SendError
+        // use `try_send` instead of `send` because client may not start receiver
+        // it will return immediately instead of blocking wait
         responder
-            .send(IncomingMessage::Ok(frame))
-            .await
+            .try_send(IncomingMessage::Ok(frame))
             .or_else(|_| Ok(()))
     }
 
@@ -236,11 +239,19 @@ impl ReaderHandler {
                 println!("handle heartbeat...");
                 Ok(())
             }
+            // Frame::Deliver(_, _) |
+            // Frame::ContentHeader(_) |
+            // Frame::ContentBody(_) => {
+            //     println!("consume content internally");
+            //     Ok(())
+            // }
             _ => {
                 // respond to synchronous request
                 match self.channel_manager.get_responder(&channel_id) {
                     Some(responder) => {
-                        if let Err(err) = responder.send(IncomingMessage::Ok(frame)).await {
+                        // use `try_send` instead of `send` because client may not start receiver
+                        // it will return immediately instead of blocking wait
+                        if let Err(err) = responder.try_send(IncomingMessage::Ok(frame)) {
                             println!(
                                 "error when forwarding the incoming message from channel: {}",
                                 channel_id
@@ -258,6 +269,8 @@ impl ReaderHandler {
     pub async fn run_until_shutdown(mut self) {
         loop {
             tokio::select! {
+                // biased;
+
                 Some(cmd) = self.mgmt.recv() => {
                     match cmd {
                         ManagementCommand::RegisterResponder(msg) => {
@@ -268,6 +281,7 @@ impl ReaderHandler {
                         ManagementCommand::RegisterConsumer(_) => todo!(),
                     }
                 }
+
                 Ok((channel_id, frame)) = self.stream.read_frame() => {
                     if let Err(err) = self.handle_frame(channel_id, frame).await {
                         println!("shutdown connection, cause: {} ", err);

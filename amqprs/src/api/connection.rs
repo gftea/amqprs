@@ -29,6 +29,7 @@ pub struct Connection {
     mgmt_tx: Sender<ManagementCommand>,
 }
 
+const INCOMING_MESSAGE_CHANNEL_BUFFER_SIZE: usize = 1;
 /// AMQP Connection API
 ///
 impl Connection {
@@ -107,7 +108,7 @@ impl Connection {
     ) -> Result<(AmqpChannelId, Receiver<IncomingMessage>)> {
         // allocate channel for receiving incoming message from server
         // register the sender half to handler, and keep the receiver half
-        let (responder, incoming_rx) = mpsc::channel(1);
+        let (responder, incoming_rx) = mpsc::channel(INCOMING_MESSAGE_CHANNEL_BUFFER_SIZE);
         let (acker, resp) = oneshot::channel();
         let cmd = ManagementCommand::RegisterResponder(RegisterResponder {
             channel_id,
