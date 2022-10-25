@@ -4,17 +4,17 @@ mod helpers {
 
     macro_rules! synchronous_request {
         ($tx:expr, $msg:expr, $rx:expr, $response:path, $err:path) => {{
-            $tx.send($msg).await?;
+            $tx.send($msg).await.map_err(|err| crate::api::error::Error::InternalChannelError("send error".to_string()))?;
             match $rx
                 .recv()
                 .await
-                .ok_or_else(|| Error::ChannelAlreadyClosed("receiver half closed".to_string()))?
+                .ok_or_else(|| Error::InternalChannelError("receive error".to_string()))?
             {
-                Response::Ok(frame) => match frame {
+                crate::net::IncomingMessage::Ok(frame) => match frame {
                     $response(_, method) => Ok(method),
                     unexpected => Err($err(unexpected.to_string())),
                 },
-                Response::Exception(error_code, error_msg) => {
+                crate::net::IncomingMessage::Exception(error_code, error_msg) => {
                     Err($err(format!("{}: {}", error_code, error_msg)))
                 }
             }
@@ -31,7 +31,7 @@ mod helpers {
     }
 }
 
-////////////////////////////////////////////7
+/////////////////////////////////////////////////////////////////////////////
 pub mod channel;
 pub mod connection;
 pub mod error;

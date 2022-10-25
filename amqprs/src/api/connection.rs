@@ -1,23 +1,39 @@
-use crate::frame::{
-    Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CONN_CTRL_CHANNEL,
-};
-use crate::net::{ConnectionManager, Response, SplitConnection};
+use std::{time, thread};
 
-use super::channel::Channel;
+use amqp_serde::types::AmqpChannelId;
+use tokio::sync::{
+    mpsc::{self, Receiver, Sender},
+    oneshot,
+};
+
+use crate::net::{
+    self, IncomingMessage, ManagementCommand, OutgoingMessage, RegisterResponder, SplitConnection,
+};
+use crate::{
+    frame::{Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CONN_CTRL_CHANNEL},
+    net::InternalChannels,
+};
+
+use super::channel::{self, Channel};
 use super::error::Error;
+type Result<T> = std::result::Result<T, Error>;
 
 pub struct ClientCapabilities {}
 pub struct ServerCapabilities {}
 pub struct Connection {
     capabilities: Option<ServerCapabilities>,
-    manager: ConnectionManager,
+    is_open: bool,
+    channel_id: AmqpChannelId,
+    outgoing_tx: Sender<OutgoingMessage>,
+    incoming_rx: Receiver<IncomingMessage>,
+    mgmt_tx: Sender<ManagementCommand>,
 }
 
 /// AMQP Connection API
 ///
 impl Connection {
     /// Open a AMQP connection
-    pub async fn open(uri: &str) -> Result<Self, Error> {
+    pub async fn open(uri: &str) -> Result<Self> {
         // TODO: uri parsing
         let mut connection = SplitConnection::open(uri).await?;
 
@@ -64,40 +80,109 @@ impl Connection {
         get_expected_method!(
             frame,
             Frame::OpenOk,
-            Error::ChannelOpenError("open".to_string())
+            Error::ConnectionOpenError("open".to_string())
         )?;
 
-        let manager = ConnectionManager::spawn(connection, channel_max).await;
+        // spawn network management tasks and get internal channel' sender half.
+        let InternalChannels {
+            outgoing_tx,
+            mgmt_tx,
+        } = net::spawn(connection, channel_max).await;
+
+        let (channel_id, incoming_rx) =
+            Self::allocate_resource(&mgmt_tx, Some(CONN_CTRL_CHANNEL)).await?;
+
         Ok(Self {
             capabilities: None,
-            manager,
+            is_open: true,
+            channel_id,
+            outgoing_tx,
+            incoming_rx,
+            mgmt_tx,
         })
     }
+    async fn allocate_resource(
+        mgmt_tx: &Sender<ManagementCommand>,
+        channel_id: Option<AmqpChannelId>,
+    ) -> Result<(AmqpChannelId, Receiver<IncomingMessage>)> {
+        // allocate channel for receiving incoming message from server
+        // register the sender half to handler, and keep the receiver half
+        let (responder, incoming_rx) = mpsc::channel(1);
+        let (acker, resp) = oneshot::channel();
+        let cmd = ManagementCommand::RegisterResponder(RegisterResponder {
+            channel_id,
+            responder,
+            acker,
+        });
 
-    pub async fn close(mut self) -> Result<(), Error> {
+        // register responder for the channel.
+        // If no channel id is given, it will be allocated by management task and included in acker response
+        // otherwise same id will be received in response
+        mgmt_tx
+            .send(cmd)
+            .await
+            .map_err(|err| Error::ChannelAllocationError(err.to_string()))?;
+
+        // expect a channel id in response
+        match resp
+            .await
+            .map_err(|err| Error::ChannelAllocationError(err.to_string()))?
+        {
+            Some(channel_id) => Ok((channel_id, incoming_rx)),
+            None => Err(Error::ChannelAllocationError(
+                "Channel ID allocation failure".to_string(),
+            )),
+        }
+    }
+    /// close and consume the AMQ connection
+    pub async fn close(mut self) -> Result<()> {
         synchronous_request!(
-            self.manager,
+            self.outgoing_tx,
             (CONN_CTRL_CHANNEL, Close::default().into_frame()),
-            self.manager,
+            self.incoming_rx,
             Frame::CloseOk,
             Error::ConnectionCloseError
         )?;
+        self.is_open = false;
         Ok(())
     }
 
-    pub async fn channel(&mut self) -> Result<Channel, Error> {
-        let (channel_id, tx, mut rx, manager) = self.manager.allocate_channel().await;
+    /// open a AMQ channel
+    pub async fn open_channel(&self) -> Result<Channel> {
+        let (channel_id, incoming_rx) = Self::allocate_resource(&self.mgmt_tx, None).await?;
 
+        let mut channel = Channel {
+            is_open: false,
+            channel_id,
+            outgoing_tx: self.outgoing_tx.clone(),
+            incoming_rx,
+            mgmt_tx: self.mgmt_tx.clone(),
+        };
         synchronous_request!(
-            tx,
-            (channel_id, OpenChannel::default().into_frame()),
-            rx,
+            channel.outgoing_tx,
+            (channel.channel_id, OpenChannel::default().into_frame()),
+            channel.incoming_rx,
             Frame::OpenChannelOk,
             Error::ChannelOpenError
         )?;
-        Ok(Channel::new(channel_id, tx, rx, manager))
+        channel.is_open = true;
+        Ok(channel)
     }
 }
+
+impl Drop for Connection {
+    fn drop(&mut self) {
+        if self.is_open {
+            let tx = self.outgoing_tx.clone();
+            let handle = tokio::spawn(async move {
+                tx.send((CONN_CTRL_CHANNEL, Close::default().into_frame()))
+                    .await
+                    .unwrap();
+            });            
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -106,12 +191,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_channel_open_use_close() {
-        let mut client = Connection::open("localhost:5672").await.unwrap();
+        {
+            // test close on drop
+            let client = Connection::open("localhost:5672").await.unwrap();
 
-        let mut channel = client.channel().await.unwrap();
+            {
+                // test close on drop 
+                let channel = client.open_channel().await.unwrap();
+                // channel.close().await.unwrap();
+                
+            }
+            time::sleep(time::Duration::from_millis(10)).await;
+            // client.close().await.unwrap();
 
-        channel.close().await.unwrap();
-        client.close().await.unwrap();
+        }
+        // wait for finished, otherwise runtime exit before all tasks are done
+        time::sleep(time::Duration::from_millis(100)).await;
     }
 
     #[tokio::test]
@@ -121,7 +216,7 @@ mod tests {
         let mut handles = vec![];
 
         for _ in 0..10 {
-            let mut ch = client.channel().await.unwrap();
+            let mut ch = client.open_channel().await.unwrap();
             handles.push(tokio::spawn(async move {
                 time::sleep(time::Duration::from_secs(1)).await;
             }));

@@ -5,7 +5,7 @@ use tokio::sync::mpsc::error::SendError;
 
 
 #[derive(Debug)]
-pub enum Error {
+pub(crate) enum Error {
     NetworkIoError(String),
     InternalChannelError(String),
     SerdeError(String),

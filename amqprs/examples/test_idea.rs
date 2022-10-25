@@ -1,45 +1,68 @@
-#![allow(unused)]
-#![feature(async_iterator)]
-fn main() {
-    use core::async_iter::AsyncIterator;
-    use core::pin::Pin;
-    use core::task::{Context, Poll};
+use std::{future::Future, pin::Pin};
+use tokio_stream::{Stream, StreamExt};
+use tokio::time;
 
-    // First, the struct:
+struct MyOwnFuture {
+    inner: time::Interval,
+    now: time::Instant,
+}
 
-    /// An async iterator which counts from one to five
-    struct Counter {
-        count: usize,
-    }
-
-    // we want our count to start at one, so let's add a new() method to help.
-    // This isn't strictly necessary, but is convenient. Note that we start
-    // `count` at zero, we'll see why in `poll_next()`'s implementation below.
-    impl Counter {
-        fn new() -> Counter {
-            Counter { count: 0 }
+impl MyOwnFuture {
+    fn new() -> Self {
+        Self {
+            inner: time::interval(time::Duration::from_millis(500)),
+            now: time::Instant::now()
         }
     }
+}
+impl Stream for MyOwnFuture {
+    type Item = time::Instant;
 
-    // Then, we implement `AsyncIterator` for our `Counter`:
+    // NOTE: we have change `self` to `mut self`, this is OK because we take the ownership!
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Option<Self::Item>> {
+        match self.inner.poll_tick(cx) {
+            std::task::Poll::Ready(value) => {
+                match value.checked_duration_since(self.now) {
+                    Some(d) if d.as_secs() < 5 => std::task::Poll::Ready(Some(value.clone())),
+                    Some(d)  => std::task::Poll::Ready(None),
 
-    impl AsyncIterator for Counter {
-        // we will be counting with usize
-        type Item = usize;
-
-        // poll_next() is the only required method
-        fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            // Increment our count. This is why we started at zero.
-            self.count += 1;
-
-            // Check to see if we've finished counting or not.
-            if self.count < 6 {
-                Poll::Ready(Some(self.count))
-            } else {
-                Poll::Ready(None)
-            }
+                    None => std::task::Poll::Pending,
+                }
+            },
+            std::task::Poll::Pending => std::task::Poll::Pending,
         }
     }
+}
+impl Future for MyOwnFuture {
+    type Output = ();
 
-    
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        // `async` return a future that implements !Unpin
+        unsafe {
+            Pin::new_unchecked(&mut async  {
+                let inner  = &mut self.get_mut().inner;
+                loop {
+
+                    let i = inner.tick().await;
+                    
+                    println!("tick: {:?}", i);
+
+                }
+            })
+        }
+        .poll(cx)
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    let mut fut = MyOwnFuture::new();
+    // fut.await;
+    while let Some(v) = fut.next().await {
+        println!("tick at {:?}", v)
+    }
+    println!("stream exhausted")
 }

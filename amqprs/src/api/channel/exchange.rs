@@ -1,7 +1,6 @@
 use crate::{
     api::error::Error,
     frame::{Bind, Declare, Delete, Frame, Unbind},
-    net::Response,
 };
 
 use super::{Channel, Result, ServerSpecificArguments};
@@ -135,15 +134,15 @@ impl Channel {
         declare.set_no_wait(args.no_wait);
 
         if args.no_wait {
-            self.tx
+            self.outgoing_tx
                 .send((self.channel_id, declare.into_frame()))
                 .await?;
             Ok(())
         } else {
             let _method = synchronous_request!(
-                self.tx,
+                self.outgoing_tx,
                 (self.channel_id, declare.into_frame()),
-                self.rx,
+                self.incoming_rx,
                 Frame::DeclareOk,
                 Error::ChannelUseError
             )?;
@@ -160,13 +159,13 @@ impl Channel {
         delete.set_if_unused(args.if_unused);
         delete.set_no_wait(args.no_wait);
         if args.no_wait {
-            self.tx.send((self.channel_id, delete.into_frame())).await?;
+            self.outgoing_tx.send((self.channel_id, delete.into_frame())).await?;
             Ok(())
         } else {
             let _method =synchronous_request!(
-                self.tx,
+                self.outgoing_tx,
                 (self.channel_id, delete.into_frame()),
-                self.rx,
+                self.incoming_rx,
                 Frame::DeleteOk,
                 Error::ChannelUseError
             )?;
@@ -184,13 +183,13 @@ impl Channel {
             arguments: args.arguments.into_field_table(),
         };
         if args.no_wait {
-            self.tx.send((self.channel_id, bind.into_frame())).await?;
+            self.outgoing_tx.send((self.channel_id, bind.into_frame())).await?;
             Ok(())
         } else {
             synchronous_request!(
-                self.tx,
+                self.outgoing_tx,
                 (self.channel_id, bind.into_frame()),
-                self.rx,
+                self.incoming_rx,
                 Frame::BindOk,
                 Error::ChannelUseError
             )?;
@@ -208,13 +207,13 @@ impl Channel {
             arguments: args.arguments.into_field_table(),
         };
         if args.no_wait {
-            self.tx.send((self.channel_id, unbind.into_frame())).await?;
+            self.outgoing_tx.send((self.channel_id, unbind.into_frame())).await?;
             Ok(())
         } else {
             synchronous_request!(
-                self.tx,
+                self.outgoing_tx,
                 (self.channel_id, unbind.into_frame()),
-                self.rx,
+                self.incoming_rx,
                 Frame::UnbindOk,
                 Error::ChannelUseError
             )?;
@@ -233,7 +232,7 @@ mod tests {
     async fn test_exchange_declare() {
         let mut client = Connection::open("localhost:5672").await.unwrap();
 
-        let mut channel = client.channel().await.unwrap();
+        let mut channel = client.open_channel().await.unwrap();
         let mut args = ExchangeDeclareArguments::new("amq.direct", "direct");
         args.passive = true;
         channel.exchange_declare(args).await.unwrap();
@@ -244,7 +243,7 @@ mod tests {
     async fn test_exchange_delete() {
         let mut client = Connection::open("localhost:5672").await.unwrap();
 
-        let mut channel = client.channel().await.unwrap();
+        let mut channel = client.open_channel().await.unwrap();
         let mut args = ExchangeDeleteArguments::new("amq.direct");
         channel.exchange_delete(args).await.unwrap();
     }

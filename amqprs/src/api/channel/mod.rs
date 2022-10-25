@@ -5,14 +5,14 @@ use std::sync::Arc;
 
 use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
 use tokio::sync::{
-    mpsc::{Receiver, Sender},
-    RwLock,
+    mpsc::{self, Receiver, Sender},
+    oneshot, RwLock,
 };
 
 use crate::{
     api::error::Error,
     frame::{CloseChannel, Flow, Frame},
-    net::{ChannelManager, Request, Response},
+    net::{IncomingMessage, ManagementCommand, OutgoingMessage, RegisterResponder},
 };
 
 type Result<T> = std::result::Result<T, Error>;
@@ -23,60 +23,53 @@ type Result<T> = std::result::Result<T, Error>;
 ///
 /// [`channel`]: crate::api::connection::Connection::channel
 pub struct Channel {
-    channel_id: AmqpChannelId,
-    tx: Sender<Request>,
-    rx: Receiver<Response>,
-    manager: Arc<RwLock<ChannelManager>>,
+    pub(in crate::api) is_open: bool,
+    pub(in crate::api) channel_id: AmqpChannelId,
+    pub(in crate::api) outgoing_tx: Sender<OutgoingMessage>,
+    pub(in crate::api) incoming_rx: Receiver<IncomingMessage>,
+    pub(in crate::api) mgmt_tx: Sender<ManagementCommand>,
 }
 
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
-    /// New channel can only be created by [`channel`]
-    pub(crate) fn new(
-        channel_id: AmqpChannelId,
-        tx: Sender<Request>,
-        rx: Receiver<Response>,
-        manager: Arc<RwLock<ChannelManager>>,
-    ) -> Self {
-        Self {
-            channel_id,
-            tx,
-            rx,
-            manager,
-        }
-    }
+    ///
     pub async fn flow(&mut self, active: bool) -> Result<()> {
         synchronous_request!(
-            self.tx,
+            self.outgoing_tx,
             (self.channel_id, Flow { active }.into_frame()),
-            self.rx,
+            self.incoming_rx,
             Frame::FlowOk,
             Error::ChannelUseError
         )?;
         Ok(())
     }
+
+    /// User must close the channel to avoid channel leak
     pub async fn close(mut self) -> Result<()> {
         synchronous_request!(
-            self.tx,
+            self.outgoing_tx,
             (self.channel_id, CloseChannel::default().into_frame()),
-            self.rx,
+            self.incoming_rx,
             Frame::CloseChannelOk,
             Error::ChannelCloseError
         )?;
+        self.is_open = false;
         Ok(())
     }
 }
 
 impl Drop for Channel {
     fn drop(&mut self) {
-        let tx = self.tx.clone();
-        let channel_id = self.channel_id;
-        // When a Channel drop, it should notify server to close it to avoid channel leak.
-        tokio::spawn(async move {
-            tx.send((channel_id, CloseChannel::default().into_frame()))
-                .await
-                .unwrap();
-        });
+        if self.is_open {
+            let tx = self.outgoing_tx.clone();
+            let channel_id = self.channel_id;
+            // When a Channel drop, it should notify server to close it to avoid channel leak.
+            tokio::spawn(async move {
+                tx.send((channel_id, CloseChannel::default().into_frame()))
+                    .await
+                    .expect("CloseChannel when drop to avoid leak of channel");
+            });
+        }
     }
 }
 

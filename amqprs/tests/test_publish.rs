@@ -4,7 +4,7 @@ use amqprs::api::{channel::ExchangeDeclareArguments, connection::Connection};
 async fn test_publish() {
     let mut client = Connection::open("localhost:5672").await.unwrap();
 
-    let mut channel = client.channel().await.unwrap();
+    let mut channel = client.open_channel().await.unwrap();
     let mut args = ExchangeDeclareArguments::new("amq.direct", "direct");
     args.passive = true;
     // usage 1: just create default arguments and update

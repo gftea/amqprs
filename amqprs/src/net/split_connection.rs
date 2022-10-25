@@ -16,15 +16,15 @@ use super::Error;
 type Result<T> = std::result::Result<T, Error>;
 const DEFAULT_BUFFER_SIZE: usize = 8192;
 
-pub struct SplitConnection {
+pub(crate) struct SplitConnection {
     reader: BufReader,
     writer: BufWriter,
 }
-pub struct BufReader {
+pub(super) struct BufReader {
     stream: OwnedReadHalf,
     buffer: BytesMut,
 }
-pub struct BufWriter {
+pub(super) struct BufWriter {
     stream: OwnedWriteHalf,
     buffer: BytesMut,
 }
@@ -52,7 +52,7 @@ impl SplitConnection {
     }
 
     // split connection into reader half and writer half
-    pub fn into_split(self) -> (BufReader, BufWriter) {
+    pub(super) fn into_split(self) -> (BufReader, BufWriter) {
         (self.reader, self.writer)
     }
 
@@ -179,6 +179,13 @@ impl BufReader {
     pub async fn close(self) {}
 }
 
+
+
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+/////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod test {
 

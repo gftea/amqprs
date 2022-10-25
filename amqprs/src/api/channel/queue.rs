@@ -1,6 +1,5 @@
 use super::{Channel, Result, ServerSpecificArguments};
 use crate::frame::{BindQueue, DeleteQueue, PurgeQueue, UnbindQueue};
-use crate::net::Response;
 use crate::{
     api::error::Error,
     frame::{DeclareQueue, Frame},
@@ -120,15 +119,15 @@ impl Channel {
         declare.set_auto_delete(args.auto_delete);
         declare.set_no_wait(args.no_wait);
         if args.no_wait {
-            self.tx
+            self.outgoing_tx
                 .send((self.channel_id, declare.into_frame()))
                 .await?;
             Ok(())
         } else {
             synchronous_request!(
-                self.tx,
+                self.outgoing_tx,
                 (self.channel_id, declare.into_frame()),
-                self.rx,
+                self.incoming_rx,
                 Frame::DeclareQueueOk,
                 Error::ChannelUseError
             )?;
@@ -146,13 +145,13 @@ impl Channel {
         };
 
         if args.no_wait {
-            self.tx.send((self.channel_id, bind.into_frame())).await?;
+            self.outgoing_tx.send((self.channel_id, bind.into_frame())).await?;
             Ok(())
         } else {
             synchronous_request!(
-                self.tx,
+                self.outgoing_tx,
                 (self.channel_id, bind.into_frame()),
-                self.rx,
+                self.incoming_rx,
                 Frame::BindQueueOk,
                 Error::ChannelUseError
             )?;
@@ -167,13 +166,13 @@ impl Channel {
         };
 
         if args.no_wait {
-            self.tx.send((self.channel_id, purge.into_frame())).await?;
+            self.outgoing_tx.send((self.channel_id, purge.into_frame())).await?;
             Ok(())
         } else {
             synchronous_request!(
-                self.tx,
+                self.outgoing_tx,
                 (self.channel_id, purge.into_frame()),
-                self.rx,
+                self.incoming_rx,
                 Frame::PurgeQueueOk,
                 Error::ChannelUseError
             )?;
@@ -191,13 +190,13 @@ impl Channel {
         delete.set_if_empty(args.if_empty);
         delete.set_no_wait(args.no_wait);
         if args.no_wait {
-            self.tx.send((self.channel_id, delete.into_frame())).await?;
+            self.outgoing_tx.send((self.channel_id, delete.into_frame())).await?;
             Ok(())
         } else {
             synchronous_request!(
-                self.tx,
+                self.outgoing_tx,
                 (self.channel_id, delete.into_frame()),
-                self.rx,
+                self.incoming_rx,
                 Frame::DeleteQueueOk,
                 Error::ChannelUseError
             )?;
@@ -214,9 +213,9 @@ impl Channel {
         };
 
         synchronous_request!(
-            self.tx,
+            self.outgoing_tx,
             (self.channel_id, unbind.into_frame()),
-            self.rx,
+            self.incoming_rx,
             Frame::UnbindQueueOk,
             Error::ChannelUseError
         )?;

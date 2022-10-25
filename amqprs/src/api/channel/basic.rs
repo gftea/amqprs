@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use crate::{
     api::error::Error,
     frame::{Ack, BasicPropertities, Consume, Frame, Qos},
-    net::Response,
 };
 
 use super::{Channel, Result, ServerSpecificArguments};
@@ -74,9 +73,9 @@ impl Channel {
             global: args.global,
         };
         let _method = synchronous_request!(
-            self.tx,
+            self.outgoing_tx,
             (self.channel_id, qos.into_frame()),
-            self.rx,
+            self.incoming_rx,
             Frame::QosOk,
             Error::ChannelUseError
         )?;
@@ -116,22 +115,19 @@ impl Channel {
         consume.set_exclusive(exclusive);
         consume.set_nowait(no_wait);
 
-        // TODO: dispatch handler to reader task?
-        {
-            let mut manager = self.manager.write().await;
-            manager.insert_callback(self.channel_id, consumer_tag.clone(), Box::new(handler));
-        }
+        // TODO: register consumer
+        
 
         if args.no_wait {
-            self.tx
+            self.outgoing_tx
                 .send((self.channel_id, consume.into_frame()))
                 .await?;
             Ok(consumer_tag)
         } else {
             let method = synchronous_request!(
-                self.tx,
+                self.outgoing_tx,
                 (self.channel_id, consume.into_frame()),
-                self.rx,
+                self.incoming_rx,
                 Frame::ConsumeOk,
                 Error::ChannelUseError
             )?;
@@ -144,7 +140,7 @@ impl Channel {
             delivery_tag: args.delivery_tag,
             mutiple: args.multiple,
         };
-        self.tx.send((self.channel_id, ack.into_frame())).await?;
+        self.outgoing_tx.send((self.channel_id, ack.into_frame())).await?;
         Ok(())
     }
 }
@@ -159,7 +155,7 @@ mod tests {
     async fn test_basic_consume() {
         let mut client = Connection::open("localhost:5672").await.unwrap();
 
-        let mut channel = client.channel().await.unwrap();
+        let mut channel = client.open_channel().await.unwrap();
         channel.queue_declare(QueueDeclareArguments::new("queue")).await.unwrap();
         channel.queue_bind(QueueBindArguments::new("queue", "amq.direct", "")).await.unwrap();
         channel
