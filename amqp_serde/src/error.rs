@@ -52,8 +52,13 @@ impl fmt::Display for Error {
         match self {
             Error::Message(msg) => write!(f, "{}", msg),
             Error::Eof => f.write_str("unexpected end of input"),
-            /* and so forth */
-            _ => unimplemented!(),
+            Error::Syntax => f.write_str("unexpected syntax"),
+            Error::Incomplete => f.write_str("incomplete deserializaton, leftover in input"),
+            // Error::ExpectedLength => f.write_str("missing length"),
+            // Error::ExpectedBoolean => f.write_str("not a boolean"),
+            // Error::ExpectedString => f.write_str("not a string"),
+            err => write!(f, "{:?}", err),
+           
         }
     }
 }

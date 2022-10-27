@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct ContentBody {
-    inner: Vec<u8>,
+   pub(crate) inner: Vec<u8>,
 }
 
 impl ContentBody {

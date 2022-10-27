@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::from_utf8};
 
 use amqp_serde::types::{AmqpChannelId, ShortStr, ShortUint};
 use tokio::sync::{
@@ -239,12 +239,20 @@ impl ReaderHandler {
                 println!("handle heartbeat...");
                 Ok(())
             }
-            // Frame::Deliver(_, _) |
-            // Frame::ContentHeader(_) |
-            // Frame::ContentBody(_) => {
-            //     println!("consume content internally");
-            //     Ok(())
-            // }
+            Frame::Deliver(_, _) => {
+                println!("TODO: forward Deliver to consumer");
+                Ok(())
+
+            }
+            Frame::ContentHeader(_) => {
+                println!("TODO: forward ContentHeader to consumer");
+                Ok(())
+
+            }
+            Frame::ContentBody(body) => {
+                println!("TODO: forward content body {}", from_utf8(&body.inner[..]).unwrap());
+                Ok(())
+            }
             _ => {
                 // respond to synchronous request
                 match self.channel_manager.get_responder(&channel_id) {
@@ -253,8 +261,8 @@ impl ReaderHandler {
                         // it will return immediately instead of blocking wait
                         if let Err(err) = responder.try_send(IncomingMessage::Ok(frame)) {
                             println!(
-                                "error when forwarding the incoming message from channel: {}",
-                                channel_id
+                                "error when forwarding the incoming message from channel: {}, cause: {}",
+                                channel_id, err
                             );
                         }
                     }
@@ -282,11 +290,20 @@ impl ReaderHandler {
                     }
                 }
 
-                Ok((channel_id, frame)) = self.stream.read_frame() => {
-                    if let Err(err) = self.handle_frame(channel_id, frame).await {
-                        println!("shutdown connection, cause: {} ", err);
-                        break;
+                res = self.stream.read_frame() => {
+                    match res {
+                        Ok((channel_id, frame)) => {
+                            if let Err(err) = self.handle_frame(channel_id, frame).await {
+                                println!("shutdown connection, cause: {} ", err);
+                                break;
+                            }
+                        },
+                        Err(err) => {
+                            println!("fail to read frame, cause: {}", err);
+                            break;
+                        },
                     }
+
                 }
                 else => {
                     break;

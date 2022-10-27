@@ -239,30 +239,35 @@ impl Frame {
             FRAME_HEARTBEAT => Ok(Some((total_size, channel, Frame::HeartBeat(HeartBeat)))),
             FRAME_CONTENT_HEADER => {
                 let mut start = FRAME_HEADER_SIZE;
-                let mut end = start + 14;
-                let header: ContentHeader = from_bytes(match buf.get(start..end) {
+                let mut end = start + 12;
+                let header_common: ContentHeaderCommon = from_bytes(match buf.get(start..end) {
                     Some(s) => s,
                     None => unreachable!("out of bound"),
                 })?;
-                // TODO: decode basic propertities
-                #[derive(Deserialize, Debug)]
-                struct TestData {
-                    content_type: Option<ShortStr>,
-                    delivery_mode: Option<Octect>,
-                }
 
                 start = end;
                 end = total_size as usize - 1;
-                let basic_propertities: TestData = from_bytes(match buf.get(start..end) {
-                    Some(s) => s,
-                    None => unreachable!("out of bound"),
-                })?;
+                let basic_propertities: BasicPropertities =
+                    from_bytes(match buf.get(start..end) {
+                        Some(s) => s,
+                        None => unreachable!("out of bound"),
+                    })?;
                 println!("basic propertities > {:?}", basic_propertities);
-                Ok(Some((total_size, channel, Frame::ContentHeader(header))))
+                Ok(Some((
+                    total_size,
+                    channel,
+                    Frame::ContentHeader(ContentHeader::new(header_common, basic_propertities)),
+                )))
             }
             FRAME_CONTENT_BODY => {
-                unimplemented!()
-            }
+                let start = FRAME_HEADER_SIZE;
+                let end = total_size as usize - 1;
+                let body = buf.get(start..end).expect("should never fail");
+                Ok(Some((
+                    total_size,
+                    channel,
+                    Frame::ContentBody(ContentBody::new(body.to_vec())),
+                )))            }
             _ => Err(Error::Corrupted),
         }
     }

@@ -27,7 +27,7 @@ impl WriterHandler {
         loop {
             tokio::select! {
                 _ = self.shutdown_listener.recv() => {
-                    println!("received shutdown");
+                    println!("received shutdown notification");
                     break;
                 }
                 Some((channel_id, frame)) = self.forwarder.recv() => {
