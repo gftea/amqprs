@@ -5,8 +5,8 @@ use serde::{de::Visitor, Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ContentHeader {
-    common: ContentHeaderCommon,
-    basic_propertities: BasicPropertities,
+    pub common: ContentHeaderCommon,
+    pub basic_propertities: BasicPropertities,
 }
 
 impl ContentHeader {

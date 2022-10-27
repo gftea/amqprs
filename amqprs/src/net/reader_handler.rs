@@ -3,13 +3,19 @@ use std::{collections::BTreeMap, str::from_utf8};
 use amqp_serde::types::{AmqpChannelId, ShortStr, ShortUint};
 use tokio::sync::{
     broadcast,
-    mpsc::{Receiver, Sender},
+    mpsc::{self, Receiver, Sender},
 };
 
-use crate::frame::{Close, CloseChannel, CloseChannelOk, CloseOk, Frame, CONN_CTRL_CHANNEL};
+use crate::{
+    api::consumer::Consumer,
+    frame::{
+        Ack, BasicPropertities, Close, CloseChannel, CloseChannelOk, CloseOk, Deliver, Frame,
+        CONN_CTRL_CHANNEL,
+    },
+};
 
 use super::{
-    channel_id_repo::ChannelIdRepository, BufReader, ConsumerMessage, Error, IncomingMessage,
+    channel_id_repo::ChannelIdRepository, BufReader, ConsumerResource, Error, IncomingMessage,
     ManagementCommand, OutgoingMessage,
 };
 
@@ -21,7 +27,7 @@ struct ChannelManager {
     responders: BTreeMap<AmqpChannelId, Sender<IncomingMessage>>,
 
     /// registery of sender half of channel consumers
-    consumers: BTreeMap<AmqpChannelId, BTreeMap<ConsumerTag, Sender<ConsumerMessage>>>,
+    consumers: BTreeMap<AmqpChannelId, ConsumerResource>,
 }
 
 impl ChannelManager {
@@ -32,32 +38,46 @@ impl ChannelManager {
             consumers: BTreeMap::new(),
         }
     }
+    fn insert_consumer(&mut self, channel_id: AmqpChannelId, consumer_resource: ConsumerResource) {
+        self.consumers.insert(channel_id, consumer_resource);
+    }
 
+    fn get_consumer(&self, channel_id: &AmqpChannelId) -> Option<&ConsumerResource> {
+        self.consumers.get(channel_id)
+    }
     fn insert_responder(
         &mut self,
         channel_id: Option<AmqpChannelId>,
         responder: Sender<IncomingMessage>,
     ) -> Option<AmqpChannelId> {
-        match channel_id {
+        let id = match channel_id {
+            // reserve channel id as requested
             Some(id) => {
                 if self.channel_id_repo.reserve(&id) {
                     match self.responders.insert(id, responder) {
                         Some(old) => unreachable!("Implementation error"),
-                        None => Some(id),
+                        None => id,
                     }
                 } else {
-                    None
+                    // fail to reserve the id
+                    return None;
                 }
             }
+            // allocate a channel id
             None => {
+                // allocate id never fail
                 let id = self.channel_id_repo.allocate();
                 match self.responders.insert(id, responder) {
                     Some(old) => unreachable!("Implementation error"),
-                    None => Some(id),
+                    None => id,
                 }
             }
-        }
+        };
+        // // insert responder means channel to be created
+        // self.consumers.insert(id, BTreeMap::new());
+        Some(id)
     }
+
     fn get_responder(&self, channel_id: &AmqpChannelId) -> Option<&Sender<IncomingMessage>> {
         self.responders.get(channel_id)
     }
@@ -67,6 +87,9 @@ impl ChannelManager {
             self.channel_id_repo.release(channel_id),
             "Implementation error"
         );
+        // remove responder means channel is to be  closed
+        self.consumers.remove(channel_id);
+
         self.responders.remove(channel_id)
     }
 }
@@ -90,6 +113,7 @@ pub(super) struct ReaderHandler {
     /// so socket read will return, and reader handler can detect connection shutdown without separate signal.
     #[allow(dead_code /* notify shutdown just by dropping the instance */)]
     shutdown_notifier: broadcast::Sender<()>,
+    // consumer buffer
 }
 
 impl ReaderHandler {
@@ -108,7 +132,52 @@ impl ReaderHandler {
             shutdown_notifier,
         }
     }
+    async fn spawn_channel_consumer(&self, channel_id: AmqpChannelId) -> Sender<Frame> {
+        let acker = self.outgoing_forwarder.clone();
+        let (tx, mut rx) = mpsc::channel::<Frame>(32);
+        tokio::spawn(async move {
+            loop {
+                #[derive(Debug)]
+                struct ConsumerMessage {
+                    deliver: Option<Deliver>,
+                    basic_propertities: Option<BasicPropertities>,
+                    content: Option<Vec<u8>>,
+                }
+                let mut message = ConsumerMessage {
+                    deliver: None,
+                    basic_propertities: None,
+                    content: None,
+                };
 
+                match rx.recv().await.unwrap() {
+                    Frame::Deliver(_, deliver) => {
+                        println!("consumer recv: deliver");
+                        message.deliver = Some(deliver);
+                    }
+                    Frame::ContentHeader(header) => {
+                        println!("consumer recv: content header");
+                        message.basic_propertities = Some(header.basic_propertities);
+                    }
+                    Frame::ContentBody(body) => {
+                        println!("consumer recv: content body");
+                        message.content = Some(body.inner);
+
+                        println!("<<<<< recv combined consumer message: {:?}", message);
+
+                        let delivery_tag = message.deliver.unwrap().delivery_tag;
+                        let ack = Ack {
+                            delivery_tag,
+                            mutiple: false,
+                        };
+                        acker.send((channel_id, ack.into_frame())).await.unwrap();
+                        println!(">>>> ack message: {:?}", delivery_tag);
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        });
+        tx
+    }
     async fn handle_close(&self, close: &Close) -> Result<(), Error> {
         self.outgoing_forwarder
             .send((CONN_CTRL_CHANNEL, CloseOk::default().into_frame()))
@@ -239,20 +308,41 @@ impl ReaderHandler {
                 println!("handle heartbeat...");
                 Ok(())
             }
-            Frame::Deliver(_, _) => {
-                println!("TODO: forward Deliver to consumer");
-                Ok(())
 
+            // Deliver, ContentHeader, ContentBody are delivered in sequence by server.
+            // Need to store the deliver frame and expect upcoming content.
+            Frame::Deliver(_, _) | Frame::ContentHeader(_) | Frame::ContentBody(_) => {
+                match self.channel_manager.get_consumer(&channel_id) {
+                    Some(res) => {
+                        res.consumer_tx.send(frame).await?;
+                        Ok(())
+                    }
+                    None => {
+                        println!("no consumer registered yet, discard : {:?}", frame);
+                        Ok(())
+                    }
+                }
             }
-            Frame::ContentHeader(_) => {
-                println!("TODO: forward ContentHeader to consumer");
-                Ok(())
+            // Frame::ContentHeader(header) => {
+            //     match self.channel_manager.get_consumer(&channel_id) {
+            //         Some(res) => {
+            //             res.consumer_tx.send(frame).await?;
+            //             Ok(())
 
-            }
-            Frame::ContentBody(body) => {
-                println!("TODO: forward content body {}", from_utf8(&body.inner[..]).unwrap());
-                Ok(())
-            }
+            //         },
+            //         None => Ok(())
+            //     }
+            // }
+            // Frame::ContentBody(body) => {
+            //     match self.channel_manager.get_consumer(&channel_id) {
+            //         Some(res) => {
+            //             res.consumer_tx.send(frame).await?;
+            //             Ok(())
+
+            //         },
+            //         None => Ok(())
+            //     }
+            // }
             _ => {
                 // respond to synchronous request
                 match self.channel_manager.get_responder(&channel_id) {
@@ -277,16 +367,18 @@ impl ReaderHandler {
     pub async fn run_until_shutdown(mut self) {
         loop {
             tokio::select! {
-                // biased;
+                biased;
 
                 Some(cmd) = self.mgmt.recv() => {
                     match cmd {
                         ManagementCommand::RegisterResponder(msg) => {
-                            msg.acker.send(
-                                self.channel_manager.insert_responder(msg.channel_id, msg.responder)
-                            ).unwrap();
+                            let id = self.channel_manager.insert_responder(msg.channel_id, msg.responder);
+                            msg.acker.send(id).unwrap();
                         },
-                        ManagementCommand::RegisterConsumer(_) => todo!(),
+                        ManagementCommand::RegisterConsumer(msg) => {
+                            let _ = self.channel_manager.insert_consumer(msg.channel_id, msg.consumer_resource);
+                            msg.acker.send(()).unwrap();
+                        },
                     }
                 }
 

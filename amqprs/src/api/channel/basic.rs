@@ -1,8 +1,11 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::from_utf8};
+
+use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    api::error::Error,
-    frame::{Ack, BasicPropertities, Consume, Frame, Qos},
+    api::{consumer::DefaultConsumer, error::Error},
+    frame::{Ack, BasicPropertities, Consume, Deliver, Frame, Qos},
+    net::{ConsumerResource, ManagementCommand, RegisterConsumer},
 };
 
 use super::{Channel, Result, ServerSpecificArguments};
@@ -115,13 +118,29 @@ impl Channel {
         consume.set_exclusive(exclusive);
         consume.set_nowait(no_wait);
 
-        // TODO: register consumer
+        // TODO: spawn task for consumer, only need to register tx channel to consumer task
+        // ReaderHandler forward message to consumer using consumer_tx if exist, otherwise handle them by default consumer
+        let consumer_tx = self.spawn_consumer().await;
 
-        if args.no_wait {
+        let (acker, resp) = oneshot::channel();
+        self.mgmt_tx
+            .send(ManagementCommand::RegisterConsumer(RegisterConsumer {
+                channel_id: self.channel_id,
+                consumer_resource: ConsumerResource { consumer_tx },
+                acker,
+            }))
+            .await
+            .map_err(|err| Error::InternalChannelError(err.to_string()))?;
+
+        resp.await
+            .map_err(|err| Error::InternalChannelError(err.to_string()))?;
+
+        // now start consuming messages
+        let consumer_tag = if args.no_wait {
             self.outgoing_tx
                 .send((self.channel_id, consume.into_frame()))
                 .await?;
-            Ok(consumer_tag)
+            consumer_tag
         } else {
             let method = synchronous_request!(
                 self.outgoing_tx,
@@ -130,8 +149,64 @@ impl Channel {
                 Frame::ConsumeOk,
                 Error::ChannelUseError
             )?;
-            Ok(method.consumer_tag.into())
-        }
+            method.consumer_tag.into()
+        };
+
+
+        Ok(consumer_tag)
+    }
+
+    // TODO: 
+    // alt1:
+    //  one task per consumer, and  one task for dispatcher per channel,
+    //  a dispatcher distribute message to different consumer tasks.
+    // alt2:
+    //  it just use callback queue, each channel has only one task for all consumers
+    //  the task call the callback - Q: how to insert callback lock-free?
+    async fn spawn_consumer(&self) -> mpsc::Sender<Frame> {
+        let acker = self.outgoing_tx.clone();
+        let (tx, mut rx) = mpsc::channel::<Frame>(32);
+        let channel_id = self.channel_id;
+        tokio::spawn(async move {
+            #[derive(Debug)]
+            struct ConsumerMessage {
+                deliver: Option<Deliver>,
+                basic_propertities: Option<BasicPropertities>,
+                content: Option<Vec<u8>>,
+            }
+            let mut message = ConsumerMessage {
+                deliver: None,
+                basic_propertities: None,
+                content: None,
+            };
+            loop {
+                match rx.recv().await.unwrap() {
+                    Frame::Deliver(_, deliver) => {
+                        message.deliver = Some(deliver);
+                    }
+                    Frame::ContentHeader(header) => {
+                        message.basic_propertities = Some(header.basic_propertities);
+                    }
+                    Frame::ContentBody(body) => {
+                        message.content = Some(body.inner);
+
+                        println!("<<<<< 1 >>>> DELIVER: {:?}", message.deliver);
+                        println!("<<<<< 2 >>>> BASIC: {:?}", message.basic_propertities);
+                        println!("<<<<< 3 >>> CONTENT: {}", from_utf8(&message.content.take().unwrap()).unwrap());
+
+                        let delivery_tag = message.deliver.take().unwrap().delivery_tag;
+                        let ack = Ack {
+                            delivery_tag,
+                            mutiple: false,
+                        };
+                        acker.send((channel_id, ack.into_frame())).await.unwrap();
+                        println!(">>>> ack message: {:?}", delivery_tag);
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        });
+        tx
     }
 
     pub async fn basic_ack(&mut self, args: BasicAckArguments) -> Result<()> {
@@ -176,6 +251,6 @@ mod tests {
             })
             .await
             .unwrap();
-        time::sleep(time::Duration::from_secs(2)).await;
+        time::sleep(time::Duration::from_secs(120)).await;
     }
 }

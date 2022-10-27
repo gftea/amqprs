@@ -24,10 +24,22 @@ name = "amqprs"
 version = "0.1.0"
 dependencies = [
  "amqp_serde",
+ "async-trait",
  "bytes",
  "serde",
  "tokio",
  "tokio-stream",
+]
+
+[[package]]
+name = "async-trait"
+version = "0.1.58"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e805d94e6b5001b651426cf4cd446b1ab5f319d27bab5c644f61de0a804360c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
