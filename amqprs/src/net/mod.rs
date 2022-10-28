@@ -25,29 +25,21 @@ pub(crate) enum IncomingMessage {
     Exception(AmqpReplyCode, String),
 }
 
-pub(crate) struct ConsumerResource {
-    pub consumer_tx: Sender<Frame>,
-}
-
-pub(crate) struct RegisterResponder {
-    pub channel_id: Option<AmqpChannelId>,
+pub(crate) struct ChannelResource {
     pub responder: Sender<IncomingMessage>,
-    pub acker: oneshot::Sender<Option<AmqpChannelId>>,
+    /// connection's default channel does not have dispatcher
+    pub dispatcher: Option<Sender<Frame>>,   
 }
-// TODO: remove, if we do not keep consumer tag in ReaderHandler,
-// instead, we have consumer task spawned by AMQ channel type,
-// we can merge this register command with RegisterResponder
-pub(crate) struct RegisterConsumer {
-    pub channel_id: AmqpChannelId,
-
-    pub consumer_resource: ConsumerResource,
-    pub acker: oneshot::Sender<()>,
+pub(crate) struct RegisterChannelResource {
+    pub channel_id: Option<AmqpChannelId>,
+    pub acker: oneshot::Sender<Option<AmqpChannelId>>,
+    pub resource: ChannelResource
 }
 
 pub(crate) enum ManagementCommand {
-    RegisterResponder(RegisterResponder),
-    RegisterConsumer(RegisterConsumer),
+    RegisterChannelResource(RegisterChannelResource),
 }
+
 
 pub(crate) struct InternalChannels {
     /// The sender half to forward outgoing message to `WriterHandler`

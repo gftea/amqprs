@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 
-use crate::frame::CONN_CTRL_CHANNEL;
+use crate::frame::CONN_DEFAULT_CHANNEL;
 
 pub(super) struct ChannelIdRepository {
     channel_max: ShortUint,
@@ -15,7 +15,7 @@ impl ChannelIdRepository {
     pub fn new(channel_max: ShortUint) -> Self {
         Self {
             channel_max,
-            watermark: CONN_CTRL_CHANNEL, // reserved for connection
+            watermark: CONN_DEFAULT_CHANNEL, // reserved for connection
             freepool: vec![],
             reservedpool: vec![],
         }
@@ -42,7 +42,7 @@ impl ChannelIdRepository {
     }
     pub fn release(&mut self, id: &AmqpChannelId) -> bool {
         assert_ne!(
-            &CONN_CTRL_CHANNEL, id,
+            &CONN_DEFAULT_CHANNEL, id,
             "Connection's default channel cannot be released"
         );
         if let Some(i) = self.reservedpool.iter().position(|v| v == id) {
@@ -57,7 +57,7 @@ impl ChannelIdRepository {
     }
 
     pub fn reserve(&mut self, id: &AmqpChannelId) -> bool {
-        if id == &CONN_CTRL_CHANNEL {
+        if id == &CONN_DEFAULT_CHANNEL {
             true
         } else if let Some(i) = self.freepool.iter().position(|v| v == id) {
             self.freepool.swap_remove(i);

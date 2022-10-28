@@ -12,7 +12,7 @@ use tokio::sync::{
 use crate::{
     api::error::Error,
     frame::{CloseChannel, Flow, Frame},
-    net::{IncomingMessage, ManagementCommand, OutgoingMessage, RegisterResponder},
+    net::{IncomingMessage, ManagementCommand, OutgoingMessage, RegisterChannelResource},
 };
 
 type Result<T> = std::result::Result<T, Error>;

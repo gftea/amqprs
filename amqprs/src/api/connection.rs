@@ -1,16 +1,19 @@
-use std::{thread, time};
+use std::{str::from_utf8, thread, time};
 
 use amqp_serde::types::AmqpChannelId;
-use tokio::sync::{
-    mpsc::{self, Receiver, Sender},
-    oneshot,
-};
+use tokio::sync::{mpsc, oneshot};
 
-use crate::net::{
-    self, IncomingMessage, ManagementCommand, OutgoingMessage, RegisterResponder, SplitConnection,
+use crate::{
+    frame::{Ack, BasicPropertities, Deliver},
+    net::{
+        self, ChannelResource, IncomingMessage, ManagementCommand, OutgoingMessage,
+        RegisterChannelResource, SplitConnection,
+    },
 };
 use crate::{
-    frame::{Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CONN_CTRL_CHANNEL},
+    frame::{
+        Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CONN_DEFAULT_CHANNEL,
+    },
     net::InternalChannels,
 };
 
@@ -24,12 +27,14 @@ pub struct Connection {
     capabilities: Option<ServerCapabilities>,
     is_open: bool,
     channel_id: AmqpChannelId,
-    outgoing_tx: Sender<OutgoingMessage>,
-    incoming_rx: Receiver<IncomingMessage>,
-    mgmt_tx: Sender<ManagementCommand>,
+    outgoing_tx: mpsc::Sender<OutgoingMessage>,
+    incoming_rx: mpsc::Receiver<IncomingMessage>,
+    mgmt_tx: mpsc::Sender<ManagementCommand>,
 }
 
-const INCOMING_MESSAGE_CHANNEL_BUFFER_SIZE: usize = 1;
+const INCOMING_RESPONSE_BUFFER_SIZE: usize = 1;
+const INCOMING_CONTENT_BUFFER_SIZE: usize = 32;
+
 /// AMQP Connection API
 ///
 impl Connection {
@@ -51,7 +56,9 @@ impl Connection {
 
         // C: 'StartOk'
         let start_ok = StartOk::default().into_frame();
-        connection.write_frame(CONN_CTRL_CHANNEL, start_ok).await?;
+        connection
+            .write_frame(CONN_DEFAULT_CHANNEL, start_ok)
+            .await?;
 
         // S: 'Tune'
         let (_, frame) = connection.read_frame().await?;
@@ -69,12 +76,12 @@ impl Connection {
         let channel_max = tune_ok.channel_max;
         let _heartbeat = tune_ok.channel_max;
         connection
-            .write_frame(CONN_CTRL_CHANNEL, tune_ok.into_frame())
+            .write_frame(CONN_DEFAULT_CHANNEL, tune_ok.into_frame())
             .await?;
 
         // C: Open
         let open = Open::default().into_frame();
-        connection.write_frame(CONN_CTRL_CHANNEL, open).await?;
+        connection.write_frame(CONN_DEFAULT_CHANNEL, open).await?;
 
         // S: OpenOk
         let (_, frame) = connection.read_frame().await?;
@@ -88,58 +95,39 @@ impl Connection {
         let InternalChannels {
             outgoing_tx,
             mgmt_tx,
-        } = net::spawn(connection, channel_max).await;
+        } = net::spawn_handlers(connection, channel_max).await;
 
-        let (channel_id, incoming_rx) =
-            Self::allocate_resource(&mgmt_tx, Some(CONN_CTRL_CHANNEL)).await?;
+        let (responder, incoming_rx) = mpsc::channel(INCOMING_RESPONSE_BUFFER_SIZE);
+        // let (dispatcher, dispatcher_rx) = mpsc::channel(INCOMING_CONTENT_BUFFER_SIZE);
+
+        net::register_channel_resource(
+            &mgmt_tx,
+            Some(CONN_DEFAULT_CHANNEL),
+            ChannelResource {
+                responder,
+                dispatcher: None,
+            },
+        )
+        .await
+        .ok_or_else(|| {
+            Error::ConnectionOpenError("register channel resource failure".to_string())
+        })?;
 
         Ok(Self {
             capabilities: None,
             is_open: true,
-            channel_id,
+            channel_id: CONN_DEFAULT_CHANNEL,
             outgoing_tx,
             incoming_rx,
             mgmt_tx,
         })
     }
-    async fn allocate_resource(
-        mgmt_tx: &Sender<ManagementCommand>,
-        channel_id: Option<AmqpChannelId>,
-    ) -> Result<(AmqpChannelId, Receiver<IncomingMessage>)> {
-        // allocate channel for receiving incoming message from server
-        // register the sender half to handler, and keep the receiver half
-        let (responder, incoming_rx) = mpsc::channel(INCOMING_MESSAGE_CHANNEL_BUFFER_SIZE);
-        let (acker, resp) = oneshot::channel();
-        let cmd = ManagementCommand::RegisterResponder(RegisterResponder {
-            channel_id,
-            responder,
-            acker,
-        });
 
-        // register responder for the channel.
-        // If no channel id is given, it will be allocated by management task and included in acker response
-        // otherwise same id will be received in response
-        mgmt_tx
-            .send(cmd)
-            .await
-            .map_err(|err| Error::ChannelAllocationError(err.to_string()))?;
-
-        // expect a channel id in response
-        match resp
-            .await
-            .map_err(|err| Error::ChannelAllocationError(err.to_string()))?
-        {
-            Some(channel_id) => Ok((channel_id, incoming_rx)),
-            None => Err(Error::ChannelAllocationError(
-                "Channel ID allocation failure".to_string(),
-            )),
-        }
-    }
     /// close and consume the AMQ connection
     pub async fn close(mut self) -> Result<()> {
         synchronous_request!(
             self.outgoing_tx,
-            (CONN_CTRL_CHANNEL, Close::default().into_frame()),
+            (CONN_DEFAULT_CHANNEL, Close::default().into_frame()),
             self.incoming_rx,
             Frame::CloseOk,
             Error::ConnectionCloseError
@@ -150,7 +138,24 @@ impl Connection {
 
     /// open a AMQ channel
     pub async fn open_channel(&self) -> Result<Channel> {
-        let (channel_id, incoming_rx) = Self::allocate_resource(&self.mgmt_tx, None).await?;
+        let (responder, incoming_rx) = mpsc::channel(INCOMING_RESPONSE_BUFFER_SIZE);
+        let (dispatcher, dispatcher_rx) = mpsc::channel(INCOMING_CONTENT_BUFFER_SIZE);
+
+        let channel_id = net::register_channel_resource(
+            &self.mgmt_tx,
+            None,
+            ChannelResource {
+                responder,
+                dispatcher: Some(dispatcher),
+            },
+        )
+        .await
+        .ok_or_else(|| {
+            Error::ConnectionOpenError("register channel resource failure".to_string())
+        })?;
+
+        //
+        self.spawn_dispatcher(channel_id, dispatcher_rx).await;
 
         let mut channel = Channel {
             is_open: false,
@@ -169,6 +174,63 @@ impl Connection {
         channel.is_open = true;
         Ok(channel)
     }
+
+    ///
+    async fn spawn_dispatcher(
+        &self,
+        channel_id: AmqpChannelId,
+        mut dispatcher_rx: mpsc::Receiver<Frame>,
+    ) {
+        let acker = self.outgoing_tx.clone();
+        tokio::spawn(async move {
+            #[derive(Debug)]
+            struct ConsumerMessage {
+                deliver: Option<Deliver>,
+                basic_propertities: Option<BasicPropertities>,
+                content: Option<Vec<u8>>,
+            }
+            let mut message = ConsumerMessage {
+                deliver: None,
+                basic_propertities: None,
+                content: None,
+            };
+            loop {
+                match dispatcher_rx.recv().await {
+                    None => {
+                        println!("exit dispatcher of channel: {}", channel_id);
+                        break;
+                    }
+                    Some(frame) => match frame {
+                        Frame::Deliver(_, deliver) => {
+                            message.deliver = Some(deliver);
+                        }
+                        Frame::ContentHeader(header) => {
+                            message.basic_propertities = Some(header.basic_propertities);
+                        }
+                        Frame::ContentBody(body) => {
+                            message.content = Some(body.inner);
+
+                            println!("<<<<< 1 >>>> DELIVER: {:?}", message.deliver);
+                            println!("<<<<< 2 >>>> BASIC: {:?}", message.basic_propertities);
+                            println!(
+                                "<<<<< 3 >>> CONTENT: {}",
+                                from_utf8(&message.content.take().unwrap()).unwrap()
+                            );
+
+                            let delivery_tag = message.deliver.take().unwrap().delivery_tag;
+                            let ack = Ack {
+                                delivery_tag,
+                                mutiple: false,
+                            };
+                            acker.send((channel_id, ack.into_frame())).await.unwrap();
+                            println!(">>>> ack message: {:?}", delivery_tag);
+                        }
+                        _ => unreachable!("not acceptable frame for dispatcher: {:?}", frame),
+                    },
+                }
+            }
+        });
+    }
 }
 
 impl Drop for Connection {
@@ -176,7 +238,7 @@ impl Drop for Connection {
         if self.is_open {
             let tx = self.outgoing_tx.clone();
             let handle = tokio::spawn(async move {
-                tx.send((CONN_CTRL_CHANNEL, Close::default().into_frame()))
+                tx.send((CONN_DEFAULT_CHANNEL, Close::default().into_frame()))
                     .await
                     .unwrap();
             });

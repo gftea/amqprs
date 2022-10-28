@@ -5,7 +5,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::{
     api::{consumer::DefaultConsumer, error::Error},
     frame::{Ack, BasicPropertities, Consume, Deliver, Frame, Qos},
-    net::{ConsumerResource, ManagementCommand, RegisterConsumer},
+    net::{ ManagementCommand, },
 };
 
 use super::{Channel, Result, ServerSpecificArguments};
@@ -118,22 +118,10 @@ impl Channel {
         consume.set_exclusive(exclusive);
         consume.set_nowait(no_wait);
 
-        // TODO: spawn task for consumer, only need to register tx channel to consumer task
-        // ReaderHandler forward message to consumer using consumer_tx if exist, otherwise handle them by default consumer
-        let consumer_tx = self.spawn_consumer().await;
+        // TODO: spawn task for consumer and register consumer to dispatcher
+        // 
+        // ReaderHandler forward message to dispatcher, dispatcher forward message to or invovke consumer with message
 
-        let (acker, resp) = oneshot::channel();
-        self.mgmt_tx
-            .send(ManagementCommand::RegisterConsumer(RegisterConsumer {
-                channel_id: self.channel_id,
-                consumer_resource: ConsumerResource { consumer_tx },
-                acker,
-            }))
-            .await
-            .map_err(|err| Error::InternalChannelError(err.to_string()))?;
-
-        resp.await
-            .map_err(|err| Error::InternalChannelError(err.to_string()))?;
 
         // now start consuming messages
         let consumer_tag = if args.no_wait {

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, str::from_utf8};
+use std::{borrow::Borrow, collections::BTreeMap, str::from_utf8};
 
 use amqp_serde::types::{AmqpChannelId, ShortStr, ShortUint};
 use tokio::sync::{
@@ -10,51 +10,42 @@ use crate::{
     api::consumer::Consumer,
     frame::{
         Ack, BasicPropertities, Close, CloseChannel, CloseChannelOk, CloseOk, Deliver, Frame,
-        CONN_CTRL_CHANNEL,
+        CONN_DEFAULT_CHANNEL,
     },
 };
 
 use super::{
-    channel_id_repo::ChannelIdRepository, BufReader, ConsumerResource, Error, IncomingMessage,
+    channel_id_repo::ChannelIdRepository, BufReader, ChannelResource, Error, IncomingMessage,
     ManagementCommand, OutgoingMessage,
 };
 
 /////////////////////////////////////////////////////////////////////////////
 struct ChannelManager {
+    /// channel id allocator and manager
     channel_id_repo: ChannelIdRepository,
 
-    /// sender half to forward incoming message to AMQ Connection/Channel
-    responders: BTreeMap<AmqpChannelId, Sender<IncomingMessage>>,
-
-    /// registery of sender half of channel consumers
-    consumers: BTreeMap<AmqpChannelId, ConsumerResource>,
+    /// channel resource registery store
+    resource: BTreeMap<AmqpChannelId, ChannelResource>,
 }
 
 impl ChannelManager {
     fn new(channel_max: ShortUint) -> Self {
         Self {
             channel_id_repo: ChannelIdRepository::new(channel_max),
-            responders: BTreeMap::new(),
-            consumers: BTreeMap::new(),
+            resource: BTreeMap::new(),
         }
     }
-    fn insert_consumer(&mut self, channel_id: AmqpChannelId, consumer_resource: ConsumerResource) {
-        self.consumers.insert(channel_id, consumer_resource);
-    }
 
-    fn get_consumer(&self, channel_id: &AmqpChannelId) -> Option<&ConsumerResource> {
-        self.consumers.get(channel_id)
-    }
-    fn insert_responder(
+    fn insert_resource(
         &mut self,
         channel_id: Option<AmqpChannelId>,
-        responder: Sender<IncomingMessage>,
+        resource: ChannelResource,
     ) -> Option<AmqpChannelId> {
         let id = match channel_id {
             // reserve channel id as requested
             Some(id) => {
                 if self.channel_id_repo.reserve(&id) {
-                    match self.responders.insert(id, responder) {
+                    match self.resource.insert(id, resource) {
                         Some(old) => unreachable!("Implementation error"),
                         None => id,
                     }
@@ -67,30 +58,32 @@ impl ChannelManager {
             None => {
                 // allocate id never fail
                 let id = self.channel_id_repo.allocate();
-                match self.responders.insert(id, responder) {
+                match self.resource.insert(id, resource) {
                     Some(old) => unreachable!("Implementation error"),
                     None => id,
                 }
             }
         };
-        // // insert responder means channel to be created
-        // self.consumers.insert(id, BTreeMap::new());
+
         Some(id)
     }
 
     fn get_responder(&self, channel_id: &AmqpChannelId) -> Option<&Sender<IncomingMessage>> {
-        self.responders.get(channel_id)
+        let responder = &self.resource.get(channel_id)?.responder;
+        Some(responder)
     }
-    fn remove_responder(&mut self, channel_id: &AmqpChannelId) -> Option<Sender<IncomingMessage>> {
+
+    fn get_dispatcher(&self, channel_id: &AmqpChannelId) -> Option<&Sender<Frame>> {
+        self.resource.get(channel_id)?.dispatcher.as_ref()
+    }
+    fn remove_resource(&mut self, channel_id: &AmqpChannelId) -> Option<ChannelResource> {
         assert_eq!(
             true,
             self.channel_id_repo.release(channel_id),
             "Implementation error"
         );
         // remove responder means channel is to be  closed
-        self.consumers.remove(channel_id);
-
-        self.responders.remove(channel_id)
+        self.resource.remove(channel_id)
     }
 }
 
@@ -180,7 +173,7 @@ impl ReaderHandler {
     }
     async fn handle_close(&self, close: &Close) -> Result<(), Error> {
         self.outgoing_forwarder
-            .send((CONN_CTRL_CHANNEL, CloseOk::default().into_frame()))
+            .send((CONN_DEFAULT_CHANNEL, CloseOk::default().into_frame()))
             .await?;
 
         Ok(())
@@ -221,10 +214,11 @@ impl ReaderHandler {
         // remove responder, and forward error indicated by server to client
         let responder = self
             .channel_manager
-            .remove_responder(&channel_id)
+            .remove_resource(&channel_id)
             .ok_or_else(|| {
                 Error::InternalChannelError(format!("responder not found for: {:?}", close_channel))
-            })?;
+            })?
+            .responder;
 
         // respond as Exception message
         // use `try_send` instead of `send` because client may not start receiver
@@ -236,6 +230,8 @@ impl ReaderHandler {
             ))
             .or_else(|_| Ok(()))
     }
+
+    ///
     async fn handle_close_channel_ok(
         &mut self,
         channel_id: AmqpChannelId,
@@ -244,12 +240,13 @@ impl ReaderHandler {
         // remove responder
         let responder = self
             .channel_manager
-            .remove_responder(&channel_id)
+            .remove_resource(&channel_id)
             .ok_or_else(|| {
                 Error::InternalChannelError(format!(
                     "responder not found for CloseChannelOk, ignore it"
                 ))
-            })?;
+            })?
+            .responder;
         // TODO: remove consumers
 
         // if receiver half has drop, which means client no longer care about the message,
@@ -272,7 +269,7 @@ impl ReaderHandler {
 
             // Server request to close connection
             Frame::Close(_, close) => {
-                assert_eq!(CONN_CTRL_CHANNEL, channel_id, "must be from channel 0");
+                assert_eq!(CONN_DEFAULT_CHANNEL, channel_id, "must be from channel 0");
                 self.handle_close(close).await?;
                 // server close connection due to error
                 Err(Error::AMQPError(format!(
@@ -285,7 +282,7 @@ impl ReaderHandler {
             }
             // Close connection response from server
             Frame::CloseOk(_, _) => {
-                assert_eq!(CONN_CTRL_CHANNEL, channel_id, "must be from channel 0");
+                assert_eq!(CONN_DEFAULT_CHANNEL, channel_id, "must be from channel 0");
                 self.handle_close_ok(channel_id, frame).await?;
                 // client close connection ok
                 Err(Error::PeerShutdown)
@@ -312,9 +309,9 @@ impl ReaderHandler {
             // Deliver, ContentHeader, ContentBody are delivered in sequence by server.
             // Need to store the deliver frame and expect upcoming content.
             Frame::Deliver(_, _) | Frame::ContentHeader(_) | Frame::ContentBody(_) => {
-                match self.channel_manager.get_consumer(&channel_id) {
-                    Some(res) => {
-                        res.consumer_tx.send(frame).await?;
+                match self.channel_manager.get_dispatcher(&channel_id) {
+                    Some(dispatcher) => {
+                        dispatcher.send(frame).await?;
                         Ok(())
                     }
                     None => {
@@ -371,13 +368,9 @@ impl ReaderHandler {
 
                 Some(cmd) = self.mgmt.recv() => {
                     match cmd {
-                        ManagementCommand::RegisterResponder(msg) => {
-                            let id = self.channel_manager.insert_responder(msg.channel_id, msg.responder);
+                        ManagementCommand::RegisterChannelResource(msg) => {
+                            let id = self.channel_manager.insert_resource(msg.channel_id, msg.resource);
                             msg.acker.send(id).unwrap();
-                        },
-                        ManagementCommand::RegisterConsumer(msg) => {
-                            let _ = self.channel_manager.insert_consumer(msg.channel_id, msg.consumer_resource);
-                            msg.acker.send(()).unwrap();
                         },
                     }
                 }
