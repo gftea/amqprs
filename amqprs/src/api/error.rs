@@ -33,15 +33,16 @@ impl fmt::Display for Error {
         match self {
             Error::NetworkError(msg) => write!(f, "AMQP network error: {}", msg),
             Error::ConnectionOpenError(msg) => write!(f, "AMQP connection open error: {msg}"),
-            Error::ConnectionCloseError(msg)=> write!(f, "AMQP connection close error: {msg}"),
+            Error::ConnectionCloseError(msg) => write!(f, "AMQP connection close error: {msg}"),
             Error::ConnectionUseError(msg) => write!(f, "AMQP connection error: {msg}"),
             Error::ChannelOpenError(msg) => write!(f, "AMQP channel open error: {msg}"),
             Error::ChannelUseError(msg) => write!(f, "AMQP channel close error: {msg}"),
             Error::ChannelCloseError(msg) => write!(f, "AMQP channel error: {msg}"),
             Error::ChannelAlreadyClosed(msg) => write!(f, "AMQP channel already closed: {msg}"),
-            Error::ChannelAllocationError(msg) => write!(f, "AMQP channel resource allocation error: {msg}"),
+            Error::ChannelAllocationError(msg) => {
+                write!(f, "AMQP channel resource allocation error: {msg}")
+            }
             Error::InternalChannelError(msg) => write!(f, "Local internal channel error: {msg}"),
-            
         }
     }
 }

@@ -3,9 +3,12 @@ use std::{collections::BTreeMap, str::from_utf8};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    api::{consumer::{DefaultConsumer, Consumer}, error::Error},
+    api::{
+        consumer::{Consumer, DefaultConsumer},
+        error::Error,
+    },
     frame::{Ack, BasicPropertities, Consume, Deliver, Frame, Qos},
-    net::{ ManagementCommand, },
+    net::ManagementCommand,
 };
 
 use super::{Channel, Result, ServerSpecificArguments};
@@ -118,7 +121,6 @@ impl Channel {
         consume.set_exclusive(exclusive);
         consume.set_nowait(no_wait);
 
-
         // now start consuming messages
         let consumer_tag = if args.no_wait {
             self.outgoing_tx
@@ -136,67 +138,24 @@ impl Channel {
             method.consumer_tag.into()
         };
         // TODO: spawn task for consumer and register consumer to dispatcher
-        // 
+        //
         // ReaderHandler forward message to dispatcher, dispatcher forward message to or invovke consumer with message
-        self.consumer_queue.lock().unwrap().insert(consumer_tag.clone(), Box::new(consumer));
-
-
+        self.consumer_queue
+            .lock()
+            .unwrap()
+            .insert(consumer_tag.clone(), Box::new(consumer));
 
         Ok(consumer_tag)
     }
 
-    // TODO: 
+    // TODO:
     // alt1:
     //  one task per consumer, and  one task for dispatcher per channel,
     //  a dispatcher distribute message to different consumer tasks.
     // alt2:
     //  it just use callback queue, each channel has only one task for all consumers
     //  the task call the callback - Q: how to insert callback lock-free?
-    async fn spawn_consumer(&self) -> mpsc::Sender<Frame> {
-        let acker = self.outgoing_tx.clone();
-        let (tx, mut rx) = mpsc::channel::<Frame>(32);
-        let channel_id = self.channel_id;
-        tokio::spawn(async move {
-            #[derive(Debug)]
-            struct ConsumerMessage {
-                deliver: Option<Deliver>,
-                basic_propertities: Option<BasicPropertities>,
-                content: Option<Vec<u8>>,
-            }
-            let mut message = ConsumerMessage {
-                deliver: None,
-                basic_propertities: None,
-                content: None,
-            };
-            loop {
-                match rx.recv().await.unwrap() {
-                    Frame::Deliver(_, deliver) => {
-                        message.deliver = Some(deliver);
-                    }
-                    Frame::ContentHeader(header) => {
-                        message.basic_propertities = Some(header.basic_propertities);
-                    }
-                    Frame::ContentBody(body) => {
-                        message.content = Some(body.inner);
-
-                        println!("<<<<< 1 >>>> DELIVER: {:?}", message.deliver);
-                        println!("<<<<< 2 >>>> BASIC: {:?}", message.basic_propertities);
-                        println!("<<<<< 3 >>> CONTENT: {}", from_utf8(&message.content.take().unwrap()).unwrap());
-
-                        let delivery_tag = message.deliver.take().unwrap().delivery_tag;
-                        let ack = Ack {
-                            delivery_tag,
-                            mutiple: false,
-                        };
-                        acker.send((channel_id, ack.into_frame())).await.unwrap();
-                        println!(">>>> ack message: {:?}", delivery_tag);
-                    }
-                    _ => unreachable!(),
-                }
-            }
-        });
-        tx
-    }
+    async fn spawn_consumer(&self) {}
 
     pub async fn basic_ack(&mut self, args: BasicAckArguments) -> Result<()> {
         let ack = Ack {
@@ -216,28 +175,35 @@ mod tests {
 
     use crate::api::{
         channel::{QueueBindArguments, QueueDeclareArguments},
-        connection::Connection, consumer::DefaultConsumer,
+        connection::Connection,
+        consumer::DefaultConsumer,
     };
 
     use super::BasicConsumeArguments;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
     async fn test_basic_consume() {
-        let mut client = Connection::open("localhost:5672").await.unwrap();
+        {
+            let mut client = Connection::open("localhost:5672").await.unwrap();
 
-        let mut channel = client.open_channel().await.unwrap();
-        channel
-            .queue_declare(QueueDeclareArguments::new("amqprs"))
-            .await
-            .unwrap();
-        channel
-            .queue_bind(QueueBindArguments::new("amqprs", "amq.topic", "eiffel.#"))
-            .await
-            .unwrap();
-        channel
-            .basic_consume(BasicConsumeArguments::new("amqprs", "tester"), DefaultConsumer)
-            .await
-            .unwrap();
-        time::sleep(time::Duration::from_secs(120)).await;
+            let mut channel = client.open_channel().await.unwrap();
+            channel
+                .queue_declare(QueueDeclareArguments::new("amqprs"))
+                .await
+                .unwrap();
+            channel
+                .queue_bind(QueueBindArguments::new("amqprs", "amq.topic", "eiffel.#"))
+                .await
+                .unwrap();
+            channel
+                .basic_consume(
+                    BasicConsumeArguments::new("amqprs", "tester"),
+                    DefaultConsumer,
+                )
+                .await
+                .unwrap();
+            time::sleep(time::Duration::from_secs(5)).await;
+        }
+        time::sleep(time::Duration::from_secs(1)).await;
     }
 }

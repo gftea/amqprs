@@ -58,7 +58,6 @@ impl fmt::Display for Error {
             // Error::ExpectedBoolean => f.write_str("not a boolean"),
             // Error::ExpectedString => f.write_str("not a string"),
             err => write!(f, "{:?}", err),
-           
         }
     }
 }

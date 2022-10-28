@@ -26,16 +26,15 @@ impl Test {
     async fn level1(&mut self) {
         let f = self.level2();
         f.await;
-
     }
 
-/// &T - since immutable references can be copied, the ability to send one to another thread 
-/// would let you perform immutable access from several threads in parallel. 
-/// Thus &T can only be Send if T is Sync. There is no need for T to be Send as an &T doesn't allow mutable access.
-/// 
-/// &mut T - mutable references can't be copied, so sending them to other threads doesn't allow
-///  access from several threads in parallel, 
-/// thus &mut T can be Send even if T is not Sync. Of course, T must still be Send.
+    /// &T - since immutable references can be copied, the ability to send one to another thread
+    /// would let you perform immutable access from several threads in parallel.
+    /// Thus &T can only be Send if T is Sync. There is no need for T to be Send as an &T doesn't allow mutable access.
+    ///
+    /// &mut T - mutable references can't be copied, so sending them to other threads doesn't allow
+    ///  access from several threads in parallel,
+    /// thus &mut T can be Send even if T is not Sync. Of course, T must still be Send.
     async fn level2(&mut self) { // ERROR if change to `&self`
     }
 }

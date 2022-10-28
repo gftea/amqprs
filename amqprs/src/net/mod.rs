@@ -28,22 +28,14 @@ pub(crate) enum IncomingMessage {
 pub(crate) struct ChannelResource {
     pub responder: Sender<IncomingMessage>,
     /// connection's default channel does not have dispatcher
-    pub dispatcher: Option<Sender<Frame>>,   
+    pub dispatcher: Option<Sender<Frame>>,
 }
 pub(crate) struct RegisterChannelResource {
     pub channel_id: Option<AmqpChannelId>,
     pub acker: oneshot::Sender<Option<AmqpChannelId>>,
-    pub resource: ChannelResource
+    pub resource: ChannelResource,
 }
 
 pub(crate) enum ManagementCommand {
     RegisterChannelResource(RegisterChannelResource),
-}
-
-
-pub(crate) struct InternalChannels {
-    /// The sender half to forward outgoing message to `WriterHandler`
-    pub outgoing_tx: Sender<OutgoingMessage>,
-    /// The sender half to send management commands to  `ReaderHandler`
-    pub mgmt_tx: Sender<ManagementCommand>,
 }

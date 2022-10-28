@@ -143,4 +143,4 @@ pub use basic::*;
 pub use exchange::*;
 pub use queue::*;
 
-use super::{consumer::Consumer, connection::SharedConsumerQueue};
+use super::{connection::SharedConsumerQueue, consumer::Consumer};

@@ -8,18 +8,15 @@ use std::{
 use amqp_serde::types::AmqpChannelId;
 use tokio::sync::{mpsc, oneshot};
 
+use crate::frame::{
+    Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CONN_DEFAULT_CHANNEL,
+};
 use crate::{
     frame::{Ack, BasicPropertities, Deliver},
     net::{
         self, ChannelResource, IncomingMessage, ManagementCommand, OutgoingMessage,
         RegisterChannelResource, SplitConnection,
     },
-};
-use crate::{
-    frame::{
-        Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CONN_DEFAULT_CHANNEL,
-    },
-    net::InternalChannels,
 };
 
 use super::error::Error;
@@ -38,15 +35,15 @@ pub struct ServerCapabilities {}
 pub struct Connection {
     capabilities: Option<ServerCapabilities>,
     is_open: bool,
-    channel_id: AmqpChannelId,
     outgoing_tx: mpsc::Sender<OutgoingMessage>,
     incoming_rx: mpsc::Receiver<IncomingMessage>,
     mgmt_tx: mpsc::Sender<ManagementCommand>,
 }
-
+//  TODO: move below constants gto be part of static configuration of connection
 const INCOMING_RESPONSE_BUFFER_SIZE: usize = 1;
 const INCOMING_CONTENT_BUFFER_SIZE: usize = 32;
-
+const OUTGOING_MESSAGE_CHANNEL_BUFFER_SIZE: usize = 64;
+const MANAGEMENT_CHANNEL_BUFFER_SIZE: usize = 32;
 /// AMQP Connection API
 ///
 impl Connection {
@@ -104,13 +101,20 @@ impl Connection {
         )?;
 
         // spawn network management tasks and get internal channel' sender half.
-        let InternalChannels {
-            outgoing_tx,
-            mgmt_tx,
-        } = net::spawn_handlers(connection, channel_max).await;
+        let (outgoing_tx, outgoing_rx) = mpsc::channel(OUTGOING_MESSAGE_CHANNEL_BUFFER_SIZE);
+        let (mgmt_tx, mgmt_rx) = mpsc::channel(MANAGEMENT_CHANNEL_BUFFER_SIZE);
+
+        net::spawn_handlers(
+            connection,
+            channel_max,
+            outgoing_tx.clone(),
+            outgoing_rx,
+            mgmt_tx.clone(),
+            mgmt_rx,
+        )
+        .await;
 
         let (responder, incoming_rx) = mpsc::channel(INCOMING_RESPONSE_BUFFER_SIZE);
-        // let (dispatcher, dispatcher_rx) = mpsc::channel(INCOMING_CONTENT_BUFFER_SIZE);
 
         net::register_channel_resource(
             &mgmt_tx,
@@ -128,7 +132,6 @@ impl Connection {
         Ok(Self {
             capabilities: None,
             is_open: true,
-            channel_id: CONN_DEFAULT_CHANNEL,
             outgoing_tx,
             incoming_rx,
             mgmt_tx,
@@ -241,15 +244,16 @@ impl Connection {
                             {
                                 let k: String = deliver.consumer_tag.clone().into();
                                 // lock and get  consumer
-                                let mut consumer = consumer_queue.lock().unwrap().remove(&k).unwrap();
-                                
-                                consumer.consume(deliver, basic_propertities, body.inner).await;
+                                let mut consumer =
+                                    consumer_queue.lock().unwrap().remove(&k).unwrap();
+
+                                consumer
+                                    .consume(deliver, basic_propertities, body.inner)
+                                    .await;
 
                                 // lock to restore consumer
                                 consumer_queue.lock().unwrap().insert(k, consumer);
                             }
-                          
-                            
 
                             let ack = Ack {
                                 delivery_tag,

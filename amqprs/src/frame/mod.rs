@@ -267,7 +267,8 @@ impl Frame {
                     total_size,
                     channel,
                     Frame::ContentBody(ContentBody::new(body.to_vec())),
-                )))            }
+                )))
+            }
             _ => Err(Error::Corrupted),
         }
     }
