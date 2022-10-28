@@ -1,4 +1,9 @@
-use std::{str::from_utf8, thread, time};
+use std::{
+    collections::BTreeMap,
+    str::from_utf8,
+    sync::{Arc, Mutex},
+    thread, time,
+};
 
 use amqp_serde::types::AmqpChannelId;
 use tokio::sync::{mpsc, oneshot};
@@ -17,10 +22,17 @@ use crate::{
     net::InternalChannels,
 };
 
-use super::channel::{self, Channel};
 use super::error::Error;
+use super::{
+    channel::{self, Channel},
+    consumer::Consumer,
+};
 type Result<T> = std::result::Result<T, Error>;
 
+/////////////////////////////////////////////////////////////////////////////
+pub(crate) type SharedConsumerQueue = Arc<Mutex<BTreeMap<String, Box<dyn Consumer + Send>>>>;
+
+/////////////////////////////////////////////////////////////////////////////
 pub struct ClientCapabilities {}
 pub struct ServerCapabilities {}
 pub struct Connection {
@@ -154,8 +166,11 @@ impl Connection {
             Error::ConnectionOpenError("register channel resource failure".to_string())
         })?;
 
+        let consumer_queue: SharedConsumerQueue = Arc::new(Mutex::new(BTreeMap::new()));
+
         //
-        self.spawn_dispatcher(channel_id, dispatcher_rx).await;
+        self.spawn_dispatcher(channel_id, dispatcher_rx, consumer_queue.clone())
+            .await;
 
         let mut channel = Channel {
             is_open: false,
@@ -163,6 +178,7 @@ impl Connection {
             outgoing_tx: self.outgoing_tx.clone(),
             incoming_rx,
             mgmt_tx: self.mgmt_tx.clone(),
+            consumer_queue,
         };
         synchronous_request!(
             channel.outgoing_tx,
@@ -176,10 +192,13 @@ impl Connection {
     }
 
     ///
+
+    ///
     async fn spawn_dispatcher(
         &self,
         channel_id: AmqpChannelId,
         mut dispatcher_rx: mpsc::Receiver<Frame>,
+        consumer_queue: SharedConsumerQueue,
     ) {
         let acker = self.outgoing_tx.clone();
         tokio::spawn(async move {
@@ -208,16 +227,30 @@ impl Connection {
                             message.basic_propertities = Some(header.basic_propertities);
                         }
                         Frame::ContentBody(body) => {
-                            message.content = Some(body.inner);
+                            // message.content = Some(body.inner);
 
-                            println!("<<<<< 1 >>>> DELIVER: {:?}", message.deliver);
-                            println!("<<<<< 2 >>>> BASIC: {:?}", message.basic_propertities);
-                            println!(
-                                "<<<<< 3 >>> CONTENT: {}",
-                                from_utf8(&message.content.take().unwrap()).unwrap()
-                            );
+                            // println!("<<<<< 1 >>>> DELIVER: {:?}", message.deliver);
+                            // println!("<<<<< 2 >>>> BASIC: {:?}", message.basic_propertities);
+                            // println!(
+                            //     "<<<<< 3 >>> CONTENT: {}",
+                            //     from_utf8(&message.content.take().unwrap()).unwrap()
+                            // );
+                            let deliver = message.deliver.take().unwrap();
+                            let basic_propertities = message.basic_propertities.take().unwrap();
+                            let delivery_tag = deliver.delivery_tag;
+                            {
+                                let k: String = deliver.consumer_tag.clone().into();
+                                // lock and get  consumer
+                                let mut consumer = consumer_queue.lock().unwrap().remove(&k).unwrap();
+                                
+                                consumer.consume(deliver, basic_propertities, body.inner).await;
 
-                            let delivery_tag = message.deliver.take().unwrap().delivery_tag;
+                                // lock to restore consumer
+                                consumer_queue.lock().unwrap().insert(k, consumer);
+                            }
+                          
+                            
+
                             let ack = Ack {
                                 delivery_tag,
                                 mutiple: false,

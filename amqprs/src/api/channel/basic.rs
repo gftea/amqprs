@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, str::from_utf8};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    api::{consumer::DefaultConsumer, error::Error},
+    api::{consumer::{DefaultConsumer, Consumer}, error::Error},
     frame::{Ack, BasicPropertities, Consume, Deliver, Frame, Qos},
     net::{ ManagementCommand, },
 };
@@ -89,12 +89,12 @@ impl Channel {
     pub async fn basic_consume<F>(
         &mut self,
         args: BasicConsumeArguments,
-        handler: F,
+        consumer: F,
     ) -> Result<String>
     where
         // TODO: this is blocking callback, spawn blocking task in connection manager
         // to provide async callback, and spawn async task  in connection manager
-        F: Fn() -> () + Send + Sync + 'static,
+        F: Consumer + Send + 'static,
     {
         let BasicConsumeArguments {
             queue,
@@ -118,10 +118,6 @@ impl Channel {
         consume.set_exclusive(exclusive);
         consume.set_nowait(no_wait);
 
-        // TODO: spawn task for consumer and register consumer to dispatcher
-        // 
-        // ReaderHandler forward message to dispatcher, dispatcher forward message to or invovke consumer with message
-
 
         // now start consuming messages
         let consumer_tag = if args.no_wait {
@@ -139,6 +135,11 @@ impl Channel {
             )?;
             method.consumer_tag.into()
         };
+        // TODO: spawn task for consumer and register consumer to dispatcher
+        // 
+        // ReaderHandler forward message to dispatcher, dispatcher forward message to or invovke consumer with message
+        self.consumer_queue.lock().unwrap().insert(consumer_tag.clone(), Box::new(consumer));
+
 
 
         Ok(consumer_tag)
@@ -215,7 +216,7 @@ mod tests {
 
     use crate::api::{
         channel::{QueueBindArguments, QueueDeclareArguments},
-        connection::Connection,
+        connection::Connection, consumer::DefaultConsumer,
     };
 
     use super::BasicConsumeArguments;
@@ -234,9 +235,7 @@ mod tests {
             .await
             .unwrap();
         channel
-            .basic_consume(BasicConsumeArguments::new("amqprs", "tester"), || {
-                println!("consume a message!");
-            })
+            .basic_consume(BasicConsumeArguments::new("amqprs", "tester"), DefaultConsumer)
             .await
             .unwrap();
         time::sleep(time::Duration::from_secs(120)).await;

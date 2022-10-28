@@ -1,7 +1,10 @@
 //! API implementation of AMQP Channel
 //!
 
-use std::sync::Arc;
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+};
 
 use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
 use tokio::sync::{
@@ -28,6 +31,9 @@ pub struct Channel {
     pub(in crate::api) outgoing_tx: Sender<OutgoingMessage>,
     pub(in crate::api) incoming_rx: Receiver<IncomingMessage>,
     pub(in crate::api) mgmt_tx: Sender<ManagementCommand>,
+
+    /// callback queue
+    pub(in crate::api) consumer_queue: SharedConsumerQueue,
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -136,3 +142,5 @@ mod queue;
 pub use basic::*;
 pub use exchange::*;
 pub use queue::*;
+
+use super::{consumer::Consumer, connection::SharedConsumerQueue};
