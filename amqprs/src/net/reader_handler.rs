@@ -1,18 +1,12 @@
-use std::{borrow::Borrow, collections::BTreeMap, str::from_utf8};
+use std::collections::BTreeMap;
 
 use amqp_serde::types::{AmqpChannelId, ShortStr, ShortUint};
 use tokio::sync::{
     broadcast,
-    mpsc::{self, Receiver, Sender},
+    mpsc::{Receiver, Sender},
 };
 
-use crate::{
-    api::consumer::Consumer,
-    frame::{
-        Ack, BasicPropertities, Close, CloseChannel, CloseChannelOk, CloseOk, Deliver, Frame,
-        CONN_DEFAULT_CHANNEL,
-    },
-};
+use crate::frame::{Close, CloseChannel, CloseChannelOk, CloseOk, Frame, CONN_DEFAULT_CHANNEL};
 
 use super::{
     channel_id_repo::ChannelIdRepository, BufReader, ChannelResource, Error, IncomingMessage,
@@ -46,7 +40,7 @@ impl ChannelManager {
             Some(id) => {
                 if self.channel_id_repo.reserve(&id) {
                     match self.resource.insert(id, resource) {
-                        Some(old) => unreachable!("Implementation error"),
+                        Some(_old) => unreachable!("Implementation error"),
                         None => id,
                     }
                 } else {
@@ -59,7 +53,7 @@ impl ChannelManager {
                 // allocate id never fail
                 let id = self.channel_id_repo.allocate();
                 match self.resource.insert(id, resource) {
-                    Some(old) => unreachable!("Implementation error"),
+                    Some(_old) => unreachable!("Implementation error"),
                     None => id,
                 }
             }
@@ -88,7 +82,7 @@ impl ChannelManager {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-type ConsumerTag = String;
+
 pub(super) struct ReaderHandler {
     stream: BufReader,
 
@@ -125,53 +119,8 @@ impl ReaderHandler {
             shutdown_notifier,
         }
     }
-    async fn spawn_channel_consumer(&self, channel_id: AmqpChannelId) -> Sender<Frame> {
-        let acker = self.outgoing_forwarder.clone();
-        let (tx, mut rx) = mpsc::channel::<Frame>(32);
-        tokio::spawn(async move {
-            loop {
-                #[derive(Debug)]
-                struct ConsumerMessage {
-                    deliver: Option<Deliver>,
-                    basic_propertities: Option<BasicPropertities>,
-                    content: Option<Vec<u8>>,
-                }
-                let mut message = ConsumerMessage {
-                    deliver: None,
-                    basic_propertities: None,
-                    content: None,
-                };
 
-                match rx.recv().await.unwrap() {
-                    Frame::Deliver(_, deliver) => {
-                        println!("consumer recv: deliver");
-                        message.deliver = Some(deliver);
-                    }
-                    Frame::ContentHeader(header) => {
-                        println!("consumer recv: content header");
-                        message.basic_propertities = Some(header.basic_propertities);
-                    }
-                    Frame::ContentBody(body) => {
-                        println!("consumer recv: content body");
-                        message.content = Some(body.inner);
-
-                        println!("<<<<< recv combined consumer message: {:?}", message);
-
-                        let delivery_tag = message.deliver.unwrap().delivery_tag;
-                        let ack = Ack {
-                            delivery_tag,
-                            mutiple: false,
-                        };
-                        acker.send((channel_id, ack.into_frame())).await.unwrap();
-                        println!(">>>> ack message: {:?}", delivery_tag);
-                    }
-                    _ => unreachable!(),
-                }
-            }
-        });
-        tx
-    }
-    async fn handle_close(&self, close: &Close) -> Result<(), Error> {
+    async fn handle_close(&self, _close: &Close) -> Result<(), Error> {
         self.outgoing_forwarder
             .send((CONN_DEFAULT_CHANNEL, CloseOk::default().into_frame()))
             .await?;

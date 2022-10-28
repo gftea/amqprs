@@ -1,21 +1,13 @@
 //! API implementation of AMQP Channel
 //!
 
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
-};
-
 use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
-use tokio::sync::{
-    mpsc::{self, Receiver, Sender},
-    oneshot, RwLock,
-};
+use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{
     api::error::Error,
     frame::{CloseChannel, Flow, Frame},
-    net::{IncomingMessage, ManagementCommand, OutgoingMessage, RegisterChannelResource},
+    net::{IncomingMessage, ManagementCommand, OutgoingMessage},
 };
 
 type Result<T> = std::result::Result<T, Error>;
@@ -143,4 +135,4 @@ pub use basic::*;
 pub use exchange::*;
 pub use queue::*;
 
-use super::{connection::SharedConsumerQueue, consumer::Consumer};
+use super::connection::SharedConsumerQueue;

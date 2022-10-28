@@ -1,8 +1,6 @@
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 use tokio::sync::{broadcast, mpsc, oneshot};
 
-use crate::frame::CONN_DEFAULT_CHANNEL;
-
 use super::{
     reader_handler::ReaderHandler, writer_handler::WriterHandler, ChannelResource,
     ManagementCommand, OutgoingMessage, RegisterChannelResource, SplitConnection,

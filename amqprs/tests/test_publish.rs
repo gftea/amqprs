@@ -2,7 +2,7 @@ use amqprs::api::{channel::ExchangeDeclareArguments, connection::Connection};
 
 #[tokio::test]
 async fn test_publish() {
-    let mut client = Connection::open("localhost:5672").await.unwrap();
+    let client = Connection::open("localhost:5672").await.unwrap();
 
     let mut channel = client.open_channel().await.unwrap();
     let mut args = ExchangeDeclareArguments::new("amq.direct", "direct");

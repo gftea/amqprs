@@ -1,5 +1,3 @@
-use std::collections::{BTreeMap, BTreeSet};
-
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 
 use crate::frame::CONN_DEFAULT_CHANNEL;

@@ -122,7 +122,7 @@ impl BufWriter {
         Ok(len)
     }
 
-    // The socket connection will be shutdown if writer half is shutdown
+    // // The socket connection will be shutdown if writer half is shutdown
     pub async fn close(mut self) -> Result<()> {
         self.stream.shutdown().await?;
         Ok(())

@@ -1,9 +1,9 @@
 use amqp_serde::{
     from_bytes,
-    types::{AmqpChannelId, LongUint, Octect, ShortStr, ShortUint},
+    types::{AmqpChannelId, LongUint, Octect, ShortUint},
 };
 use serde::{Deserialize, Serialize};
-use std::{fmt, str::from_utf8};
+use std::fmt;
 
 ////////////////////////////////////////////////////////////////////////
 // macros should appear before module declaration

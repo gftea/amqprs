@@ -1,5 +1,5 @@
 use crate::net;
-use amqp_serde::types::AmqpChannelId;
+
 use std::fmt;
 use tokio::sync::mpsc::error::SendError;
 

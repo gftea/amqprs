@@ -5,14 +5,12 @@ mod reader_handler;
 mod split_connection;
 mod writer_handler;
 
-use std::pin::Pin;
-
-pub use connection_manager::*;
-pub use error::*;
-pub use split_connection::*;
+pub(crate) use connection_manager::*;
+pub(crate) use error::*;
+pub(crate) use split_connection::*;
 
 /////////////////////////////////////////////////////////////////////////////
-use crate::{api::consumer::Consumer, frame::Frame};
+use crate::frame::Frame;
 use amqp_serde::types::{AmqpChannelId, AmqpReplyCode};
 use tokio::sync::{mpsc::Sender, oneshot};
 

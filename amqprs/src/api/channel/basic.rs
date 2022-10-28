@@ -1,14 +1,6 @@
-use std::{collections::BTreeMap, str::from_utf8};
-
-use tokio::sync::{mpsc, oneshot};
-
 use crate::{
-    api::{
-        consumer::{Consumer, DefaultConsumer},
-        error::Error,
-    },
-    frame::{Ack, BasicPropertities, Consume, Deliver, Frame, Qos},
-    net::ManagementCommand,
+    api::{consumer::Consumer, error::Error},
+    frame::{Ack, Consume, Frame, Qos},
 };
 
 use super::{Channel, Result, ServerSpecificArguments};
@@ -184,7 +176,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
     async fn test_basic_consume() {
         {
-            let mut client = Connection::open("localhost:5672").await.unwrap();
+            let client = Connection::open("localhost:5672").await.unwrap();
 
             let mut channel = client.open_channel().await.unwrap();
             channel

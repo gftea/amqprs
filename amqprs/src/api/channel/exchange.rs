@@ -232,7 +232,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_exchange_declare() {
-        let mut client = Connection::open("localhost:5672").await.unwrap();
+        let client = Connection::open("localhost:5672").await.unwrap();
 
         let mut channel = client.open_channel().await.unwrap();
         let mut args = ExchangeDeclareArguments::new("amq.direct", "direct");
@@ -243,10 +243,10 @@ mod tests {
     #[tokio::test]
     #[should_panic]
     async fn test_exchange_delete() {
-        let mut client = Connection::open("localhost:5672").await.unwrap();
+        let client = Connection::open("localhost:5672").await.unwrap();
 
         let mut channel = client.open_channel().await.unwrap();
-        let mut args = ExchangeDeleteArguments::new("amq.direct");
+        let args = ExchangeDeleteArguments::new("amq.direct");
         channel.exchange_delete(args).await.unwrap();
     }
 }

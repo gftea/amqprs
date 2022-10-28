@@ -1,12 +1,10 @@
 use std::{
     collections::BTreeMap,
-    str::from_utf8,
     sync::{Arc, Mutex},
-    thread, time,
 };
 
 use amqp_serde::types::AmqpChannelId;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 
 use crate::frame::{
     Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CONN_DEFAULT_CHANNEL,
@@ -14,16 +12,12 @@ use crate::frame::{
 use crate::{
     frame::{Ack, BasicPropertities, Deliver},
     net::{
-        self, ChannelResource, IncomingMessage, ManagementCommand, OutgoingMessage,
-        RegisterChannelResource, SplitConnection,
+        self, ChannelResource, IncomingMessage, ManagementCommand, OutgoingMessage, SplitConnection,
     },
 };
 
 use super::error::Error;
-use super::{
-    channel::{self, Channel},
-    consumer::Consumer,
-};
+use super::{channel::Channel, consumer::Consumer};
 type Result<T> = std::result::Result<T, Error>;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -209,12 +203,10 @@ impl Connection {
             struct ConsumerMessage {
                 deliver: Option<Deliver>,
                 basic_propertities: Option<BasicPropertities>,
-                content: Option<Vec<u8>>,
             }
             let mut message = ConsumerMessage {
                 deliver: None,
                 basic_propertities: None,
-                content: None,
             };
             loop {
                 match dispatcher_rx.recv().await {
@@ -274,7 +266,7 @@ impl Drop for Connection {
     fn drop(&mut self) {
         if self.is_open {
             let tx = self.outgoing_tx.clone();
-            let handle = tokio::spawn(async move {
+            let _handle = tokio::spawn(async move {
                 tx.send((CONN_DEFAULT_CHANNEL, Close::default().into_frame()))
                     .await
                     .unwrap();
@@ -296,7 +288,7 @@ mod tests {
 
             {
                 // test close on drop
-                let channel = client.open_channel().await.unwrap();
+                let _channel = client.open_channel().await.unwrap();
                 // channel.close().await.unwrap();
             }
             time::sleep(time::Duration::from_millis(10)).await;
@@ -308,12 +300,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_multi_channel_open_close() {
-        let mut client = Connection::open("localhost:5672").await.unwrap();
+        let client = Connection::open("localhost:5672").await.unwrap();
 
         let mut handles = vec![];
 
         for _ in 0..10 {
-            let mut ch = client.open_channel().await.unwrap();
+            let _ch = client.open_channel().await.unwrap();
             handles.push(tokio::spawn(async move {
                 time::sleep(time::Duration::from_secs(1)).await;
             }));

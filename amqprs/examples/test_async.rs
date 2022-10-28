@@ -41,7 +41,7 @@ impl Test {
 
 #[tokio::main]
 async fn main() {
-    let mut t = Test {
+    let t = Test {
         inner: Box::new(DefaultConsumer),
     };
     spawn(async move {

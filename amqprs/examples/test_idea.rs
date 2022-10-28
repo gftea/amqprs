@@ -26,7 +26,7 @@ impl Stream for MyOwnFuture {
         match self.inner.poll_tick(cx) {
             std::task::Poll::Ready(value) => match value.checked_duration_since(self.now) {
                 Some(d) if d.as_secs() < 5 => std::task::Poll::Ready(Some(value.clone())),
-                Some(d) => std::task::Poll::Ready(None),
+                Some(_d) => std::task::Poll::Ready(None),
 
                 None => std::task::Poll::Pending,
             },
