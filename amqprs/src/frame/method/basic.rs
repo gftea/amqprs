@@ -95,17 +95,19 @@ pub struct Publish {
     pub bits: Octect,
 }
 impl Publish {
-    pub fn set_mandatory(&mut self) {
-        self.bits |= bit_flag::publish::MANDATORY;
+    pub fn set_mandatory(&mut self, value: bool) {
+        if value {
+            self.bits |= bit_flag::publish::MANDATORY;
+        } else {
+            self.bits &= !bit_flag::publish::MANDATORY;
+        }
     }
-    pub fn clear_mandatory(&mut self) {
-        self.bits &= !bit_flag::publish::MANDATORY;
-    }
-    pub fn set_immediate(&mut self) {
-        self.bits |= bit_flag::publish::IMMEDIATE;
-    }
-    pub fn clear_immediate(&mut self) {
-        self.bits &= !bit_flag::publish::IMMEDIATE;
+    pub fn set_immediate(&mut self, value: bool) {
+        if value {
+            self.bits |= bit_flag::publish::IMMEDIATE;
+        } else {
+            self.bits &= !bit_flag::publish::IMMEDIATE;
+        }
     }
 }
 
@@ -127,13 +129,12 @@ pub struct Deliver {
 }
 
 impl Deliver {
-    
     pub fn consumer_tag(&self) -> &String {
         &self.consumer_tag
     }
     pub fn delivery_tag(&self) -> u64 {
         self.delivery_tag
-    }    
+    }
 
     pub fn redelivered(&self) -> bool {
         self.redelivered
@@ -147,7 +148,6 @@ impl Deliver {
         &self.routing_key
     }
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Get {

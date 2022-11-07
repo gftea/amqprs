@@ -4,7 +4,7 @@ use std::{
 };
 
 use amqp_serde::types::AmqpChannelId;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot, broadcast};
 
 use crate::frame::{
     Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CONN_DEFAULT_CHANNEL,
@@ -33,7 +33,7 @@ pub struct Connection {
     mgmt_tx: mpsc::Sender<ManagementCommand>,
 }
 //  TODO: move below constants gto be part of static configuration of connection
-const INCOMING_RESPONSE_BUFFER_SIZE: usize = 1;
+const INCOMING_RESPONSE_BUFFER_SIZE: usize = 32;
 const INCOMING_CONTENT_BUFFER_SIZE: usize = 32;
 const OUTGOING_MESSAGE_CHANNEL_BUFFER_SIZE: usize = 64;
 const MANAGEMENT_CHANNEL_BUFFER_SIZE: usize = 32;
@@ -164,7 +164,6 @@ impl Connection {
 
         let consumer_queue: SharedConsumerQueue = Arc::new(Mutex::new(BTreeMap::new()));
 
-       
 
         let mut channel = Channel {
             is_open: false,
@@ -173,6 +172,7 @@ impl Connection {
             incoming_rx,
             mgmt_tx: self.mgmt_tx.clone(),
             consumer_queue: consumer_queue.clone(),
+            dispatcher_rx: Some(dispatcher_rx),
         };
         synchronous_request!(
             channel.outgoing_tx,
@@ -182,10 +182,7 @@ impl Connection {
             Error::ChannelOpenError
         )?;
         channel.is_open = true;
-
-        //
-        channel.spawn_dispatcher(channel_id, dispatcher_rx, consumer_queue)
-        .await;        
+              
         Ok(channel)
     }
 

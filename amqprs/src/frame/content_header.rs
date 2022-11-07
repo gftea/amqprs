@@ -3,27 +3,37 @@ use std::fmt;
 use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
 use serde::{de::Visitor, Deserialize, Serialize};
 
+use crate::api::channel::ServerSpecificArguments;
+
+use super::Frame;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ContentHeader {
     pub common: ContentHeaderCommon,
-    pub basic_propertities: BasicProperties,
+    pub basic_properties: BasicProperties,
 }
 
 impl ContentHeader {
-    pub fn new(common: ContentHeaderCommon, basic_propertities: BasicProperties) -> Self {
+    pub fn new(common: ContentHeaderCommon, basic_properties: BasicProperties) -> Self {
         Self {
             common,
-            basic_propertities,
+            basic_properties,
         }
+    }
+
+    pub fn into_frame(self) -> Frame {
+        Frame::ContentHeader(self)
     }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ContentHeaderCommon {
-    class: ShortUint,
-    weight: ShortUint,
-    body_size: LongLongUint,
+    pub class: ShortUint,
+    pub weight: ShortUint,
+    pub body_size: LongLongUint,
 }
+
+
 
 #[derive(Debug, Serialize)]
 pub struct BasicProperties {
@@ -48,7 +58,128 @@ pub struct BasicProperties {
 }
 
 impl BasicProperties {
-    
+    pub fn new(
+        content_type: Option<String>,
+        content_encoding: Option<String>,
+        headers: Option<ServerSpecificArguments>,
+        delivery_mode: Option<u8>,
+        priority: Option<u8>,
+        correlation_id: Option<String>,
+        reply_to: Option<String>,
+        expiration: Option<String>,
+        message_id: Option<String>,
+        timestamp: Option<TimeStamp>,
+        typ: Option<String>,
+        user_id: Option<String>,
+        app_id: Option<String>,
+        cluster_id: Option<String>,
+    ) -> Self {
+        let mut property_flags = [0u8; 2];
+        // first byte
+        let content_type = match content_type {
+            Some(v) => {
+                property_flags[0] |= 1 << 7;
+                Some(v.try_into().unwrap())
+            }
+            None => None,
+        };
+        let content_encoding = match content_encoding {
+            Some(v) => {
+                property_flags[0] |= 1 << 6;
+                Some(v.try_into().unwrap())
+            }
+            None => None,
+        };
+        let headers = match headers {
+            Some(v) => {
+                property_flags[0] |= 1 << 5;
+                Some(v.into_field_table())
+            }
+            None => None,
+        };
+        let delivery_mode = match delivery_mode {
+            Some(v) => {
+                property_flags[0] |= 1 << 4;
+                Some(v.try_into().unwrap())
+            }
+            None => None,
+        };
+        let correlation_id = match correlation_id {
+            Some(v) => {
+                property_flags[0] |= 1 << 2;
+                Some(v.try_into().unwrap())
+            }
+            None => None,
+        };
+        let reply_to = match reply_to {
+            Some(v) => {
+                property_flags[0] |= 1 << 1;
+                Some(v.try_into().unwrap())
+            }
+            None => None,
+        };
+        let expiration = match expiration {
+            Some(v) => {
+                property_flags[0] |= 1 << 0;
+                Some(v.try_into().unwrap())
+            }
+            None => None,
+        };
+        // 2nd byte
+        let message_id = match message_id {
+            Some(v) => {
+                property_flags[1] |= 1 << 7;
+                Some(v.try_into().unwrap())
+            }
+            None => None,
+        };
+        let typ = match typ {
+            Some(v) => {
+                property_flags[1] |= 1 << 5;
+                Some(v.try_into().unwrap())
+            }
+            None => None,
+        };
+        let user_id = match user_id {
+            Some(v) => {
+                property_flags[1] |= 1 << 4;
+                Some(v.try_into().unwrap())
+            }
+            None => None,
+        };
+        let app_id = match app_id {
+            Some(v) => {
+                property_flags[1] |= 1 << 3;
+                Some(v.try_into().unwrap())
+            }
+            None => None,
+        };
+        let cluster_id = match cluster_id {
+            Some(v) => {
+                property_flags[1] |= 1 << 2;
+                Some(v.try_into().unwrap())
+            }
+            None => None,
+        };
+        Self {
+            property_flags,
+            content_type,
+            content_encoding,
+            headers,
+            delivery_mode,
+            priority,
+            correlation_id,
+            reply_to,
+            expiration,
+            message_id,
+            timestamp,
+            typ,
+            user_id,
+            app_id,
+            cluster_id,
+        }
+    }
+
     pub fn content_type(&self) -> Option<&String> {
         self.content_type.as_deref()
     }
@@ -105,8 +236,6 @@ impl BasicProperties {
         self.cluster_id.as_deref()
     }
 }
-
-
 
 impl<'de> Deserialize<'de> for BasicProperties {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>

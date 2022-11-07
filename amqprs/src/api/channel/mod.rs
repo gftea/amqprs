@@ -2,7 +2,7 @@
 //!
 
 use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{mpsc::{Receiver, Sender, self}, oneshot, broadcast};
 
 use crate::{
     api::error::Error,
@@ -31,6 +31,7 @@ pub struct Channel {
 
     /// callback queue
     pub(in crate::api) consumer_queue: SharedConsumerQueue,
+    pub(in crate::api) dispatcher_rx: Option<mpsc::Receiver<Frame>>
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -127,7 +128,7 @@ impl ServerSpecificArguments {
         );
     }
     // the field table type should be hidden from API
-    fn into_field_table(self) -> FieldTable {
+    pub(crate) fn into_field_table(self) -> FieldTable {
         self.table
     }
 }

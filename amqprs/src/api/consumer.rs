@@ -46,7 +46,9 @@ impl Consumer for DefaultConsumer {
 
         // none if auto ack
         if let Some(acker) = acker {
-            acker.basic_ack(BasicAckArguments::new(deliver.delivery_tag())).await.unwrap();
+            let mut args = BasicAckArguments::new();
+            args.delivery_tag = deliver.delivery_tag();
+            acker.basic_ack(args).await.unwrap();
         }
     }
 }

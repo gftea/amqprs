@@ -4,11 +4,14 @@ use std::{
 };
 
 use amqp_serde::types::AmqpChannelId;
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::{
     api::{consumer::Consumer, error::Error},
-    frame::{Ack, BasicProperties, Consume, Deliver, Frame, Qos},
+    frame::{
+        Ack, BasicProperties, Consume, ContentBody, ContentHeader, ContentHeaderCommon, Deliver,
+        Frame, Publish, Qos,
+    },
 };
 
 use super::{Acker, Channel, Result, ServerSpecificArguments};
@@ -46,10 +49,10 @@ pub struct BasicConsumeArguments {
 }
 
 impl BasicConsumeArguments {
-    pub fn new(queue: &str, consumer_tag: &str) -> Self {
+    pub fn new() -> Self {
         Self {
-            queue: queue.to_string(),
-            consumer_tag: consumer_tag.to_string(),
+            queue: "".to_string(),
+            consumer_tag: "".to_string(),
             no_local: false,
             no_ack: false,
             exclusive: false,
@@ -66,23 +69,42 @@ pub struct BasicAckArguments {
 }
 
 impl BasicAckArguments {
-    pub fn new(delivery_tag: u64) -> Self {
+    pub fn new() -> Self {
         Self {
-            delivery_tag,
+            delivery_tag: 0,
             multiple: false,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct BasicPublishArguments {
+    pub exchange: String,
+    pub routing_key: String,
+    pub mandatory: bool,
+    pub immediate: bool,
+}
+
+impl BasicPublishArguments {
+    pub fn new() -> Self {
+        Self {
+            exchange: "".to_string(),
+            routing_key: "".to_string(),
+            mandatory: false,
+            immediate: false,
         }
     }
 }
 
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
-    pub(in crate::api) async fn spawn_dispatcher(
-        &self,
-        channel_id: AmqpChannelId,
-        mut dispatcher_rx: mpsc::Receiver<Frame>,
-        consumer_queue: SharedConsumerQueue,
-    ) {
-        let handle = tokio::spawn(async move {
+    pub(in crate::api) async fn spawn_dispatcher(&mut self) {
+        let channel_id = self.channel_id;
+        let consumer_queue = self.consumer_queue.clone();
+
+        let mut dispatcher_rx = self.dispatcher_rx.take().unwrap();
+
+        tokio::spawn(async move {
             #[derive(Debug)]
             struct ConsumerMessage {
                 deliver: Option<Deliver>,
@@ -103,7 +125,7 @@ impl Channel {
                             message.deliver = Some(deliver);
                         }
                         Frame::ContentHeader(header) => {
-                            message.basic_propertities = Some(header.basic_propertities);
+                            message.basic_propertities = Some(header.basic_properties);
                         }
                         Frame::ContentBody(body) => {
                             let deliver = message.deliver.take().unwrap();
@@ -220,6 +242,7 @@ impl Channel {
             },
         );
         println!("consumer inserted for {}", consumer_tag);
+        self.spawn_dispatcher().await;
         Ok(consumer_tag)
     }
 
@@ -248,6 +271,44 @@ impl Channel {
     //         .await?;
     //     Ok(())
     // }
+
+    pub async fn basic_publish(
+        &self,
+        args: BasicPublishArguments,
+        basic_properties: BasicProperties,
+        content: Vec<u8>,
+    ) -> Result<()> {
+        let mut publish = Publish {
+            ticket: 0,
+            exchange: args.exchange.try_into().unwrap(),
+            routing_key: args.routing_key.try_into().unwrap(),
+            bits: 0,
+        };
+        publish.set_mandatory(args.mandatory);
+        publish.set_immediate(args.immediate);
+
+        self.outgoing_tx
+            .send((self.channel_id, publish.into_frame()))
+            .await?;
+
+        let content_header = ContentHeader::new(
+            ContentHeaderCommon {
+                class: 60, // basic class
+                weight: 0,
+                body_size: content.len() as u64,
+            },
+            basic_properties,
+        );
+        self.outgoing_tx
+            .send((self.channel_id, content_header.into_frame()))
+            .await?;
+
+        let content = ContentBody::new(content);
+        self.outgoing_tx
+            .send((self.channel_id, content.into_frame()))
+            .await?;
+        Ok(())
+    }
 }
 
 impl Acker {
@@ -265,13 +326,16 @@ impl Acker {
 mod tests {
     use tokio::time;
 
-    use crate::api::{
-        channel::{QueueBindArguments, QueueDeclareArguments},
-        connection::Connection,
-        consumer::DefaultConsumer,
+    use crate::{
+        api::{
+            channel::{QueueBindArguments, QueueDeclareArguments},
+            connection::Connection,
+            consumer::DefaultConsumer,
+        },
+        frame::{BasicProperties, ContentBody},
     };
 
-    use super::BasicConsumeArguments;
+    use super::{BasicConsumeArguments, BasicPublishArguments};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
     async fn test_basic_consume_auto_ack() {
@@ -288,21 +352,16 @@ mod tests {
                 .await
                 .unwrap();
 
-            let mut args = BasicConsumeArguments::new("amqprs", "tester");
+            let mut args = BasicConsumeArguments::new();
+            args.queue = "amqprs".to_string();
+            args.consumer_tag = "tester".to_string();
             args.no_ack = true;
-            channel
-                .basic_consume(
-                    args,
-                    DefaultConsumer,
-                )
-                .await
-                .unwrap();
+            channel.basic_consume(args, DefaultConsumer).await.unwrap();
             time::sleep(time::Duration::from_secs(15)).await;
         }
         time::sleep(time::Duration::from_secs(1)).await;
     }
 
-    
     #[tokio::test]
     async fn test_basic_consume_manual_ack() {
         {
@@ -318,15 +377,56 @@ mod tests {
                 .await
                 .unwrap();
 
-            let mut args = BasicConsumeArguments::new("amqprs", "tester");
+            let mut args = BasicConsumeArguments::new();
+            args.queue = "amqprs".to_string();
+            args.consumer_tag = "tester".to_string();
+            channel.basic_consume(args, DefaultConsumer).await.unwrap();
+            time::sleep(time::Duration::from_secs(15)).await;
+        }
+        time::sleep(time::Duration::from_secs(1)).await;
+    }
+
+    #[tokio::test]
+    async fn test_basic_publish() {
+        {
+            let client = Connection::open("localhost:5672").await.unwrap();
+
+            let mut channel = client.open_channel().await.unwrap();
+
+            let mut args = BasicPublishArguments::new();
+            args.exchange = "amq.topic".to_string();
+            args.routing_key = "eiffel._.amqprs._.tester".to_string();
+
+            let basic_properties = BasicProperties::new(
+                Some(String::from("application/json;charset=utf-8")),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            );
+            let content = String::from(
+            r#"
+                {
+                    "meta": {"id": "f9d42464-fceb-4282-be95-0cd98f4741b0", "type": "PublishTester", "version": "4.0.0", "time": 1640035100149},
+                    "data": { "customData": []}, 
+                    "links": [{"type": "BASE", "target": "fa321ff0-faa6-474e-aa1d-45edf8c99896"}]}
+            "#
+            ).into_bytes();
+
             channel
-                .basic_consume(
-                    args,
-                    DefaultConsumer,
-                )
+                .basic_publish(args, basic_properties, content)
                 .await
                 .unwrap();
-            time::sleep(time::Duration::from_secs(15)).await;
+            time::sleep(time::Duration::from_secs(1)).await;
         }
         time::sleep(time::Duration::from_secs(1)).await;
     }
