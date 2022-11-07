@@ -34,15 +34,15 @@ impl BasicQosArguments {
 
 #[derive(Debug, Clone)]
 pub struct BasicConsumeArguments {
-    queue: String,
-    consumer_tag: String,
-    no_local: bool,
+    pub queue: String,
+    pub consumer_tag: String,
+    pub no_local: bool,
     // In automatic acknowledgement mode,
     // a message is considered to be successfully delivered immediately after it is sent
-    no_ack: bool,
-    exclusive: bool,
-    no_wait: bool,
-    arguments: ServerSpecificArguments,
+    pub no_ack: bool,
+    pub exclusive: bool,
+    pub no_wait: bool,
+    pub arguments: ServerSpecificArguments,
 }
 
 impl BasicConsumeArguments {
@@ -209,8 +209,8 @@ impl Channel {
         // TODO: spawn task for consumer and register consumer to dispatcher
         // ReaderHandler forward message to dispatcher, dispatcher forward message to or invovke consumer with message
         // Edge case:
-        // 1.   dispatcher may be scheduled immediately before consumer is inserted,
-        //      which used to happen when publisher start first
+        //  dispatcher may be scheduled immediately before consumer is inserted,
+        //  which used to happen when publisher start first
         self.consumer_queue.lock().unwrap().insert(
             consumer_tag.clone(),
             if no_ack {
@@ -274,7 +274,7 @@ mod tests {
     use super::BasicConsumeArguments;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
-    async fn test_basic_consume() {
+    async fn test_basic_consume_auto_ack() {
         {
             let client = Connection::open("localhost:5672").await.unwrap();
 
@@ -287,14 +287,46 @@ mod tests {
                 .queue_bind(QueueBindArguments::new("amqprs", "amq.topic", "eiffel.#"))
                 .await
                 .unwrap();
+
+            let mut args = BasicConsumeArguments::new("amqprs", "tester");
+            args.no_ack = true;
             channel
                 .basic_consume(
-                    BasicConsumeArguments::new("amqprs", "tester"),
+                    args,
                     DefaultConsumer,
                 )
                 .await
                 .unwrap();
-            time::sleep(time::Duration::from_secs(5)).await;
+            time::sleep(time::Duration::from_secs(15)).await;
+        }
+        time::sleep(time::Duration::from_secs(1)).await;
+    }
+
+    
+    #[tokio::test]
+    async fn test_basic_consume_manual_ack() {
+        {
+            let client = Connection::open("localhost:5672").await.unwrap();
+
+            let mut channel = client.open_channel().await.unwrap();
+            channel
+                .queue_declare(QueueDeclareArguments::new("amqprs"))
+                .await
+                .unwrap();
+            channel
+                .queue_bind(QueueBindArguments::new("amqprs", "amq.topic", "eiffel.#"))
+                .await
+                .unwrap();
+
+            let mut args = BasicConsumeArguments::new("amqprs", "tester");
+            channel
+                .basic_consume(
+                    args,
+                    DefaultConsumer,
+                )
+                .await
+                .unwrap();
+            time::sleep(time::Duration::from_secs(15)).await;
         }
         time::sleep(time::Duration::from_secs(1)).await;
     }
