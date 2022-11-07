@@ -1,4 +1,4 @@
-use std::{collections::HashMap, num::TryFromIntError};
+use std::{collections::HashMap, num::TryFromIntError, ops::Deref};
 
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
@@ -28,6 +28,13 @@ impl Default for ShortStr {
 impl From<ShortStr> for String {
     fn from(s: ShortStr) -> Self {
         s.1
+    }
+}
+impl Deref for ShortStr {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.1
     }
 }
 

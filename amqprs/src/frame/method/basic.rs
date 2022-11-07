@@ -119,12 +119,35 @@ pub struct Return {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Deliver {
-    pub consumer_tag: ShortStr,
-    pub delivery_tag: LongLongUint,
-    pub redelivered: Boolean,
-    pub exchange: AmqpExchangeName,
-    pub routing_key: ShortStr,
+    consumer_tag: ShortStr,
+    delivery_tag: LongLongUint,
+    redelivered: Boolean,
+    exchange: AmqpExchangeName,
+    routing_key: ShortStr,
 }
+
+impl Deliver {
+    
+    pub fn consumer_tag(&self) -> &String {
+        &self.consumer_tag
+    }
+    pub fn delivery_tag(&self) -> u64 {
+        self.delivery_tag
+    }    
+
+    pub fn redelivered(&self) -> bool {
+        self.redelivered
+    }
+
+    pub fn exchange(&self) -> &String {
+        &self.exchange
+    }
+
+    pub fn routing_key(&self) -> &String {
+        &self.routing_key
+    }
+}
+
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Get {

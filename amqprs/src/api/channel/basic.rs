@@ -1,9 +1,19 @@
-use crate::{
-    api::{consumer::Consumer, error::Error},
-    frame::{Ack, Consume, Frame, Qos},
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
 };
 
-use super::{Channel, Result, ServerSpecificArguments};
+use amqp_serde::types::AmqpChannelId;
+use tokio::sync::mpsc;
+
+use crate::{
+    api::{consumer::Consumer, error::Error},
+    frame::{Ack, BasicProperties, Consume, Deliver, Frame, Qos},
+};
+
+use super::{Acker, Channel, Result, ServerSpecificArguments};
+pub(crate) type SharedConsumerQueue =
+    Arc<Mutex<BTreeMap<String, (Box<dyn Consumer + Send>, Option<Acker>)>>>;
 
 #[derive(Debug, Clone)]
 pub struct BasicQosArguments {
@@ -27,6 +37,8 @@ pub struct BasicConsumeArguments {
     queue: String,
     consumer_tag: String,
     no_local: bool,
+    // In automatic acknowledgement mode,
+    // a message is considered to be successfully delivered immediately after it is sent
     no_ack: bool,
     exclusive: bool,
     no_wait: bool,
@@ -54,9 +66,9 @@ pub struct BasicAckArguments {
 }
 
 impl BasicAckArguments {
-    pub fn new() -> Self {
+    pub fn new(delivery_tag: u64) -> Self {
         Self {
-            delivery_tag: 0,
+            delivery_tag,
             multiple: false,
         }
     }
@@ -64,6 +76,71 @@ impl BasicAckArguments {
 
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
+    pub(in crate::api) async fn spawn_dispatcher(
+        &self,
+        channel_id: AmqpChannelId,
+        mut dispatcher_rx: mpsc::Receiver<Frame>,
+        consumer_queue: SharedConsumerQueue,
+    ) {
+        let handle = tokio::spawn(async move {
+            #[derive(Debug)]
+            struct ConsumerMessage {
+                deliver: Option<Deliver>,
+                basic_propertities: Option<BasicProperties>,
+            }
+            let mut message = ConsumerMessage {
+                deliver: None,
+                basic_propertities: None,
+            };
+            loop {
+                match dispatcher_rx.recv().await {
+                    None => {
+                        println!("exit dispatcher of channel: {}", channel_id);
+                        break;
+                    }
+                    Some(frame) => match frame {
+                        Frame::Deliver(_, deliver) => {
+                            message.deliver = Some(deliver);
+                        }
+                        Frame::ContentHeader(header) => {
+                            message.basic_propertities = Some(header.basic_propertities);
+                        }
+                        Frame::ContentBody(body) => {
+                            let deliver = message.deliver.take().unwrap();
+                            let basic_propertities = message.basic_propertities.take().unwrap();
+                            // let delivery_tag = deliver.delivery_tag();
+                            {
+                                let k = deliver.consumer_tag().clone();
+                                // lock and get consumer
+                                let (mut consumer, acker) =
+                                    if let Some(v) = consumer_queue.lock().unwrap().remove(&k) {
+                                        v
+                                    } else {
+                                        println!(
+                                            "ignore message because consumer is not registered yet"
+                                        );
+                                        return;
+                                    };
+
+                                consumer
+                                    .consume(
+                                        acker.as_ref(),
+                                        deliver,
+                                        basic_propertities,
+                                        body.inner,
+                                    )
+                                    .await;
+
+                                // lock to restore consumer
+                                consumer_queue.lock().unwrap().insert(k, (consumer, acker));
+                            }
+                        }
+                        _ => unreachable!("not acceptable frame for dispatcher: {:?}", frame),
+                    },
+                }
+            }
+        });
+    }
     pub async fn basic_qos(&mut self, args: BasicQosArguments) -> Result<()> {
         let qos = Qos {
             prefetch_size: args.prefetch_size,
@@ -113,7 +190,6 @@ impl Channel {
         consume.set_exclusive(exclusive);
         consume.set_nowait(no_wait);
 
-        // now start consuming messages
         let consumer_tag = if args.no_wait {
             self.outgoing_tx
                 .send((self.channel_id, consume.into_frame()))
@@ -129,14 +205,21 @@ impl Channel {
             )?;
             method.consumer_tag.into()
         };
-        // TODO: spawn task for consumer and register consumer to dispatcher
-        //
-        // ReaderHandler forward message to dispatcher, dispatcher forward message to or invovke consumer with message
-        self.consumer_queue
-            .lock()
-            .unwrap()
-            .insert(consumer_tag.clone(), Box::new(consumer));
 
+        // TODO: spawn task for consumer and register consumer to dispatcher
+        // ReaderHandler forward message to dispatcher, dispatcher forward message to or invovke consumer with message
+        // Edge case:
+        // 1.   dispatcher may be scheduled immediately before consumer is inserted,
+        //      which used to happen when publisher start first
+        self.consumer_queue.lock().unwrap().insert(
+            consumer_tag.clone(),
+            if no_ack {
+                (Box::new(consumer), None)
+            } else {
+                (Box::new(consumer), Some(self.new_acker()))
+            },
+        );
+        println!("consumer inserted for {}", consumer_tag);
         Ok(consumer_tag)
     }
 
@@ -149,14 +232,31 @@ impl Channel {
     //  the task call the callback - Q: how to insert callback lock-free?
     async fn spawn_consumer(&self) {}
 
-    pub async fn basic_ack(&mut self, args: BasicAckArguments) -> Result<()> {
+    pub fn new_acker(&self) -> Acker {
+        Acker {
+            tx: self.outgoing_tx.clone(),
+            channel_id: self.channel_id,
+        }
+    }
+    // pub async fn basic_ack(&self, args: BasicAckArguments) -> Result<()> {
+    //     let ack = Ack {
+    //         delivery_tag: args.delivery_tag,
+    //         mutiple: args.multiple,
+    //     };
+    //     self.outgoing_tx
+    //         .send((self.channel_id, ack.into_frame()))
+    //         .await?;
+    //     Ok(())
+    // }
+}
+
+impl Acker {
+    pub async fn basic_ack(&self, args: BasicAckArguments) -> Result<()> {
         let ack = Ack {
             delivery_tag: args.delivery_tag,
             mutiple: args.multiple,
         };
-        self.outgoing_tx
-            .send((self.channel_id, ack.into_frame()))
-            .await?;
+        self.tx.send((self.channel_id, ack.into_frame())).await?;
         Ok(())
     }
 }

@@ -6,11 +6,11 @@ use serde::{de::Visitor, Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ContentHeader {
     pub common: ContentHeaderCommon,
-    pub basic_propertities: BasicPropertities,
+    pub basic_propertities: BasicProperties,
 }
 
 impl ContentHeader {
-    pub fn new(common: ContentHeaderCommon, basic_propertities: BasicPropertities) -> Self {
+    pub fn new(common: ContentHeaderCommon, basic_propertities: BasicProperties) -> Self {
         Self {
             common,
             basic_propertities,
@@ -26,7 +26,7 @@ pub struct ContentHeaderCommon {
 }
 
 #[derive(Debug, Serialize)]
-pub struct BasicPropertities {
+pub struct BasicProperties {
     // // property flags is included in this type
     // // in order to manage the value according to optional property
     property_flags: [Octect; 2],
@@ -47,7 +47,68 @@ pub struct BasicPropertities {
     cluster_id: Option<ShortStr>,
 }
 
-impl<'de> Deserialize<'de> for BasicPropertities {
+impl BasicProperties {
+    
+    pub fn content_type(&self) -> Option<&String> {
+        self.content_type.as_deref()
+    }
+
+    pub fn content_encoding(&self) -> Option<&String> {
+        self.content_encoding.as_deref()
+    }
+
+    // pub fn headers(&self) -> Option<&HashMap<String, FieldValue>> {
+    //     self.headers.as_deref()
+    // }
+
+    pub fn delivery_mode(&self) -> Option<u8> {
+        self.delivery_mode
+    }
+
+    pub fn priority(&self) -> Option<u8> {
+        self.priority
+    }
+
+    pub fn correlation_id(&self) -> Option<&String> {
+        self.correlation_id.as_deref()
+    }
+
+    pub fn reply_to(&self) -> Option<&String> {
+        self.reply_to.as_deref()
+    }
+
+    pub fn expiration(&self) -> Option<&String> {
+        self.expiration.as_deref()
+    }
+
+    pub fn message_id(&self) -> Option<&String> {
+        self.message_id.as_deref()
+    }
+
+    pub fn timestamp(&self) -> Option<u64> {
+        self.timestamp
+    }
+
+    pub fn typ(&self) -> Option<&String> {
+        self.typ.as_deref()
+    }
+
+    pub fn user_id(&self) -> Option<&String> {
+        self.user_id.as_deref()
+    }
+
+    pub fn app_id(&self) -> Option<&String> {
+        self.app_id.as_deref()
+    }
+
+    pub fn cluster_id(&self) -> Option<&String> {
+        self.cluster_id.as_deref()
+    }
+}
+
+
+
+impl<'de> Deserialize<'de> for BasicProperties {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -72,7 +133,7 @@ impl<'de> Deserialize<'de> for BasicPropertities {
         struct BasicPropertitiesVisitor;
 
         impl<'de> Visitor<'de> for BasicPropertitiesVisitor {
-            type Value = BasicPropertities;
+            type Value = BasicProperties;
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("struct BasicPropertities")
             }
@@ -84,7 +145,7 @@ impl<'de> Deserialize<'de> for BasicPropertities {
                 let flags: [Octect; 2] = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                let mut basic_propertities = BasicPropertities {
+                let mut basic_propertities = BasicProperties {
                     property_flags: flags,
                     content_type: None,
                     content_encoding: None,

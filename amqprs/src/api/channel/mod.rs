@@ -12,6 +12,11 @@ use crate::{
 
 type Result<T> = std::result::Result<T, Error>;
 
+pub struct Acker {
+    tx: Sender<OutgoingMessage>,
+    channel_id: AmqpChannelId,
+}
+
 /// Represent an AMQP Channel.
 ///
 /// To create a AMQP channel, use [`Connection::channel` method][`channel`]
@@ -135,4 +140,3 @@ pub use basic::*;
 pub use exchange::*;
 pub use queue::*;
 
-use super::connection::SharedConsumerQueue;

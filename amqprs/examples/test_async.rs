@@ -14,9 +14,7 @@ impl Consumer for DefaultConsumer {
         println!("hello consumer!");
     }
 }
-struct Test {
-    inner: Box<dyn Consumer + Send>,
-}
+struct Test;
 
 impl Test {
     async fn run(mut self) {
@@ -41,9 +39,7 @@ impl Test {
 
 #[tokio::main]
 async fn main() {
-    let t = Test {
-        inner: Box::new(DefaultConsumer),
-    };
+    let t = Test;
     spawn(async move {
         let f = t.run();
         f.await;

@@ -247,7 +247,7 @@ impl Frame {
 
                 start = end;
                 end = total_size as usize - 1;
-                let basic_propertities: BasicPropertities =
+                let basic_propertities: BasicProperties =
                     from_bytes(match buf.get(start..end) {
                         Some(s) => s,
                         None => unreachable!("out of bound"),
