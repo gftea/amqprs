@@ -4,7 +4,7 @@ use std::{
 };
 
 use amqp_serde::types::AmqpChannelId;
-use tokio::sync::{mpsc, oneshot, broadcast};
+use tokio::sync::{mpsc, oneshot, broadcast, Notify};
 
 use crate::frame::{
     Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CONN_DEFAULT_CHANNEL,
@@ -163,7 +163,8 @@ impl Connection {
         })?;
 
         let consumer_queue: SharedConsumerQueue = Arc::new(Mutex::new(BTreeMap::new()));
-
+        let park_notify = Arc::new(Notify::new());
+        let unpark_notify = Arc::new(Notify::new());
 
         let mut channel = Channel {
             is_open: false,
@@ -171,8 +172,10 @@ impl Connection {
             outgoing_tx: self.outgoing_tx.clone(),
             incoming_rx,
             mgmt_tx: self.mgmt_tx.clone(),
-            consumer_queue: consumer_queue.clone(),
+            consumer_queue,
             dispatcher_rx: Some(dispatcher_rx),
+            park_notify,
+            unpark_notify,
         };
         synchronous_request!(
             channel.outgoing_tx,
@@ -182,7 +185,8 @@ impl Connection {
             Error::ChannelOpenError
         )?;
         channel.is_open = true;
-              
+        channel.spawn_dispatcher().await;
+
         Ok(channel)
     }
 

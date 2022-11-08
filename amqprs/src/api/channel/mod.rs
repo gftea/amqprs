@@ -1,8 +1,10 @@
 //! API implementation of AMQP Channel
 //!
 
+use std::sync::Arc;
+
 use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
-use tokio::sync::{mpsc::{Receiver, Sender, self}, oneshot, broadcast};
+use tokio::sync::{mpsc::{Receiver, Sender, self}, oneshot, broadcast, Notify};
 
 use crate::{
     api::error::Error,
@@ -31,7 +33,10 @@ pub struct Channel {
 
     /// callback queue
     pub(in crate::api) consumer_queue: SharedConsumerQueue,
-    pub(in crate::api) dispatcher_rx: Option<mpsc::Receiver<Frame>>
+    pub(in crate::api) dispatcher_rx: Option<mpsc::Receiver<Frame>>,
+    pub(in crate::api) park_notify: Arc<Notify>,
+    pub(in crate::api) unpark_notify: Arc<Notify>,
+
 }
 
 /////////////////////////////////////////////////////////////////////////////

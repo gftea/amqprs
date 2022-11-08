@@ -4,7 +4,7 @@ use std::{
 };
 
 use amqp_serde::types::AmqpChannelId;
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot, Notify};
 
 use crate::{
     api::{consumer::Consumer, error::Error},
@@ -101,8 +101,9 @@ impl Channel {
     pub(in crate::api) async fn spawn_dispatcher(&mut self) {
         let channel_id = self.channel_id;
         let consumer_queue = self.consumer_queue.clone();
-
         let mut dispatcher_rx = self.dispatcher_rx.take().unwrap();
+        let park = self.park_notify.clone();
+        let unpark = self.unpark_notify.clone();
 
         tokio::spawn(async move {
             #[derive(Debug)]
@@ -114,51 +115,64 @@ impl Channel {
                 deliver: None,
                 basic_propertities: None,
             };
+            // start with parked state
+            let mut unparked = false;
             loop {
-                match dispatcher_rx.recv().await {
-                    None => {
-                        println!("exit dispatcher of channel: {}", channel_id);
-                        break;
+                tokio::select! {
+                    _ = park.notified() => {
+                        unparked = false;
                     }
-                    Some(frame) => match frame {
-                        Frame::Deliver(_, deliver) => {
-                            message.deliver = Some(deliver);
-                        }
-                        Frame::ContentHeader(header) => {
-                            message.basic_propertities = Some(header.basic_properties);
-                        }
-                        Frame::ContentBody(body) => {
-                            let deliver = message.deliver.take().unwrap();
-                            let basic_propertities = message.basic_propertities.take().unwrap();
-                            // let delivery_tag = deliver.delivery_tag();
-                            {
-                                let k = deliver.consumer_tag().clone();
-                                // lock and get consumer
-                                let (mut consumer, acker) =
-                                    if let Some(v) = consumer_queue.lock().unwrap().remove(&k) {
-                                        v
-                                    } else {
-                                        println!(
-                                            "ignore message because consumer is not registered yet"
-                                        );
-                                        return;
-                                    };
-
-                                consumer
-                                    .consume(
-                                        acker.as_ref(),
-                                        deliver,
-                                        basic_propertities,
-                                        body.inner,
-                                    )
-                                    .await;
-
-                                // lock to restore consumer
-                                consumer_queue.lock().unwrap().insert(k, (consumer, acker));
+                    _ = unpark.notified() => {
+                        unparked = true;
+                    }
+                    frame = dispatcher_rx.recv(), if unparked => {
+                        match frame {
+                            None => {
+                                println!("exit dispatcher of channel: {}", channel_id);
+                                break;
                             }
+                            Some(frame) => match frame {
+                                Frame::Deliver(_, deliver) => {
+                                    message.deliver = Some(deliver);
+                                }
+                                Frame::ContentHeader(header) => {
+                                    message.basic_propertities = Some(header.basic_properties);
+                                }
+                                Frame::ContentBody(body) => {
+                                    let deliver = message.deliver.take().unwrap();
+                                    let basic_propertities = message.basic_propertities.take().unwrap();
+                                    // let delivery_tag = deliver.delivery_tag();
+                                    {
+                                        let k = deliver.consumer_tag().clone();
+                                        // lock and get consumer
+                                        let (mut consumer, acker) =
+                                            if let Some(v) = consumer_queue.lock().unwrap().remove(&k) {
+                                                v
+                                            } else {
+                                                println!(
+                                                    "ignore message because consumer is not registered yet"
+                                                );
+                                                return;
+                                            };
+        
+                                        consumer
+                                            .consume(
+                                                acker.as_ref(),
+                                                deliver,
+                                                basic_propertities,
+                                                body.inner,
+                                            )
+                                            .await;
+        
+                                        // lock to restore consumer
+                                        consumer_queue.lock().unwrap().insert(k, (consumer, acker));
+                                    }
+                                }
+                                _ => unreachable!("not acceptable frame for dispatcher: {:?}", frame),
+                            },
                         }
-                        _ => unreachable!("not acceptable frame for dispatcher: {:?}", frame),
-                    },
+                    }
+
                 }
             }
         });
@@ -212,6 +226,10 @@ impl Channel {
         consume.set_exclusive(exclusive);
         consume.set_nowait(no_wait);
 
+        // before start consume, park the dispatcher first, 
+        // unpark the dispatcher after we have added consumer into callback queue
+        self.park_notify.notify_one();
+    
         let consumer_tag = if args.no_wait {
             self.outgoing_tx
                 .send((self.channel_id, consume.into_frame()))
@@ -230,9 +248,11 @@ impl Channel {
 
         // TODO: spawn task for consumer and register consumer to dispatcher
         // ReaderHandler forward message to dispatcher, dispatcher forward message to or invovke consumer with message
+        
         // Edge case:
-        //  dispatcher may be scheduled immediately before consumer is inserted,
-        //  which used to happen when publisher start first
+        //  if dispatcher task already running, it may receive frames immediately after ConsumeOk,
+        //  which results in frames are received before consumer added to callback queue.
+        //  so we park the dispatcher before sending Consume method, and unpark dispatcher after 
         self.consumer_queue.lock().unwrap().insert(
             consumer_tag.clone(),
             if no_ack {
@@ -242,7 +262,9 @@ impl Channel {
             },
         );
         println!("consumer inserted for {}", consumer_tag);
-        self.spawn_dispatcher().await;
+        // unpark dispatcher
+        self.unpark_notify.notify_one();
+
         Ok(consumer_tag)
     }
 
