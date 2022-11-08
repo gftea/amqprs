@@ -10,7 +10,7 @@ use crate::{
     api::{consumer::Consumer, error::Error},
     frame::{
         Ack, BasicProperties, Consume, ContentBody, ContentHeader, ContentHeaderCommon, Deliver,
-        Frame, Publish, Qos,
+        Frame, Nack, Publish, Qos, Reject,
     },
 };
 
@@ -73,6 +73,38 @@ impl BasicAckArguments {
         Self {
             delivery_tag: 0,
             multiple: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BasicNackArguments {
+    pub delivery_tag: u64,
+    pub multiple: bool,
+    pub requeue: bool,
+}
+
+impl BasicNackArguments {
+    pub fn new() -> Self {
+        Self {
+            delivery_tag: 0,
+            multiple: false,
+            requeue: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BasicRejectArguments {
+    pub delivery_tag: u64,
+    pub requeue: bool,
+}
+
+impl BasicRejectArguments {
+    pub fn new(delivery_tag: u64) -> Self {
+        Self {
+            delivery_tag,
+            requeue: true,
         }
     }
 }
@@ -154,7 +186,7 @@ impl Channel {
                                                 );
                                                 return;
                                             };
-        
+
                                         consumer
                                             .consume(
                                                 acker.as_ref(),
@@ -163,7 +195,7 @@ impl Channel {
                                                 body.inner,
                                             )
                                             .await;
-        
+
                                         // lock to restore consumer
                                         consumer_queue.lock().unwrap().insert(k, (consumer, acker));
                                     }
@@ -177,6 +209,8 @@ impl Channel {
             }
         });
     }
+
+
     pub async fn basic_qos(&mut self, args: BasicQosArguments) -> Result<()> {
         let qos = Qos {
             prefetch_size: args.prefetch_size,
@@ -226,10 +260,10 @@ impl Channel {
         consume.set_exclusive(exclusive);
         consume.set_nowait(no_wait);
 
-        // before start consume, park the dispatcher first, 
+        // before start consume, park the dispatcher first,
         // unpark the dispatcher after we have added consumer into callback queue
         self.park_notify.notify_one();
-    
+
         let consumer_tag = if args.no_wait {
             self.outgoing_tx
                 .send((self.channel_id, consume.into_frame()))
@@ -248,11 +282,18 @@ impl Channel {
 
         // TODO: spawn task for consumer and register consumer to dispatcher
         // ReaderHandler forward message to dispatcher, dispatcher forward message to or invovke consumer with message
-        
+        // TODO:
+        // alt1:
+        //  one task per consumer, and  one task for dispatcher per channel,
+        //  a dispatcher distribute message to different consumer tasks.
+        // alt2:
+        //  it just use callback queue, each channel has only one task for all consumers
+        //  the task call the callback - Q: how to insert callback lock-free?
+
         // Edge case:
         //  if dispatcher task already running, it may receive frames immediately after ConsumeOk,
         //  which results in frames are received before consumer added to callback queue.
-        //  so we park the dispatcher before sending Consume method, and unpark dispatcher after 
+        //  so we park the dispatcher before sending Consume method, and unpark dispatcher after
         self.consumer_queue.lock().unwrap().insert(
             consumer_tag.clone(),
             if no_ack {
@@ -268,32 +309,24 @@ impl Channel {
         Ok(consumer_tag)
     }
 
-    // TODO:
-    // alt1:
-    //  one task per consumer, and  one task for dispatcher per channel,
-    //  a dispatcher distribute message to different consumer tasks.
-    // alt2:
-    //  it just use callback queue, each channel has only one task for all consumers
-    //  the task call the callback - Q: how to insert callback lock-free?
-    async fn spawn_consumer(&self) {}
-
     pub fn new_acker(&self) -> Acker {
         Acker {
             tx: self.outgoing_tx.clone(),
             channel_id: self.channel_id,
         }
     }
-    // pub async fn basic_ack(&self, args: BasicAckArguments) -> Result<()> {
-    //     let ack = Ack {
-    //         delivery_tag: args.delivery_tag,
-    //         mutiple: args.multiple,
-    //     };
-    //     self.outgoing_tx
-    //         .send((self.channel_id, ack.into_frame()))
-    //         .await?;
-    //     Ok(())
-    // }
+    
+    pub async fn basic_cancel(&mut self) {
+        todo!()
+    }
+    pub async fn basic_get(&mut self) {
+        todo!()
+    }
+    pub async fn basic_recover(&mut self) {
+        todo!()
+    }
 
+    /// TODO: add return call back
     pub async fn basic_publish(
         &self,
         args: BasicPublishArguments,
@@ -340,6 +373,24 @@ impl Acker {
             mutiple: args.multiple,
         };
         self.tx.send((self.channel_id, ack.into_frame())).await?;
+        Ok(())
+    }
+    pub async fn basic_nack(&self, args: BasicNackArguments) -> Result<()> {
+        let mut nack = Nack {
+            delivery_tag: args.delivery_tag,
+            bits: 0,
+        };
+        nack.set_multiple(args.multiple);
+        nack.set_requeue(args.requeue);
+        self.tx.send((self.channel_id, nack.into_frame())).await?;
+        Ok(())
+    }
+    pub async fn basic_reject(&self, args: BasicRejectArguments) -> Result<()> {
+        let reject = Reject {
+            delivery_tag: args.delivery_tag,
+            requeue: args.requeue,
+        };
+        self.tx.send((self.channel_id, reject.into_frame())).await?;
         Ok(())
     }
 }

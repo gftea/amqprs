@@ -201,16 +201,18 @@ pub struct Nack {
     pub bits: Octect,
 }
 impl Nack {
-    pub fn set_multiple(&mut self) {
-        self.bits |= bit_flag::nack::MULTIPLE;
+    pub fn set_multiple(&mut self, value: bool) {
+        if value {
+            self.bits |= bit_flag::nack::MULTIPLE;
+        } else {
+            self.bits &= !bit_flag::nack::MULTIPLE;
+        }
     }
-    pub fn clear_multiple(&mut self) {
-        self.bits &= !bit_flag::nack::MULTIPLE;
-    }
-    pub fn set_requeue(&mut self) {
-        self.bits |= bit_flag::nack::REQUEUE;
-    }
-    pub fn clear_requeue(&mut self) {
-        self.bits &= !bit_flag::nack::REQUEUE;
+    pub fn set_requeue(&mut self, value: bool) {
+        if value {
+            self.bits |= bit_flag::nack::REQUEUE;
+        } else {
+            self.bits &= !bit_flag::nack::REQUEUE;
+        }
     }
 }
