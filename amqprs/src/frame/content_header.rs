@@ -35,7 +35,7 @@ pub struct ContentHeaderCommon {
 
 
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct BasicProperties {
     // // property flags is included in this type
     // // in order to manage the value according to optional property
