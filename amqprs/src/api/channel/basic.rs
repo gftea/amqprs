@@ -325,6 +325,7 @@ impl Channel {
     pub async fn basic_recover(&mut self) {
         todo!()
     }
+    
 
     /// TODO: add return call back
     pub async fn basic_publish(
