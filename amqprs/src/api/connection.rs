@@ -33,9 +33,12 @@ pub struct Connection {
     mgmt_tx: mpsc::Sender<ManagementCommand>,
 }
 //  TODO: move below constants gto be part of static configuration of connection
+const DISPATCHER_FRAME_BUFFER_SIZE: usize = 256;
+const DISPATCHER_COMMAND_BUFFER_SIZE: usize = 32;
+
 const INCOMING_RESPONSE_BUFFER_SIZE: usize = 32;
-const INCOMING_CONTENT_BUFFER_SIZE: usize = 32;
-const OUTGOING_MESSAGE_CHANNEL_BUFFER_SIZE: usize = 64;
+
+const OUTGOING_MESSAGE_CHANNEL_BUFFER_SIZE: usize = 128;
 const MANAGEMENT_CHANNEL_BUFFER_SIZE: usize = 32;
 /// AMQP Connection API
 ///
@@ -147,7 +150,8 @@ impl Connection {
     /// open a AMQ channel
     pub async fn open_channel(&self) -> Result<Channel> {
         let (responder, incoming_rx) = mpsc::channel(INCOMING_RESPONSE_BUFFER_SIZE);
-        let (dispatcher, dispatcher_rx) = mpsc::channel(INCOMING_CONTENT_BUFFER_SIZE);
+        let (dispatcher, dispatcher_rx) = mpsc::channel(DISPATCHER_FRAME_BUFFER_SIZE);
+        let (dispatcher_mgmt_tx, dispatcher_mgmt_rx) = mpsc::channel(DISPATCHER_COMMAND_BUFFER_SIZE);
 
         let channel_id = net::register_channel_resource(
             &self.mgmt_tx,
@@ -172,10 +176,9 @@ impl Connection {
             outgoing_tx: self.outgoing_tx.clone(),
             incoming_rx,
             mgmt_tx: self.mgmt_tx.clone(),
-            consumer_queue,
             dispatcher_rx: Some(dispatcher_rx),
-            park_notify,
-            unpark_notify,
+            dispatcher_mgmt_tx,
+            dispatcher_mgmt_rx: Some(dispatcher_mgmt_rx),
         };
         synchronous_request!(
             channel.outgoing_tx,

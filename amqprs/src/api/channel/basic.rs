@@ -3,14 +3,13 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use amqp_serde::types::AmqpChannelId;
-use tokio::sync::{broadcast, mpsc, oneshot, Notify};
+use tokio::sync::mpsc;
 
 use crate::{
     api::{consumer::Consumer, error::Error},
     frame::{
         Ack, BasicProperties, Consume, ContentBody, ContentHeader, ContentHeaderCommon, Deliver,
-        Frame, Nack, Publish, Qos, Reject,
+        Frame, Nack, Publish, Qos, Recover, Reject,
     },
 };
 
@@ -18,6 +17,25 @@ use super::{Acker, Channel, Result, ServerSpecificArguments};
 pub(crate) type SharedConsumerQueue =
     Arc<Mutex<BTreeMap<String, (Box<dyn Consumer + Send>, Option<Acker>)>>>;
 
+const CONSUMER_MESSAGE_BUFFER_SIZE: usize = 32;
+
+#[derive(Debug)]
+struct ConsumerMessage {
+    deliver: Option<Deliver>,
+    basic_properties: Option<BasicProperties>,
+    content: Option<Vec<u8>>,
+}
+pub(crate) struct RegisterConsumer {
+    consumer_tag: String,
+    consumer_tx: mpsc::Sender<ConsumerMessage>,
+}
+pub(crate) struct UnregisterConsumer {
+    consumer_tag: String,
+}
+pub(crate) enum DispatcherManagementCommand {
+    RegisterConsumer(RegisterConsumer),
+    UnregisterConsumer(UnregisterConsumer),
+}
 #[derive(Debug, Clone)]
 pub struct BasicQosArguments {
     pub prefetch_size: u32,
@@ -132,84 +150,101 @@ impl BasicPublishArguments {
 impl Channel {
     pub(in crate::api) async fn spawn_dispatcher(&mut self) {
         let channel_id = self.channel_id;
-        let consumer_queue = self.consumer_queue.clone();
+        let mut consumers = BTreeMap::new();
+
         let mut dispatcher_rx = self.dispatcher_rx.take().unwrap();
-        let park = self.park_notify.clone();
-        let unpark = self.unpark_notify.clone();
+        let mut dispatcher_mgmt_rx = self.dispatcher_mgmt_rx.take().unwrap();
 
         tokio::spawn(async move {
-            #[derive(Debug)]
-            struct ConsumerMessage {
-                deliver: Option<Deliver>,
-                basic_propertities: Option<BasicProperties>,
-            }
-            let mut message = ConsumerMessage {
+            let mut buffer = ConsumerMessage {
                 deliver: None,
-                basic_propertities: None,
+                basic_properties: None,
+                content: None,
             };
-            // start with parked state
-            let mut unparked = false;
+            // beginning state
+            let unparked = true;
             loop {
                 tokio::select! {
-                    _ = park.notified() => {
-                        unparked = false;
-                    }
-                    _ = unpark.notified() => {
-                        unparked = true;
-                    }
-                    frame = dispatcher_rx.recv(), if unparked => {
-                        match frame {
-                            None => {
-                                println!("exit dispatcher of channel: {}", channel_id);
-                                break;
-                            }
-                            Some(frame) => match frame {
-                                Frame::Deliver(_, deliver) => {
-                                    message.deliver = Some(deliver);
-                                }
-                                Frame::ContentHeader(header) => {
-                                    message.basic_propertities = Some(header.basic_properties);
-                                }
-                                Frame::ContentBody(body) => {
-                                    let deliver = message.deliver.take().unwrap();
-                                    let basic_propertities = message.basic_propertities.take().unwrap();
-                                    // let delivery_tag = deliver.delivery_tag();
-                                    {
-                                        let k = deliver.consumer_tag().clone();
-                                        // lock and get consumer
-                                        let (mut consumer, acker) =
-                                            if let Some(v) = consumer_queue.lock().unwrap().remove(&k) {
-                                                v
-                                            } else {
-                                                println!(
-                                                    "ignore message because consumer is not registered yet"
-                                                );
-                                                return;
-                                            };
+                    biased;
 
-                                        consumer
-                                            .consume(
-                                                acker.as_ref(),
-                                                deliver,
-                                                basic_propertities,
-                                                body.inner,
-                                            )
-                                            .await;
+                    Some(cmd) = dispatcher_mgmt_rx.recv() => {
+                        match cmd {
+                            DispatcherManagementCommand::RegisterConsumer(cmd) => {
+                                // TODO: check insert result
+                                println!("consumer inserted for {}", cmd.consumer_tag);
+                                consumers.insert(cmd.consumer_tag, cmd.consumer_tx);
 
-                                        // lock to restore consumer
-                                        consumer_queue.lock().unwrap().insert(k, (consumer, acker));
-                                    }
-                                }
-                                _ => unreachable!("not acceptable frame for dispatcher: {:?}", frame),
+                            },
+                            DispatcherManagementCommand::UnregisterConsumer(cmd) => {
+                                // TODO: check remove result
+                                consumers.remove(&cmd.consumer_tag);
+
                             },
                         }
+                    }
+                    Some(frame) = dispatcher_rx.recv() => {
+                        match frame {
+                            // server must send "Deliver + Content" in order, otherwise
+                            // client cannot know to which consumer tag is the content frame
+                            Frame::Deliver(_, deliver) => {
+
+                                buffer.deliver = Some(deliver);
+                            }
+                            Frame::ContentHeader(header) => {
+                                buffer.basic_properties = Some(header.basic_properties);
+                            }
+                            Frame::ContentBody(body) => {
+                                buffer.content = Some(body.inner);
+                                // let deliver = message.deliver.take().unwrap();
+                                // let basic_properties = message.basic_properties.take().unwrap();
+                                // {
+                                //     let k = deliver.consumer_tag().clone();
+                                //     // lock and get consumer
+                                //     let (mut consumer, acker) =
+                                //         if let Some(v) = consumer_queue.lock().unwrap().remove(&k) {
+                                //             v
+                                //         } else {
+                                //             println!(
+                                //                 "ignore message because consumer is not registered yet"
+                                //             );
+                                //             continue;
+                                //         };
+
+                                //     consumer
+                                //         .consume(
+                                //             acker.as_ref(),
+                                //             deliver,
+                                //             basic_properties,
+                                //             body.inner,
+                                //         )
+                                //         .await;
+
+                                //     // lock to restore consumer
+                                //     consumer_queue.lock().unwrap().insert(k, (consumer, acker));
+                                // }
+                                let consumer_tag = buffer.deliver.as_ref().unwrap().consumer_tag();
+                                let consumer_tx = consumers.get(consumer_tag).unwrap();
+
+                                let consumer_message  = ConsumerMessage {
+                                    deliver: buffer.deliver.take(),
+                                    basic_properties: buffer.basic_properties.take(),
+                                    content: buffer.content.take(),
+                                };
+                                consumer_tx.send(consumer_message).await.unwrap();
+                            }
+                            _ => unreachable!("not acceptable frame for dispatcher: {:?}", frame),
+                        }
+
+                    }
+                    else => {
+                        println!("exit dispatcher of channel {}", channel_id);
+                        break;
                     }
 
                 }
             }
         });
     }
-
 
     pub async fn basic_qos(&mut self, args: BasicQosArguments) -> Result<()> {
         let qos = Qos {
@@ -262,7 +297,7 @@ impl Channel {
 
         // before start consume, park the dispatcher first,
         // unpark the dispatcher after we have added consumer into callback queue
-        self.park_notify.notify_one();
+        // self.park_notify.notify_one();
 
         let consumer_tag = if args.no_wait {
             self.outgoing_tx
@@ -280,33 +315,57 @@ impl Channel {
             method.consumer_tag.into()
         };
 
-        // TODO: spawn task for consumer and register consumer to dispatcher
-        // ReaderHandler forward message to dispatcher, dispatcher forward message to or invovke consumer with message
-        // TODO:
-        // alt1:
-        //  one task per consumer, and  one task for dispatcher per channel,
-        //  a dispatcher distribute message to different consumer tasks.
-        // alt2:
-        //  it just use callback queue, each channel has only one task for all consumers
-        //  the task call the callback - Q: how to insert callback lock-free?
-
-        // Edge case:
-        //  if dispatcher task already running, it may receive frames immediately after ConsumeOk,
-        //  which results in frames are received before consumer added to callback queue.
-        //  so we park the dispatcher before sending Consume method, and unpark dispatcher after
-        self.consumer_queue.lock().unwrap().insert(
-            consumer_tag.clone(),
-            if no_ack {
-                (Box::new(consumer), None)
-            } else {
-                (Box::new(consumer), Some(self.new_acker()))
-            },
-        );
-        println!("consumer inserted for {}", consumer_tag);
-        // unpark dispatcher
-        self.unpark_notify.notify_one();
+        self.spawn_consumer(no_ack, consumer_tag.clone(), consumer)
+            .await?;
 
         Ok(consumer_tag)
+    }
+
+    async fn spawn_consumer<F>(
+        &self,
+        no_ack: bool,
+        consumer_tag: String,
+        mut consumer: F,
+    ) -> Result<()>
+    where
+        F: Consumer + Send + 'static,
+    {
+        let (consumer_tx, mut consumer_rx): (
+            mpsc::Sender<ConsumerMessage>,
+            mpsc::Receiver<ConsumerMessage>,
+        ) = mpsc::channel(CONSUMER_MESSAGE_BUFFER_SIZE);
+
+        let acker = if no_ack { None } else { Some(self.new_acker()) };
+        let ctag = consumer_tag.clone();
+        tokio::spawn(async move {
+            // let acker = acker.as_ref();
+            loop {
+                match consumer_rx.recv().await {
+                    Some(mut msg) => {
+                        consumer
+                            .consume(
+                                acker.as_ref(),
+                                msg.deliver.take().unwrap(),
+                                msg.basic_properties.take().unwrap(),
+                                msg.content.take().unwrap(),
+                            )
+                            .await;
+                    }
+                    None => {
+                        println!("exit consumer: {}", ctag);
+                    }
+                }
+            }
+        });
+        self.dispatcher_mgmt_tx
+            .send(DispatcherManagementCommand::RegisterConsumer(
+                RegisterConsumer {
+                    consumer_tag,
+                    consumer_tx,
+                },
+            ))
+            .await?;
+        Ok(())
     }
 
     pub fn new_acker(&self) -> Acker {
@@ -315,17 +374,27 @@ impl Channel {
             channel_id: self.channel_id,
         }
     }
-    
+
     pub async fn basic_cancel(&mut self) {
         todo!()
     }
     pub async fn basic_get(&mut self) {
         todo!()
     }
-    pub async fn basic_recover(&mut self) {
-        todo!()
+
+    /// RabbitMQ does not support `requeue = false`. User should always pass `true`.
+    pub async fn basic_recover(&mut self, requeue: bool) -> Result<()> {
+        let recover = Recover { requeue };
+
+        let _method = synchronous_request!(
+            self.outgoing_tx,
+            (self.channel_id, recover.into_frame()),
+            self.incoming_rx,
+            Frame::RecoverOk,
+            Error::ChannelUseError
+        )?;
+        Ok(())
     }
-    
 
     /// TODO: add return call back
     pub async fn basic_publish(
@@ -406,7 +475,7 @@ mod tests {
             connection::Connection,
             consumer::DefaultConsumer,
         },
-        frame::{BasicProperties, ContentBody},
+        frame::BasicProperties,
     };
 
     use super::{BasicConsumeArguments, BasicPublishArguments};

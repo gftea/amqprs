@@ -18,7 +18,7 @@ pub trait Consumer {
         &mut self,
         acker: Option<&Acker>,
         deliver: Deliver,
-        basic_propertities: BasicProperties,
+        basic_properties: BasicProperties,
         content: Vec<u8>,
     );
 }
@@ -35,12 +35,12 @@ impl Consumer for DefaultConsumer {
         &mut self,
         acker: Option<&Acker>,
         deliver: Deliver,
-        basic_propertities: BasicProperties,
+        basic_properties: BasicProperties,
         content: Vec<u8>,
     ) {
         println!(">>>>> Consumer Start <<<<<<");
         println!("{:?}", deliver,);
-        println!("{:?}", basic_propertities,);
+        println!("{:?}", basic_properties,);
         println!("{}", from_utf8(&content).unwrap());
         println!(">>>>> Consumer End <<<<<<");
 

@@ -31,11 +31,11 @@ pub struct Channel {
     pub(in crate::api) incoming_rx: Receiver<IncomingMessage>,
     pub(in crate::api) mgmt_tx: Sender<ManagementCommand>,
 
-    /// callback queue
-    pub(in crate::api) consumer_queue: SharedConsumerQueue,
     pub(in crate::api) dispatcher_rx: Option<mpsc::Receiver<Frame>>,
-    pub(in crate::api) park_notify: Arc<Notify>,
-    pub(in crate::api) unpark_notify: Arc<Notify>,
+
+    pub(in crate::api) dispatcher_mgmt_tx: Sender<DispatcherManagementCommand>,
+    pub(in crate::api) dispatcher_mgmt_rx: Option<Receiver<DispatcherManagementCommand>>,
+
 
 }
 

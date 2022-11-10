@@ -251,7 +251,7 @@ impl ReaderHandler {
                 Ok(())
             }
             Frame::HeartBeat(_) => {
-                println!("handle heartbeat...");
+                println!("heartbeat, to be handled...");
                 Ok(())
             }
 
@@ -264,7 +264,7 @@ impl ReaderHandler {
                         Ok(())
                     }
                     None => {
-                        println!("no consumer registered yet, discard : {:?}", frame);
+                        println!("no dispatcher registered yet, discard : {:?}", frame);
                         Ok(())
                     }
                 }

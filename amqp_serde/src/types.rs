@@ -20,6 +20,8 @@ pub type Double = f64;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ShortStr(u8, String);
+
+
 impl Default for ShortStr {
     fn default() -> Self {
         Self(0, "".to_string())
@@ -53,6 +55,7 @@ impl TryFrom<&str> for ShortStr {
         s.to_string().try_into()
     }
 }
+
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct LongStr(u32, String);

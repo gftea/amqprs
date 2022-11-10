@@ -274,7 +274,7 @@ impl<'de> Deserialize<'de> for BasicProperties {
                 let flags: [Octect; 2] = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                let mut basic_propertities = BasicProperties {
+                let mut basic_properties = BasicProperties {
                     property_flags: flags,
                     content_type: None,
                     content_encoding: None,
@@ -292,78 +292,78 @@ impl<'de> Deserialize<'de> for BasicProperties {
                     cluster_id: None,
                 };
                 if (flags[0] & 1 << 7) != 0 {
-                    basic_propertities.content_type = seq
+                    basic_properties.content_type = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[0] & 1 << 6) != 0 {
-                    basic_propertities.content_encoding = seq
+                    basic_properties.content_encoding = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[0] & 1 << 5) != 0 {
-                    basic_propertities.headers = seq
+                    basic_properties.headers = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[0] & 1 << 4) != 0 {
-                    basic_propertities.delivery_mode = seq
+                    basic_properties.delivery_mode = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[0] & 1 << 3) != 0 {
-                    basic_propertities.priority = seq
+                    basic_properties.priority = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[0] & 1 << 2) != 0 {
-                    basic_propertities.correlation_id = seq
+                    basic_properties.correlation_id = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[0] & 1 << 1) != 0 {
-                    basic_propertities.reply_to = seq
+                    basic_properties.reply_to = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[0] & 1 << 0) != 0 {
-                    basic_propertities.expiration = seq
+                    basic_properties.expiration = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 // 2nd byte of flags
                 if (flags[1] & 1 << 7) != 0 {
-                    basic_propertities.message_id = seq
+                    basic_properties.message_id = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[1] & 1 << 6) != 0 {
-                    basic_propertities.timestamp = seq
+                    basic_properties.timestamp = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[1] & 1 << 5) != 0 {
-                    basic_propertities.typ = seq
+                    basic_properties.typ = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[1] & 1 << 4) != 0 {
-                    basic_propertities.user_id = seq
+                    basic_properties.user_id = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[1] & 1 << 3) != 0 {
-                    basic_propertities.app_id = seq
+                    basic_properties.app_id = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[1] & 1 << 2) != 0 {
-                    basic_propertities.cluster_id = seq
+                    basic_properties.cluster_id = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
 
-                Ok(basic_propertities)
+                Ok(basic_properties)
             }
         }
         deserializer.deserialize_struct("BasicPropertities", FIELDS, BasicPropertitiesVisitor)

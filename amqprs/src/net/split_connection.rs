@@ -90,7 +90,7 @@ impl BufWriter {
     // write a AMQP frame over a specific channel
     pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
         // TODO: tracing
-        println!("SENT: {}, {:?}", channel, frame);
+        println!("SENT on channel {}: {:?}", channel, frame);
 
         // reserve bytes for frame header, which to be updated after encoding payload
         let header = FrameHeader {
@@ -141,7 +141,7 @@ impl BufReader {
                 // discard parsed data in read buffer
                 self.buffer.advance(len);
                 // TODO: tracing
-                println!("RECV: {}, {:?}", channel_id, frame);
+                println!("RECV on channel {}: {:?}", channel_id, frame);
                 Ok(Some((channel_id, frame)))
             }
             None => Ok(None),

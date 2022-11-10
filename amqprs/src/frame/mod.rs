@@ -247,16 +247,16 @@ impl Frame {
 
                 start = end;
                 end = total_size as usize - 1;
-                let basic_propertities: BasicProperties =
+                let basic_properties: BasicProperties =
                     from_bytes(match buf.get(start..end) {
                         Some(s) => s,
                         None => unreachable!("out of bound"),
                     })?;
-                println!("basic propertities > {:?}", basic_propertities);
+                // println!("basic propertities > {:?}", basic_properties);
                 Ok(Some((
                     total_size,
                     channel,
-                    Frame::ContentHeader(ContentHeader::new(header_common, basic_propertities)),
+                    Frame::ContentHeader(ContentHeader::new(header_common, basic_properties)),
                 )))
             }
             FRAME_CONTENT_BODY => {
