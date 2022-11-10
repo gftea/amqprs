@@ -222,15 +222,24 @@ impl Channel {
                                 //     // lock to restore consumer
                                 //     consumer_queue.lock().unwrap().insert(k, (consumer, acker));
                                 // }
-                                let consumer_tag = buffer.deliver.as_ref().unwrap().consumer_tag();
-                                let consumer_tx = consumers.get(consumer_tag).unwrap();
+                                let consumer_tag = buffer.deliver.as_ref().unwrap().consumer_tag().clone();
 
-                                let consumer_message  = ConsumerMessage {
-                                    deliver: buffer.deliver.take(),
-                                    basic_properties: buffer.basic_properties.take(),
-                                    content: buffer.content.take(),
+                                match consumers.get(&consumer_tag) {
+                                    Some(consumer_tx) => {
+                                        let consumer_message  = ConsumerMessage {
+                                            deliver: buffer.deliver.take(),
+                                            basic_properties: buffer.basic_properties.take(),
+                                            content: buffer.content.take(),
+                                        };
+                                        if let Err(_) = consumer_tx.send(consumer_message).await {
+                                            println!("failed to dispatch message to consumer {}", consumer_tag);
+                                        }
+                                    },
+                                    None => {
+                                        println!("can't find consumer '{}', ignore message", consumer_tag);
+                                    },
                                 };
-                                consumer_tx.send(consumer_message).await.unwrap();
+
                             }
                             _ => unreachable!("not acceptable frame for dispatcher: {:?}", frame),
                         }
@@ -353,6 +362,7 @@ impl Channel {
                     }
                     None => {
                         println!("exit consumer: {}", ctag);
+                        break;
                     }
                 }
             }

@@ -54,5 +54,5 @@ async fn test_consume() {
 
     // keep the `channel` and `connection` object from dropping
     // NOTE: channel/connection will be closed when drop
-    time::sleep(time::Duration::from_secs(60)).await;
+    time::sleep(time::Duration::from_secs(10)).await;
 }
