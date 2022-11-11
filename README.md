@@ -87,3 +87,6 @@
     // NOTE: channel/connection will be closed when drop
     time::sleep(time::Duration::from_secs(60)).await;
 ```
+
+## Design Architecture
+![Lock-free Design](amqp-chosen_design.drawio.png) 
