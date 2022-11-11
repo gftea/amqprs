@@ -5,7 +5,7 @@
 ## Design philosophy
 1. API first: easy to use, easy to understand. Keep the API similar as python client library so that it is easier for users to move from there.
 2. Minimum external dependencies: as less exteranl crates as possible
-3. lock free: as less mutex/lock as possible
+3. lock free: no mutex/lock in client library itself 
 
 
 ## Example: Publish
