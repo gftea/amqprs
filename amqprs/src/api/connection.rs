@@ -116,6 +116,7 @@ impl Connection {
             &mgmt_tx,
             Some(CONN_DEFAULT_CHANNEL),
             ChannelResource {
+                // deliver_ongoing: false,
                 responder,
                 dispatcher: None,
             },
@@ -149,16 +150,17 @@ impl Connection {
 
     /// open a AMQ channel
     pub async fn open_channel(&self) -> Result<Channel> {
-        let (responder, incoming_rx) = mpsc::channel(INCOMING_RESPONSE_BUFFER_SIZE);
-        let (dispatcher, dispatcher_rx) = mpsc::channel(DISPATCHER_FRAME_BUFFER_SIZE);
+        let (incoming_tx, incoming_rx) = mpsc::channel(INCOMING_RESPONSE_BUFFER_SIZE);
+        let (dispatcher_tx, dispatcher_rx) = mpsc::channel(DISPATCHER_FRAME_BUFFER_SIZE);
         let (dispatcher_mgmt_tx, dispatcher_mgmt_rx) = mpsc::channel(DISPATCHER_COMMAND_BUFFER_SIZE);
 
         let channel_id = net::register_channel_resource(
             &self.mgmt_tx,
             None,
             ChannelResource {
-                responder,
-                dispatcher: Some(dispatcher),
+                // deliver_ongoing: false,
+                responder: incoming_tx.clone(),
+                dispatcher: Some(dispatcher_tx),
             },
         )
         .await
@@ -175,6 +177,7 @@ impl Connection {
             channel_id,
             outgoing_tx: self.outgoing_tx.clone(),
             incoming_rx,
+            incoming_tx: Some(incoming_tx),
             mgmt_tx: self.mgmt_tx.clone(),
             dispatcher_rx: Some(dispatcher_rx),
             dispatcher_mgmt_tx,

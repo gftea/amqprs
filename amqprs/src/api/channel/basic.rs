@@ -1,16 +1,20 @@
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex}, ops::Deref,
 };
 
 use tokio::sync::mpsc;
 
 use crate::{
-    api::{consumer::Consumer, error::Error},
-    frame::{
-        Ack, BasicProperties, Consume, ContentBody, ContentHeader, ContentHeaderCommon, Deliver,
-        Frame, Nack, Publish, Qos, Recover, Reject,
+    api::{
+        consumer::{self, Consumer},
+        error::Error,
     },
+    frame::{
+        Ack, BasicProperties, Cancel, Consume, ContentBody, ContentHeader, ContentHeaderCommon,
+        Deliver, Frame, Get, GetOk, Nack, Publish, Qos, Recover, Reject,
+    },
+    net::IncomingMessage,
 };
 
 use super::{Acker, Channel, Result, ServerSpecificArguments};
@@ -81,6 +85,43 @@ impl BasicConsumeArguments {
 }
 
 #[derive(Debug, Clone)]
+pub struct BasicCancelArguments {
+    pub consumer_tag: String,
+    pub no_wait: bool,
+}
+
+impl BasicCancelArguments {
+    pub fn new(consumer_tag: String) -> Self {
+        Self {
+            consumer_tag,
+            no_wait: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BasicGetArguments {
+    pub queue: String,
+    pub no_ack: bool,
+}
+
+impl BasicGetArguments {
+    pub fn new() -> Self {
+        Self {
+            queue: "".to_string(),
+            no_ack: false,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct GetMessage {
+    get_ok: GetOk,
+    basic_properties: BasicProperties,
+    content: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
 pub struct BasicAckArguments {
     pub delivery_tag: u64,
     pub multiple: bool,
@@ -127,7 +168,7 @@ impl BasicRejectArguments {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BasicPublishArguments {
     pub exchange: String,
     pub routing_key: String,
@@ -154,6 +195,7 @@ impl Channel {
 
         let mut dispatcher_rx = self.dispatcher_rx.take().unwrap();
         let mut dispatcher_mgmt_rx = self.dispatcher_mgmt_rx.take().unwrap();
+        let incoming_tx = self.incoming_tx.take().unwrap();
 
         tokio::spawn(async move {
             let mut buffer = ConsumerMessage {
@@ -161,8 +203,15 @@ impl Channel {
                 basic_properties: None,
                 content: None,
             };
-            // beginning state
-            let unparked = true;
+
+            // beging state
+            enum State {
+                Deliver,
+                GetOk,
+                Return,
+                Initial,
+            }
+            let mut state = State::Initial;
             loop {
                 tokio::select! {
                     biased;
@@ -184,61 +233,56 @@ impl Channel {
                     }
                     Some(frame) = dispatcher_rx.recv() => {
                         match frame {
+                            Frame::Return(_, method) => {
+                                state = State::Return;
+                                println!("returned : {}, {}", method.reply_code, method.reply_text.deref());
+                            }
+                            Frame::GetOk(_, get_ok) => {
+                                state = State::GetOk;
+                                incoming_tx.send(IncomingMessage::Ok(get_ok.into_frame())).await.unwrap();
+                            }
                             // server must send "Deliver + Content" in order, otherwise
                             // client cannot know to which consumer tag is the content frame
                             Frame::Deliver(_, deliver) => {
-
+                                state = State::Deliver;
                                 buffer.deliver = Some(deliver);
                             }
                             Frame::ContentHeader(header) => {
-                                buffer.basic_properties = Some(header.basic_properties);
+                                match state {
+                                    State::Deliver => buffer.basic_properties = Some(header.basic_properties),
+                                    State::GetOk => incoming_tx.send(IncomingMessage::Ok(header.into_frame())).await.unwrap(),
+                                    State::Return => todo!("handle Return content"),
+                                    State::Initial => unreachable!(),
+                                }
+
                             }
                             Frame::ContentBody(body) => {
-                                buffer.content = Some(body.inner);
-                                // let deliver = message.deliver.take().unwrap();
-                                // let basic_properties = message.basic_properties.take().unwrap();
-                                // {
-                                //     let k = deliver.consumer_tag().clone();
-                                //     // lock and get consumer
-                                //     let (mut consumer, acker) =
-                                //         if let Some(v) = consumer_queue.lock().unwrap().remove(&k) {
-                                //             v
-                                //         } else {
-                                //             println!(
-                                //                 "ignore message because consumer is not registered yet"
-                                //             );
-                                //             continue;
-                                //         };
-
-                                //     consumer
-                                //         .consume(
-                                //             acker.as_ref(),
-                                //             deliver,
-                                //             basic_properties,
-                                //             body.inner,
-                                //         )
-                                //         .await;
-
-                                //     // lock to restore consumer
-                                //     consumer_queue.lock().unwrap().insert(k, (consumer, acker));
-                                // }
-                                let consumer_tag = buffer.deliver.as_ref().unwrap().consumer_tag().clone();
-
-                                match consumers.get(&consumer_tag) {
-                                    Some(consumer_tx) => {
-                                        let consumer_message  = ConsumerMessage {
-                                            deliver: buffer.deliver.take(),
-                                            basic_properties: buffer.basic_properties.take(),
-                                            content: buffer.content.take(),
+                                match state {
+                                    State::Deliver => {
+                                        buffer.content = Some(body.inner);
+    
+                                        let consumer_tag = buffer.deliver.as_ref().unwrap().consumer_tag().clone();
+    
+                                        match consumers.get(&consumer_tag) {
+                                            Some(consumer_tx) => {
+                                                let consumer_message  = ConsumerMessage {
+                                                    deliver: buffer.deliver.take(),
+                                                    basic_properties: buffer.basic_properties.take(),
+                                                    content: buffer.content.take(),
+                                                };
+                                                if let Err(_) = consumer_tx.send(consumer_message).await {
+                                                    println!("failed to dispatch message to consumer {}", consumer_tag);
+                                                }
+                                            },
+                                            None => {
+                                                println!("can't find consumer '{}', ignore message", consumer_tag);
+                                            },
                                         };
-                                        if let Err(_) = consumer_tx.send(consumer_message).await {
-                                            println!("failed to dispatch message to consumer {}", consumer_tag);
-                                        }
-                                    },
-                                    None => {
-                                        println!("can't find consumer '{}', ignore message", consumer_tag);
-                                    },
-                                };
+                                    }
+                                    State::GetOk => incoming_tx.send(IncomingMessage::Ok(body.into_frame())).await.unwrap(),
+                                    State::Return => todo!("handle Return content"),
+                                    State::Initial => unreachable!(),
+                                } 
 
                             }
                             _ => unreachable!("not acceptable frame for dispatcher: {:?}", frame),
@@ -385,11 +429,105 @@ impl Channel {
         }
     }
 
-    pub async fn basic_cancel(&mut self) {
-        todo!()
+    pub async fn basic_cancel(&mut self, args: BasicCancelArguments) -> Result<String> {
+        let BasicCancelArguments {
+            consumer_tag,
+            no_wait,
+        } = args;
+        let cancel = Cancel {
+            consumer_tag: consumer_tag.clone().try_into().unwrap(),
+            no_wait,
+        };
+        let consumer_tag = if args.no_wait {
+            self.outgoing_tx
+                .send((self.channel_id, cancel.into_frame()))
+                .await?;
+            consumer_tag
+        } else {
+            let method = synchronous_request!(
+                self.outgoing_tx,
+                (self.channel_id, cancel.into_frame()),
+                self.incoming_rx,
+                Frame::CancelOk,
+                Error::ChannelUseError
+            )?;
+            method.consumer_tag.into()
+        };
+        // FIXME: haven't unregister consumer in dispatcher
+        //  because there can be buffered messages to be handled
+        Ok(consumer_tag)
     }
-    pub async fn basic_get(&mut self) {
-        todo!()
+
+    pub async fn basic_get(&mut self, args: BasicGetArguments) -> Result<Option<GetMessage>> {
+        let get = Get {
+            ticket: 0,
+            queue: args.queue.try_into().unwrap(),
+            no_ack: args.no_ack,
+        };
+        self.outgoing_tx
+            .send((self.channel_id, get.into_frame()))
+            .await?;
+        let get_ok = match self
+            .incoming_rx
+            .recv()
+            .await
+            .ok_or_else(|| Error::InternalChannelError("receive error".to_string()))?
+        {
+            IncomingMessage::Ok(frame) => match frame {
+                Frame::GetEmpty(_, _) => {
+                    return Ok(None);
+                }
+                Frame::GetOk(_, get_ok) => get_ok,
+                _ => unreachable!("expect GetEmpty or GetOk"),
+            },
+            IncomingMessage::Exception(error_code, error_msg) => {
+                return Err(Error::ChannelUseError(format!(
+                    "{}: {}",
+                    error_code, error_msg
+                )));
+            }
+        };
+
+        let basic_properties = match self
+            .incoming_rx
+            .recv()
+            .await
+            .ok_or_else(|| Error::InternalChannelError("receive error".to_string()))?
+        {
+            IncomingMessage::Ok(frame) => match frame {
+                Frame::ContentHeader(header) => header.basic_properties,
+                _ => unreachable!("expect ContentHeader"),
+            },
+            IncomingMessage::Exception(error_code, error_msg) => {
+                return Err(Error::ChannelUseError(format!(
+                    "{}: {}",
+                    error_code, error_msg
+                )));
+            }
+        };
+
+        let content = match self
+            .incoming_rx
+            .recv()
+            .await
+            .ok_or_else(|| Error::InternalChannelError("receive error".to_string()))?
+        {
+            IncomingMessage::Ok(frame) => match frame {
+                Frame::ContentBody(content) => content.inner,
+                _ => unreachable!("expect ContentBody"),
+            },
+            IncomingMessage::Exception(error_code, error_msg) => {
+                return Err(Error::ChannelUseError(format!(
+                    "{}: {}",
+                    error_code, error_msg
+                )));
+            }
+        };
+        Ok(Some(GetMessage {
+            get_ok,
+            basic_properties,
+            content,
+        }))
     }
 
     /// RabbitMQ does not support `requeue = false`. User should always pass `true`.

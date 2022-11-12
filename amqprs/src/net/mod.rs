@@ -24,6 +24,7 @@ pub(crate) enum IncomingMessage {
 }
 
 pub(crate) struct ChannelResource {
+    // pub deliver_ongoing: bool,
     pub responder: Sender<IncomingMessage>,
     /// connection's default channel does not have dispatcher
     pub dispatcher: Option<Sender<Frame>>,

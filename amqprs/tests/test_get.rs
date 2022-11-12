@@ -1,5 +1,5 @@
 use amqprs::{api::{
-    channel::{BasicConsumeArguments, QueueBindArguments, QueueDeclareArguments, BasicPublishArguments},
+    channel::{BasicConsumeArguments, QueueBindArguments, QueueDeclareArguments, BasicPublishArguments, BasicGetArguments},
     connection::Connection,
     consumer::DefaultConsumer,
 }, BasicProperties};
@@ -27,31 +27,14 @@ async fn test_consume() {
         .await
         .unwrap();
 
-    // start consumer with given name
-    let mut args = BasicConsumeArguments::new();
-    args.queue = queue_name.to_string();
-    args.consumer_tag = "amqprs-consumer-example".to_string();
+    // get empty
+    let mut get_args = BasicGetArguments::new();
+    get_args.queue = queue_name.to_string();
 
-    channel.basic_consume(args, DefaultConsumer).await.unwrap();
-
-    // start consumer with generated name by server
-    let mut args = BasicConsumeArguments::new();
-    args.queue = queue_name.to_string();
-    channel.basic_consume(args, DefaultConsumer).await.unwrap();
-
-
-    // recover unacknowledged messages
-    // Edge case: 
-    //  When basic_consume start, we immediately got unacknowledge messages redelivered from servers
-    //  before ACK for a message with delivery_tag = 'A' is received by server, meanwhile server receive basic_recover, it will 
-    //  redeliver the message with different delivery_tag = 'B' and forget about tag 'A',
-    //  then once the ACK with delivery_tag = 'A' is received by server later, server will report channel exception.
-    // 
-    // Workaround: wait for all redelivered messages are handled
-    time::sleep(time::Duration::from_secs(1)).await;
-
-    channel.basic_recover(true).await.unwrap();
-
+    let get_message = channel.basic_get(get_args.clone()).await.unwrap();
+    if let Some(_) = get_message {
+        panic!("expect return empty message");
+    }
 
     // contents to publish 
     let content = String::from(
@@ -76,11 +59,16 @@ async fn test_consume() {
             .await
             .unwrap();
     }
-    // basic publish
+    
+    // get single message
+    let get_message = channel.basic_get(get_args.clone()).await.unwrap();
+    match get_message {
+        Some(msg) => {
+            println!("Get a message: {:?}", msg);
+        },
+        None => panic!("expect get a message"),
+    }
 
-    // keep the `channel` and `connection` object from dropping
-    // NOTE: channel/connection will be closed when drop
-    time::sleep(time::Duration::from_secs(10)).await;
 
     // TODO: move to separate test case, below is for test only
     if true {

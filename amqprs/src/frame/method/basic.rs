@@ -158,11 +158,33 @@ pub struct Get {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetOk {
-    pub delivery_tag: LongLongUint,
-    pub redelivered: Boolean,
-    pub exchange: AmqpExchangeName,
-    pub routing_key: ShortStr,
-    pub message_count: AmqpMessageCount,
+    delivery_tag: LongLongUint,
+    redelivered: Boolean,
+    exchange: AmqpExchangeName,
+    routing_key: ShortStr,
+    message_count: AmqpMessageCount,
+}
+
+impl GetOk {
+    pub fn delivery_tag(&self) -> u64 {
+        self.delivery_tag
+    }
+
+    pub fn redelivered(&self) -> bool {
+        self.redelivered
+    }
+
+    pub fn exchange(&self) -> &String {
+        &self.exchange
+    }
+
+    pub fn routing_key(&self) -> &String {
+        &self.routing_key
+    }
+
+    pub fn message_count(&self) -> u32 {
+        self.message_count
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

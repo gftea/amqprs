@@ -62,14 +62,6 @@ impl ChannelManager {
         Some(id)
     }
 
-    fn get_responder(&self, channel_id: &AmqpChannelId) -> Option<&Sender<IncomingMessage>> {
-        let responder = &self.resource.get(channel_id)?.responder;
-        Some(responder)
-    }
-
-    fn get_dispatcher(&self, channel_id: &AmqpChannelId) -> Option<&Sender<Frame>> {
-        self.resource.get(channel_id)?.dispatcher.as_ref()
-    }
     fn remove_resource(&mut self, channel_id: &AmqpChannelId) -> Option<ChannelResource> {
         assert_eq!(
             true,
@@ -79,6 +71,24 @@ impl ChannelManager {
         // remove responder means channel is to be  closed
         self.resource.remove(channel_id)
     }
+
+    fn get_responder(&self, channel_id: &AmqpChannelId) -> Option<&Sender<IncomingMessage>> {
+        let responder = &self.resource.get(channel_id)?.responder;
+        Some(responder)
+    }
+
+    fn get_dispatcher(&self, channel_id: &AmqpChannelId) -> Option<&Sender<Frame>> {
+        self.resource.get(channel_id)?.dispatcher.as_ref()
+    }
+
+    // fn get_deliver_ongoing_state(&self, channel_id: &AmqpChannelId) -> Option<bool> {
+    //     Some(self.resource.get(channel_id)?.deliver_ongoing)
+    // }
+    // fn set_deliver_ongoing_state(&self, channel_id: &AmqpChannelId, state: bool) -> Option<bool> {
+    //     let prev = self.get_deliver_ongoing_state(channel_id);
+    //     self.resource.get_mut(channel_id)?.deliver_ongoing = state;
+    //     prev
+    // }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -254,10 +264,11 @@ impl ReaderHandler {
                 println!("heartbeat, to be handled...");
                 Ok(())
             }
+           
 
             // Deliver, ContentHeader, ContentBody are delivered in sequence by server.
-            // Need to store the deliver frame and expect upcoming content.
-            Frame::Deliver(_, _) | Frame::ContentHeader(_) | Frame::ContentBody(_) => {
+            // Need to store the deliver frame and expect upcoming content.    
+            Frame::Deliver(_, _) |  Frame::GetOk(_, _) |  Frame::Return(_, _) | Frame::ContentHeader(_) | Frame::ContentBody(_) => {
                 match self.channel_manager.get_dispatcher(&channel_id) {
                     Some(dispatcher) => {
                         dispatcher.send(frame).await?;
@@ -269,26 +280,7 @@ impl ReaderHandler {
                     }
                 }
             }
-            // Frame::ContentHeader(header) => {
-            //     match self.channel_manager.get_consumer(&channel_id) {
-            //         Some(res) => {
-            //             res.consumer_tx.send(frame).await?;
-            //             Ok(())
 
-            //         },
-            //         None => Ok(())
-            //     }
-            // }
-            // Frame::ContentBody(body) => {
-            //     match self.channel_manager.get_consumer(&channel_id) {
-            //         Some(res) => {
-            //             res.consumer_tx.send(frame).await?;
-            //             Ok(())
-
-            //         },
-            //         None => Ok(())
-            //     }
-            // }
             _ => {
                 // respond to synchronous request
                 match self.channel_manager.get_responder(&channel_id) {

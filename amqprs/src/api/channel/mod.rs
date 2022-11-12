@@ -1,10 +1,8 @@
 //! API implementation of AMQP Channel
 //!
 
-use std::sync::Arc;
-
 use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
-use tokio::sync::{mpsc::{Receiver, Sender, self}, oneshot, broadcast, Notify};
+use tokio::sync::mpsc;
 
 use crate::{
     api::error::Error,
@@ -15,7 +13,7 @@ use crate::{
 type Result<T> = std::result::Result<T, Error>;
 
 pub struct Acker {
-    tx: Sender<OutgoingMessage>,
+    tx: mpsc::Sender<OutgoingMessage>,
     channel_id: AmqpChannelId,
 }
 
@@ -27,14 +25,16 @@ pub struct Acker {
 pub struct Channel {
     pub(in crate::api) is_open: bool,
     pub(in crate::api) channel_id: AmqpChannelId,
-    pub(in crate::api) outgoing_tx: Sender<OutgoingMessage>,
-    pub(in crate::api) incoming_rx: Receiver<IncomingMessage>,
-    pub(in crate::api) mgmt_tx: Sender<ManagementCommand>,
+    pub(in crate::api) outgoing_tx: mpsc::Sender<OutgoingMessage>,
+    pub(in crate::api) incoming_tx: Option<mpsc::Sender<IncomingMessage>>,
+    pub(in crate::api) incoming_rx: mpsc::Receiver<IncomingMessage>,
+
+    pub(in crate::api) mgmt_tx: mpsc::Sender<ManagementCommand>,
 
     pub(in crate::api) dispatcher_rx: Option<mpsc::Receiver<Frame>>,
 
-    pub(in crate::api) dispatcher_mgmt_tx: Sender<DispatcherManagementCommand>,
-    pub(in crate::api) dispatcher_mgmt_rx: Option<Receiver<DispatcherManagementCommand>>,
+    pub(in crate::api) dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
+    pub(in crate::api) dispatcher_mgmt_rx: Option<mpsc::Receiver<DispatcherManagementCommand>>,
 
 
 }
