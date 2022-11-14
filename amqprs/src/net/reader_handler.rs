@@ -4,13 +4,16 @@ use amqp_serde::types::{AmqpChannelId, ShortStr, ShortUint};
 use tokio::sync::{
     broadcast,
     mpsc::{Receiver, Sender},
+    oneshot,
 };
 
-use crate::frame::{Close, CloseChannel, CloseChannelOk, CloseOk, Frame, CONN_DEFAULT_CHANNEL};
+use crate::frame::{
+    Close, CloseChannel, CloseChannelOk, CloseOk, Frame, MethodHeader, CONN_DEFAULT_CHANNEL,
+};
 
 use super::{
     channel_id_repo::ChannelIdRepository, BufReader, ChannelResource, Error, IncomingMessage,
-    ManagementCommand, OutgoingMessage,
+    ConnManagementCommand, OutgoingMessage,
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -29,7 +32,7 @@ impl ChannelManager {
             resource: BTreeMap::new(),
         }
     }
-
+    /// Insert channel resource, when open a new channel
     fn insert_resource(
         &mut self,
         channel_id: Option<AmqpChannelId>,
@@ -62,6 +65,7 @@ impl ChannelManager {
         Some(id)
     }
 
+    /// remove channel resource, when channel to be closed
     fn remove_resource(&mut self, channel_id: &AmqpChannelId) -> Option<ChannelResource> {
         assert_eq!(
             true,
@@ -72,23 +76,34 @@ impl ChannelManager {
         self.resource.remove(channel_id)
     }
 
-    fn get_responder(&self, channel_id: &AmqpChannelId) -> Option<&Sender<IncomingMessage>> {
-        let responder = &self.resource.get(channel_id)?.responder;
-        Some(responder)
+
+    fn insert_responder(
+        &mut self,
+        channel_id: &AmqpChannelId,
+        method_header: &'static MethodHeader,
+        responder: oneshot::Sender<Frame>,
+    ) -> Option<oneshot::Sender<Frame>> {
+        self.resource
+            .get_mut(channel_id)?
+            .responders
+            .insert(method_header, responder)
+    }
+
+
+    fn remove_responder(
+        &mut self,
+        channel_id: &AmqpChannelId,
+        method_header: &'static MethodHeader,
+    ) -> Option<oneshot::Sender<Frame>> {
+        self.resource
+            .get_mut(channel_id)?
+            .responders
+            .remove(method_header)
     }
 
     fn get_dispatcher(&self, channel_id: &AmqpChannelId) -> Option<&Sender<Frame>> {
         self.resource.get(channel_id)?.dispatcher.as_ref()
     }
-
-    // fn get_deliver_ongoing_state(&self, channel_id: &AmqpChannelId) -> Option<bool> {
-    //     Some(self.resource.get(channel_id)?.deliver_ongoing)
-    // }
-    // fn set_deliver_ongoing_state(&self, channel_id: &AmqpChannelId, state: bool) -> Option<bool> {
-    //     let prev = self.get_deliver_ongoing_state(channel_id);
-    //     self.resource.get_mut(channel_id)?.deliver_ongoing = state;
-    //     prev
-    // }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -97,10 +112,10 @@ pub(super) struct ReaderHandler {
     stream: BufReader,
 
     /// sender half to forward outgoing message to `WriterHandler`
-    outgoing_forwarder: Sender<OutgoingMessage>,
+    outgoing_tx: Sender<OutgoingMessage>,
 
     /// receiver half to receive management command from AMQ Connection/Channel
-    mgmt: Receiver<ManagementCommand>,
+    conn_mgmt_rx: Receiver<ConnManagementCommand>,
 
     channel_manager: ChannelManager,
 
@@ -110,194 +125,262 @@ pub(super) struct ReaderHandler {
     /// so socket read will return, and reader handler can detect connection shutdown without separate signal.
     #[allow(dead_code /* notify shutdown just by dropping the instance */)]
     shutdown_notifier: broadcast::Sender<()>,
-    // consumer buffer
+
+    to_shutdown: bool,
 }
 
 impl ReaderHandler {
     pub fn new(
         stream: BufReader,
         forwarder: Sender<OutgoingMessage>,
-        mgmt: Receiver<ManagementCommand>,
+        conn_mgmt_rx: Receiver<ConnManagementCommand>,
         channel_max: ShortUint,
         shutdown_notifier: broadcast::Sender<()>,
     ) -> Self {
         Self {
             stream,
-            outgoing_forwarder: forwarder,
-            mgmt,
+            outgoing_tx: forwarder,
+            conn_mgmt_rx,
             channel_manager: ChannelManager::new(channel_max),
             shutdown_notifier,
+            to_shutdown: false,
         }
     }
 
-    async fn handle_close(&self, _close: &Close) -> Result<(), Error> {
-        self.outgoing_forwarder
+    async fn handle_close(
+        &mut self,
+        channel_id: AmqpChannelId,
+        method_header: &'static MethodHeader,
+        _close: Close,
+    ) -> Result<(), Error> {
+        assert_eq!(CONN_DEFAULT_CHANNEL, channel_id, "must be from channel 0");
+
+        self.to_shutdown = true;
+        self.outgoing_tx
             .send((CONN_DEFAULT_CHANNEL, CloseOk::default().into_frame()))
             .await?;
-
         Ok(())
     }
+
     async fn handle_close_ok(
         &mut self,
         channel_id: AmqpChannelId,
-        frame: Frame,
+        method_header: &'static MethodHeader,
+        close_ok: CloseOk,
     ) -> Result<(), Error> {
+        assert_eq!(CONN_DEFAULT_CHANNEL, channel_id, "must be from channel 0");
+
+        self.to_shutdown = true;
         let responder = self
             .channel_manager
-            .get_responder(&channel_id)
+            .remove_responder(&channel_id, method_header)
             .ok_or_else(|| {
-                Error::InternalChannelError(format!("responder not found for CloseOk"))
+                Error::InternalChannelError(format!(
+                    "No responder to forward frame {:?} to channel {}",
+                    close_ok, channel_id
+                ))
             })?;
-
-        // if receiver half has drop, which means client no longer care about the message,
-        // so always returns OK and ignore SendError
-        // use `try_send` instead of `send` because client may not start receiver
-        // it will return immediately instead of blocking wait
         responder
-            .try_send(IncomingMessage::Ok(frame))
-            .or_else(|_| Ok(()))
+            .send(close_ok.into_frame())
+            .map_err(|response| Error::InternalChannelError(response.to_string()))?;
+        Ok(())
     }
 
     async fn handle_close_channel(
         &mut self,
         channel_id: AmqpChannelId,
-        close_channel: &CloseChannel,
+        method_header: &'static MethodHeader,
+        close_channel: CloseChannel,
     ) -> Result<(), Error> {
-        // first, respond server we have received it
-        self.outgoing_forwarder
+        // first, respond to server that we have received the request
+        self.outgoing_tx
             .send((channel_id, CloseChannelOk::default().into_frame()))
             .await?;
 
-        // TODO: remove consumers
-
-        // remove responder, and forward error indicated by server to client
-        let responder = self
-            .channel_manager
+        // clean up channel resource
+        self.channel_manager
             .remove_resource(&channel_id)
             .ok_or_else(|| {
-                Error::InternalChannelError(format!("responder not found for: {:?}", close_channel))
-            })?
-            .responder;
-
-        // respond as Exception message
-        // use `try_send` instead of `send` because client may not start receiver
-        // it will return immediately instead of blocking wait
-        responder
-            .try_send(IncomingMessage::Exception(
-                close_channel.reply_code,
-                close_channel.reply_text.clone().into(),
-            ))
-            .or_else(|_| Ok(()))
+                Error::InternalChannelError(format!(
+                    "No channel resource found for channel {}",
+                    channel_id
+                ))
+            })?;
+        Ok(())
     }
 
     ///
     async fn handle_close_channel_ok(
         &mut self,
         channel_id: AmqpChannelId,
-        frame: Frame,
+        method_header: &'static MethodHeader,
+        close_channel_ok: CloseChannelOk,
     ) -> Result<(), Error> {
-        // remove responder
         let responder = self
+            .channel_manager
+            .remove_responder(&channel_id, method_header)
+            .ok_or_else(|| {
+                Error::InternalChannelError(format!(
+                    "No responder to forward frame {:?} to channel {}",
+                    close_channel_ok, channel_id
+                ))
+            })?;
+
+        responder
+            .send(close_channel_ok.into_frame())
+            .map_err(|response| Error::InternalChannelError(response.to_string()))?;
+
+        // clean up channel resource
+        let channel_resource = self
             .channel_manager
             .remove_resource(&channel_id)
             .ok_or_else(|| {
                 Error::InternalChannelError(format!(
-                    "responder not found for CloseChannelOk, ignore it"
+                    "No channel resource found for channel {}",
+                    channel_id
                 ))
-            })?
-            .responder;
-        // TODO: remove consumers
+            })?;
 
-        // if receiver half has drop, which means client no longer care about the message,
-        // so always returns OK and ignore SendError
-        // use `try_send` instead of `send` because client may not start receiver
-        // it will return immediately instead of blocking wait
-        responder
-            .try_send(IncomingMessage::Ok(frame))
-            .or_else(|_| Ok(()))
+        Ok(())
     }
 
     /// If OK, user can continue to handle frame
     /// If NOK, user should stop consuming frame
     /// TODO: implement as Iterator, then user do not need to care about the error
     async fn handle_frame(&mut self, channel_id: AmqpChannelId, frame: Frame) -> Result<(), Error> {
-        match &frame {
+        match frame {
             // TODO: handle Blocked and Unblocked from server
             Frame::Blocked(..) => todo!(),
             Frame::Unblocked(..) => todo!(),
 
             // Server request to close connection
-            Frame::Close(_, close) => {
-                assert_eq!(CONN_DEFAULT_CHANNEL, channel_id, "must be from channel 0");
-                self.handle_close(close).await?;
-                // server close connection due to error
-                Err(Error::AMQPError(format!(
-                    "{}: {}, casue: {}:{}",
-                    close.reply_code,
-                    <ShortStr as Into<String>>::into(close.reply_text.clone()),
-                    close.class_id,
-                    close.method_id
-                )))
+            Frame::Close(method_header, close) => {
+                self.handle_close(channel_id, method_header, close).await
             }
             // Close connection response from server
-            Frame::CloseOk(_, _) => {
-                assert_eq!(CONN_DEFAULT_CHANNEL, channel_id, "must be from channel 0");
-                self.handle_close_ok(channel_id, frame).await?;
-                // client close connection ok
-                Err(Error::PeerShutdown)
+            Frame::CloseOk(method_header, close_ok) => {
+                self.handle_close_ok(channel_id, method_header, close_ok)
+                    .await
             }
             // Server request to close channel
-            Frame::CloseChannel(_, close_channel) => {
-                if let Err(err) = self.handle_close_channel(channel_id, close_channel).await {
-                    println!("error when handling CloseChannel {}", err);
-                }
-                Ok(())
+            Frame::CloseChannel(method_header, close_channel) => {
+                self.handle_close_channel(channel_id, method_header, close_channel)
+                    .await
             }
             // Close channel response from server
-            Frame::CloseChannelOk(..) => {
-                if let Err(err) = self.handle_close_channel_ok(channel_id, frame).await {
-                    println!("error when handling CloseChannelOk {}", err);
-                }
-                Ok(())
+            Frame::CloseChannelOk(method_header, close_channel_ok) => {
+                self.handle_close_channel_ok(channel_id, method_header, close_channel_ok)
+                    .await
             }
+
+            // TODO: Handle heartbeat
             Frame::HeartBeat(_) => {
                 println!("heartbeat, to be handled...");
                 Ok(())
             }
-           
 
-            // Deliver, ContentHeader, ContentBody are delivered in sequence by server.
-            // Need to store the deliver frame and expect upcoming content.    
-            Frame::Deliver(_, _) |  Frame::GetOk(_, _) |  Frame::Return(_, _) | Frame::ContentHeader(_) | Frame::ContentBody(_) => {
-                match self.channel_manager.get_dispatcher(&channel_id) {
-                    Some(dispatcher) => {
-                        dispatcher.send(frame).await?;
-                        Ok(())
-                    }
-                    None => {
-                        println!("no dispatcher registered yet, discard : {:?}", frame);
-                        Ok(())
-                    }
+            // Deliver/GetOk/Return, ContentHeader, ContentBody are delivered in sequence by server.
+            Frame::Deliver(_, _)
+            | Frame::GetOk(_, _)
+            | Frame::GetEmpty(_, _)
+            | Frame::Return(_, _)
+            | Frame::ContentHeader(_)
+            | Frame::ContentBody(_) => match self.channel_manager.get_dispatcher(&channel_id) {
+                Some(dispatcher) => {
+                    dispatcher.send(frame).await?;
+                    Ok(())
                 }
-            }
+                None => {
+                    println!(
+                        "No dispatcher registered yet for channel {}, discard frame: {}",
+                        channel_id, frame
+                    );
+                    Ok(())
+                }
+            },
 
-            _ => {
-                // respond to synchronous request
-                match self.channel_manager.get_responder(&channel_id) {
+            // Method frames for synchronous response
+			Frame::StartOk(method_header, _) |
+			Frame::SecureOk(method_header, _) |
+			Frame::TuneOk(method_header, _) |
+			Frame::OpenOk(method_header, _) |
+			Frame::UpdateSecretOk(method_header, _) |
+			Frame::OpenChannelOk(method_header, _) |
+			Frame::FlowOk(method_header, _) |
+			Frame::RequestOk(method_header, _) |
+			Frame::DeclareOk(method_header, _) |
+			Frame::DeleteOk(method_header, _) |
+			Frame::BindOk(method_header, _) |
+			Frame::UnbindOk(method_header, _) |
+			Frame::DeclareQueueOk(method_header, _) |
+			Frame::BindQueueOk(method_header, _) |
+			Frame::PurgeQueueOk(method_header, _) |
+			Frame::DeleteQueueOk(method_header, _) |
+			Frame::UnbindQueueOk(method_header, _) |
+			Frame::QosOk(method_header, _) |
+			Frame::ConsumeOk(method_header, _) |
+			Frame::CancelOk(method_header, _) |
+			Frame::RecoverOk(method_header, _) |
+			Frame::SelectOk(method_header, _) |
+			Frame::SelectTxOk(method_header, _) |
+			Frame::CommitOk(method_header, _) |
+			Frame::RollbackOk(method_header, _) => {
+                // handle synchronous response
+                match self
+                    .channel_manager
+                    .remove_responder(&channel_id, method_header)
+                {
                     Some(responder) => {
-                        // use `try_send` instead of `send` because client may not start receiver
-                        // it will return immediately instead of blocking wait
-                        if let Err(err) = responder.try_send(IncomingMessage::Ok(frame)) {
+                        if let Err(response) = responder.send(frame) {
                             println!(
-                                "error when forwarding the incoming message from channel: {}, cause: {}",
-                                channel_id, err
+                                "Failed to forward response frame {} to channel {}",
+                                response, channel_id
                             );
                         }
                     }
-                    None => println!("no responder to route message {}", frame),
+                    None => println!(
+                        "DEBUG: No responder to forward frame {} to channel {}",
+                        frame, channel_id
+                    ),
                 }
 
                 Ok(())
+            }
+
+            // Method frames of asynchronous request
+            Frame::Start(method_header, _) |
+            Frame::Secure(method_header, _) |
+            Frame::Tune(method_header, _) |
+            Frame::Open(method_header, _) |
+            Frame::UpdateSecret(method_header, _) |
+            Frame::OpenChannel(method_header, _) |
+            Frame::Flow(method_header, _) |
+            Frame::Request(method_header, _) |
+            Frame::Declare(method_header, _) |
+            Frame::Delete(method_header, _) |
+            Frame::Bind(method_header, _) |
+            Frame::Unbind(method_header, _) |
+            Frame::DeclareQueue(method_header, _) |
+            Frame::BindQueue(method_header, _) |
+            Frame::PurgeQueue(method_header, _) |
+            Frame::DeleteQueue(method_header, _) |
+            Frame::UnbindQueue(method_header, _) |
+            Frame::Qos(method_header, _) |
+            Frame::Consume(method_header, _) |
+            Frame::Cancel(method_header, _) |
+            Frame::Publish(method_header, _) |
+            Frame::Get(method_header, _) |
+            Frame::GetEmpty(method_header, _) |
+            Frame::Ack(method_header, _) |
+            Frame::Reject(method_header, _) |
+            Frame::RecoverAsync(method_header, _) |
+            Frame::Recover(method_header, _) |
+            Frame::Nack(method_header, _) |
+            Frame::Select(method_header, _) |
+            Frame::SelectTx(method_header, _) |
+            Frame::Commit(method_header, _) |
+            Frame::Rollback(method_header, _) => {
+                todo!("handle asynchronous request")
             }
         }
     }
@@ -307,11 +390,15 @@ impl ReaderHandler {
             tokio::select! {
                 biased;
 
-                Some(cmd) = self.mgmt.recv() => {
-                    match cmd {
-                        ManagementCommand::RegisterChannelResource(msg) => {
-                            let id = self.channel_manager.insert_resource(msg.channel_id, msg.resource);
-                            msg.acker.send(id).unwrap();
+                Some(command) = self.conn_mgmt_rx.recv() => {
+                    match command {
+                        ConnManagementCommand::RegisterChannelResource(cmd) => {
+                            let id = self.channel_manager.insert_resource(cmd.channel_id, cmd.resource);
+                            cmd.acker.send(id).expect("Acknowledge to command RegisterChannelResource should succeed");
+                        },
+                        ConnManagementCommand::RegisterResponder(cmd) => {
+                            self.channel_manager.insert_responder(&cmd.channel_id, cmd.method_header, cmd.responder);
+                            cmd.acker.send(()).expect("Acknowledge to command RegisterResponder should succeed");
                         },
                     }
                 }
@@ -320,12 +407,16 @@ impl ReaderHandler {
                     match res {
                         Ok((channel_id, frame)) => {
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
-                                println!("shutdown connection, cause: {} ", err);
+                                println!("Failed to handle frame, cause: {} ", err);
+                                break;
+                            }
+                            if self.to_shutdown {
+                                println!("Client has requested to shutdown connection or shutdown requested by server!");
                                 break;
                             }
                         },
                         Err(err) => {
-                            println!("fail to read frame, cause: {}", err);
+                            println!("Failed to read frame, cause: {}", err);
                             break;
                         },
                     }
@@ -339,6 +430,6 @@ impl ReaderHandler {
 
         // `self` will drop, so the `self.shutdown_notifier`
         // all tasks which have `subscribed` to `shutdown_notifier` will be notified
-        println!("shutdown reader handler!");
+        println!("Shutdown ReaderHandler!");
     }
 }

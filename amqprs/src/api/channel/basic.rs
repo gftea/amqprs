@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex}, ops::Deref,
+    ops::Deref,
+    sync::{Arc, Mutex},
 };
 
 use tokio::sync::mpsc;
@@ -11,20 +12,19 @@ use crate::{
         error::Error,
     },
     frame::{
-        Ack, BasicProperties, Cancel, Consume, ContentBody, ContentHeader, ContentHeaderCommon,
-        Deliver, Frame, Get, GetOk, Nack, Publish, Qos, Recover, Reject,
+        Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody, ContentHeader,
+        ContentHeaderCommon, Deliver, Frame, Get, GetOk, Nack, Publish, Qos, QosOk, Recover,
+        RecoverOk, Reject,
     },
     net::IncomingMessage,
 };
 
-use super::{Acker, Channel, Result, ServerSpecificArguments};
-pub(crate) type SharedConsumerQueue =
-    Arc<Mutex<BTreeMap<String, (Box<dyn Consumer + Send>, Option<Acker>)>>>;
+use super::{Channel, Result, ServerSpecificArguments};
 
 const CONSUMER_MESSAGE_BUFFER_SIZE: usize = 32;
 
 #[derive(Debug)]
-struct ConsumerMessage {
+pub(crate) struct ConsumerMessage {
     deliver: Option<Deliver>,
     basic_properties: Option<BasicProperties>,
     content: Option<Vec<u8>>,
@@ -36,9 +36,14 @@ pub(crate) struct RegisterConsumer {
 pub(crate) struct UnregisterConsumer {
     consumer_tag: String,
 }
+
+pub(crate) struct RegisterGetResponder {
+    tx: mpsc::Sender<Frame>,
+}
 pub(crate) enum DispatcherManagementCommand {
     RegisterConsumer(RegisterConsumer),
     UnregisterConsumer(UnregisterConsumer),
+    RegisterGetResponder(RegisterGetResponder),
 }
 #[derive(Debug, Clone)]
 pub struct BasicQosArguments {
@@ -189,13 +194,13 @@ impl BasicPublishArguments {
 
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
-    pub(in crate::api) async fn spawn_dispatcher(&mut self) {
+    /// Dispatcher for content related frames
+    pub(in crate::api) async fn spawn_dispatcher(
+        &self,
+        mut dispatcher_rx: mpsc::Receiver<Frame>,
+        mut dispatcher_mgmt_rx: mpsc::Receiver<DispatcherManagementCommand>,
+    ) {
         let channel_id = self.channel_id;
-        let mut consumers = BTreeMap::new();
-
-        let mut dispatcher_rx = self.dispatcher_rx.take().unwrap();
-        let mut dispatcher_mgmt_rx = self.dispatcher_mgmt_rx.take().unwrap();
-        let incoming_tx = self.incoming_tx.take().unwrap();
 
         tokio::spawn(async move {
             let mut buffer = ConsumerMessage {
@@ -203,14 +208,17 @@ impl Channel {
                 basic_properties: None,
                 content: None,
             };
-
-            // beging state
+            let mut consumers = BTreeMap::new();
+            let mut sync_responder = None;
+            // internal state
             enum State {
                 Deliver,
                 GetOk,
+                GetEmpty,
                 Return,
                 Initial,
             }
+            // initial state
             let mut state = State::Initial;
             loop {
                 tokio::select! {
@@ -220,7 +228,7 @@ impl Channel {
                         match cmd {
                             DispatcherManagementCommand::RegisterConsumer(cmd) => {
                                 // TODO: check insert result
-                                println!("consumer inserted for {}", cmd.consumer_tag);
+                                println!("Consumer: {}, registered!", cmd.consumer_tag);
                                 consumers.insert(cmd.consumer_tag, cmd.consumer_tx);
 
                             },
@@ -229,6 +237,9 @@ impl Channel {
                                 consumers.remove(&cmd.consumer_tag);
 
                             },
+                            DispatcherManagementCommand::RegisterGetResponder(cmd) => {
+                                sync_responder = Some(cmd.tx);
+                            }
                         }
                     }
                     Some(frame) = dispatcher_rx.recv() => {
@@ -237,9 +248,17 @@ impl Channel {
                                 state = State::Return;
                                 println!("returned : {}, {}", method.reply_code, method.reply_text.deref());
                             }
+                            Frame::GetEmpty(_, get_empty) => {
+                                state = State::GetEmpty;
+                                if let Err(err) = sync_responder.take().expect("Get responder must be registered").send(get_empty.into_frame()).await {
+                                    println!("Failed to dispatch GetEmpty frame, cause: {}", err);
+                                }
+                            }
                             Frame::GetOk(_, get_ok) => {
                                 state = State::GetOk;
-                                incoming_tx.send(IncomingMessage::Ok(get_ok.into_frame())).await.unwrap();
+                                if let Err(err) = sync_responder.as_ref().expect("Get responder must be registered").send(get_ok.into_frame()).await {
+                                    println!("Failed to dispatch GetOk frame, cause: {}", err);
+                                }
                             }
                             // server must send "Deliver + Content" in order, otherwise
                             // client cannot know to which consumer tag is the content frame
@@ -250,9 +269,13 @@ impl Channel {
                             Frame::ContentHeader(header) => {
                                 match state {
                                     State::Deliver => buffer.basic_properties = Some(header.basic_properties),
-                                    State::GetOk => incoming_tx.send(IncomingMessage::Ok(header.into_frame())).await.unwrap(),
+                                    State::GetOk => {
+                                        if let Err(err) = sync_responder.as_ref().expect("Get responder must be registered").send(header.into_frame()).await {
+                                            println!("Failed to dispatch GetOk ContentHeader frame, cause: {}", err);
+                                        }
+                                    },
                                     State::Return => todo!("handle Return content"),
-                                    State::Initial => unreachable!(),
+                                    State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state"),
                                 }
 
                             }
@@ -260,9 +283,9 @@ impl Channel {
                                 match state {
                                     State::Deliver => {
                                         buffer.content = Some(body.inner);
-    
+
                                         let consumer_tag = buffer.deliver.as_ref().unwrap().consumer_tag().clone();
-    
+
                                         match consumers.get(&consumer_tag) {
                                             Some(consumer_tx) => {
                                                 let consumer_message  = ConsumerMessage {
@@ -271,26 +294,29 @@ impl Channel {
                                                     content: buffer.content.take(),
                                                 };
                                                 if let Err(_) = consumer_tx.send(consumer_message).await {
-                                                    println!("failed to dispatch message to consumer {}", consumer_tag);
+                                                    println!("Failed to dispatch message to consumer {}", consumer_tag);
                                                 }
                                             },
                                             None => {
-                                                println!("can't find consumer '{}', ignore message", consumer_tag);
+                                                println!("Can't find consumer '{}', ignore message", consumer_tag);
                                             },
                                         };
                                     }
-                                    State::GetOk => incoming_tx.send(IncomingMessage::Ok(body.into_frame())).await.unwrap(),
+                                    State::GetOk => {
+                                        if let Err(err) = sync_responder.take().expect("Get responder must be registered").send(body.into_frame()).await {
+                                            println!("Failed to dispatch GetOk ContentBody frame, cause: {}", err);
+                                        }
+                                    },
                                     State::Return => todo!("handle Return content"),
-                                    State::Initial => unreachable!(),
-                                } 
+                                    State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state"),
+                                }
 
                             }
-                            _ => unreachable!("not acceptable frame for dispatcher: {:?}", frame),
+                            _ => unreachable!("Not acceptable frame for dispatcher: {:?}", frame),
                         }
-
                     }
                     else => {
-                        println!("exit dispatcher of channel {}", channel_id);
+                        println!("Exit dispatcher of channel {}", channel_id);
                         break;
                     }
 
@@ -305,10 +331,12 @@ impl Channel {
             prefetch_count: args.prefetch_count,
             global: args.global,
         };
+        let responder_rx = self.register_responder(QosOk::header()).await?;
+
         let _method = synchronous_request!(
             self.outgoing_tx,
             (self.channel_id, qos.into_frame()),
-            self.incoming_rx,
+            responder_rx,
             Frame::QosOk,
             Error::ChannelUseError
         )?;
@@ -318,8 +346,8 @@ impl Channel {
     /// return consumer tag
     pub async fn basic_consume<F>(
         &mut self,
-        args: BasicConsumeArguments,
         consumer: F,
+        args: BasicConsumeArguments,
     ) -> Result<String>
     where
         // TODO: this is blocking callback, spawn blocking task in connection manager
@@ -358,28 +386,24 @@ impl Channel {
                 .await?;
             consumer_tag
         } else {
+            let responder_rx = self.register_responder(ConsumeOk::header()).await?;
+
             let method = synchronous_request!(
                 self.outgoing_tx,
                 (self.channel_id, consume.into_frame()),
-                self.incoming_rx,
+                responder_rx,
                 Frame::ConsumeOk,
                 Error::ChannelUseError
             )?;
             method.consumer_tag.into()
         };
 
-        self.spawn_consumer(no_ack, consumer_tag.clone(), consumer)
-            .await?;
+        self.spawn_consumer(consumer_tag.clone(), consumer).await?;
 
         Ok(consumer_tag)
     }
 
-    async fn spawn_consumer<F>(
-        &self,
-        no_ack: bool,
-        consumer_tag: String,
-        mut consumer: F,
-    ) -> Result<()>
+    async fn spawn_consumer<F>(&self, consumer_tag: String, mut consumer: F) -> Result<()>
     where
         F: Consumer + Send + 'static,
     {
@@ -388,16 +412,16 @@ impl Channel {
             mpsc::Receiver<ConsumerMessage>,
         ) = mpsc::channel(CONSUMER_MESSAGE_BUFFER_SIZE);
 
-        let acker = if no_ack { None } else { Some(self.new_acker()) };
         let ctag = consumer_tag.clone();
+        let channel = self.clone();
+        // spawn consumer task
         tokio::spawn(async move {
-            // let acker = acker.as_ref();
             loop {
                 match consumer_rx.recv().await {
                     Some(mut msg) => {
                         consumer
                             .consume(
-                                acker.as_ref(),
+                                &channel,
                                 msg.deliver.take().unwrap(),
                                 msg.basic_properties.take().unwrap(),
                                 msg.content.take().unwrap(),
@@ -405,7 +429,7 @@ impl Channel {
                             .await;
                     }
                     None => {
-                        println!("exit consumer: {}", ctag);
+                        println!("Exit consumer: {}", ctag);
                         break;
                     }
                 }
@@ -419,14 +443,43 @@ impl Channel {
                 },
             ))
             .await?;
+        println!("RegisterConsumer command is sent!");
         Ok(())
     }
 
-    pub fn new_acker(&self) -> Acker {
-        Acker {
-            tx: self.outgoing_tx.clone(),
-            channel_id: self.channel_id,
-        }
+    pub async fn basic_ack(&self, args: BasicAckArguments) -> Result<()> {
+        let ack = Ack {
+            delivery_tag: args.delivery_tag,
+            mutiple: args.multiple,
+        };
+        self.outgoing_tx
+            .send((self.channel_id, ack.into_frame()))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn basic_nack(&self, args: BasicNackArguments) -> Result<()> {
+        let mut nack = Nack {
+            delivery_tag: args.delivery_tag,
+            bits: 0,
+        };
+        nack.set_multiple(args.multiple);
+        nack.set_requeue(args.requeue);
+        self.outgoing_tx
+            .send((self.channel_id, nack.into_frame()))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn basic_reject(&self, args: BasicRejectArguments) -> Result<()> {
+        let reject = Reject {
+            delivery_tag: args.delivery_tag,
+            requeue: args.requeue,
+        };
+        self.outgoing_tx
+            .send((self.channel_id, reject.into_frame()))
+            .await?;
+        Ok(())
     }
 
     pub async fn basic_cancel(&mut self, args: BasicCancelArguments) -> Result<String> {
@@ -444,10 +497,12 @@ impl Channel {
                 .await?;
             consumer_tag
         } else {
+            let responder_rx = self.register_responder(CancelOk::header()).await?;
+
             let method = synchronous_request!(
                 self.outgoing_tx,
                 (self.channel_id, cancel.into_frame()),
-                self.incoming_rx,
+                responder_rx,
                 Frame::CancelOk,
                 Error::ChannelUseError
             )?;
@@ -464,64 +519,36 @@ impl Channel {
             queue: args.queue.try_into().unwrap(),
             no_ack: args.no_ack,
         };
+
+        let (tx, mut rx) = mpsc::channel(3);
+        let command = RegisterGetResponder { tx };
+        self.dispatcher_mgmt_tx
+            .send(DispatcherManagementCommand::RegisterGetResponder(command))
+            .await?;
+
         self.outgoing_tx
             .send((self.channel_id, get.into_frame()))
             .await?;
-        let get_ok = match self
-            .incoming_rx
-            .recv()
-            .await
-            .ok_or_else(|| Error::InternalChannelError("receive error".to_string()))?
-        {
-            IncomingMessage::Ok(frame) => match frame {
-                Frame::GetEmpty(_, _) => {
-                    return Ok(None);
-                }
-                Frame::GetOk(_, get_ok) => get_ok,
-                _ => unreachable!("expect GetEmpty or GetOk"),
-            },
-            IncomingMessage::Exception(error_code, error_msg) => {
-                return Err(Error::ChannelUseError(format!(
-                    "{}: {}",
-                    error_code, error_msg
-                )));
-            }
+        let get_ok = match rx.recv().await.ok_or_else(|| {
+            Error::InternalChannelError("Failed to receive response to Get".to_string())
+        })? {
+            Frame::GetEmpty(_, _) => return Ok(None),
+            Frame::GetOk(_, get_ok) => get_ok,
+            _ => unreachable!("expect GetOk or GetEmpty"),
         };
 
-        let basic_properties = match self
-            .incoming_rx
-            .recv()
-            .await
-            .ok_or_else(|| Error::InternalChannelError("receive error".to_string()))?
-        {
-            IncomingMessage::Ok(frame) => match frame {
-                Frame::ContentHeader(header) => header.basic_properties,
-                _ => unreachable!("expect ContentHeader"),
-            },
-            IncomingMessage::Exception(error_code, error_msg) => {
-                return Err(Error::ChannelUseError(format!(
-                    "{}: {}",
-                    error_code, error_msg
-                )));
-            }
+        let basic_properties = match rx.recv().await.ok_or_else(|| {
+            Error::InternalChannelError("Failed to receive Get ContentHeader".to_string())
+        })? {
+            Frame::ContentHeader(header) => header.basic_properties,
+            _ => unreachable!("expect ContentHeader"),
         };
 
-        let content = match self
-            .incoming_rx
-            .recv()
-            .await
-            .ok_or_else(|| Error::InternalChannelError("receive error".to_string()))?
-        {
-            IncomingMessage::Ok(frame) => match frame {
-                Frame::ContentBody(content) => content.inner,
-                _ => unreachable!("expect ContentBody"),
-            },
-            IncomingMessage::Exception(error_code, error_msg) => {
-                return Err(Error::ChannelUseError(format!(
-                    "{}: {}",
-                    error_code, error_msg
-                )));
-            }
+        let content = match rx.recv().await.ok_or_else(|| {
+            Error::InternalChannelError("Failed to receive Get ContentBody".to_string())
+        })? {
+            Frame::ContentBody(content) => content.inner,
+            _ => unreachable!("expect ContentBody"),
         };
         Ok(Some(GetMessage {
             get_ok,
@@ -534,10 +561,12 @@ impl Channel {
     pub async fn basic_recover(&mut self, requeue: bool) -> Result<()> {
         let recover = Recover { requeue };
 
+        let responder_rx = self.register_responder(RecoverOk::header()).await?;
+
         let _method = synchronous_request!(
             self.outgoing_tx,
             (self.channel_id, recover.into_frame()),
-            self.incoming_rx,
+            responder_rx,
             Frame::RecoverOk,
             Error::ChannelUseError
         )?;
@@ -547,9 +576,9 @@ impl Channel {
     /// TODO: add return call back
     pub async fn basic_publish(
         &self,
-        args: BasicPublishArguments,
         basic_properties: BasicProperties,
         content: Vec<u8>,
+        args: BasicPublishArguments,
     ) -> Result<()> {
         let mut publish = Publish {
             ticket: 0,
@@ -580,35 +609,6 @@ impl Channel {
         self.outgoing_tx
             .send((self.channel_id, content.into_frame()))
             .await?;
-        Ok(())
-    }
-}
-
-impl Acker {
-    pub async fn basic_ack(&self, args: BasicAckArguments) -> Result<()> {
-        let ack = Ack {
-            delivery_tag: args.delivery_tag,
-            mutiple: args.multiple,
-        };
-        self.tx.send((self.channel_id, ack.into_frame())).await?;
-        Ok(())
-    }
-    pub async fn basic_nack(&self, args: BasicNackArguments) -> Result<()> {
-        let mut nack = Nack {
-            delivery_tag: args.delivery_tag,
-            bits: 0,
-        };
-        nack.set_multiple(args.multiple);
-        nack.set_requeue(args.requeue);
-        self.tx.send((self.channel_id, nack.into_frame())).await?;
-        Ok(())
-    }
-    pub async fn basic_reject(&self, args: BasicRejectArguments) -> Result<()> {
-        let reject = Reject {
-            delivery_tag: args.delivery_tag,
-            requeue: args.requeue,
-        };
-        self.tx.send((self.channel_id, reject.into_frame())).await?;
         Ok(())
     }
 }
@@ -647,7 +647,10 @@ mod tests {
             args.queue = "amqprs".to_string();
             args.consumer_tag = "tester".to_string();
             args.no_ack = true;
-            channel.basic_consume(args, DefaultConsumer).await.unwrap();
+            channel
+                .basic_consume(DefaultConsumer::new(args.no_ack), args)
+                .await
+                .unwrap();
             time::sleep(time::Duration::from_secs(15)).await;
         }
         time::sleep(time::Duration::from_secs(1)).await;
@@ -671,7 +674,10 @@ mod tests {
             let mut args = BasicConsumeArguments::new();
             args.queue = "amqprs".to_string();
             args.consumer_tag = "tester".to_string();
-            channel.basic_consume(args, DefaultConsumer).await.unwrap();
+            channel
+                .basic_consume(DefaultConsumer::new(args.no_ack), args)
+                .await
+                .unwrap();
             time::sleep(time::Duration::from_secs(15)).await;
         }
         time::sleep(time::Duration::from_secs(1)).await;
@@ -682,7 +688,7 @@ mod tests {
         {
             let client = Connection::open("localhost:5672").await.unwrap();
 
-            let mut channel = client.open_channel().await.unwrap();
+            let channel = client.open_channel().await.unwrap();
 
             let mut args = BasicPublishArguments::new();
             args.exchange = "amq.topic".to_string();
@@ -714,7 +720,7 @@ mod tests {
             ).into_bytes();
 
             channel
-                .basic_publish(args, basic_properties, content)
+                .basic_publish(basic_properties, content, args)
                 .await
                 .unwrap();
             time::sleep(time::Duration::from_secs(1)).await;

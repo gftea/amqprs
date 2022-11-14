@@ -9,7 +9,6 @@ use tokio::time;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_publish() {
-
     // open a connection to RabbitMQ server
     let connection = Connection::open("localhost:5672").await.unwrap();
 
@@ -23,10 +22,10 @@ async fn test_publish() {
     let mut args = ExchangeDeclareArguments::new(exchange_name, exchange_type);
     // set to passive mode - checking existence of the exchange
     args.passive = true;
-    // declare exchange 
+    // declare exchange
     channel.exchange_declare(args).await.unwrap();
 
-    // contents to publish 
+    // contents to publish
     let content = String::from(
         r#"
             {
@@ -35,20 +34,19 @@ async fn test_publish() {
                 "links": [{"type": "BASE", "target": "fa321ff0-faa6-474e-aa1d-45edf8c99896"}]}
         "#
         ).into_bytes();
-    
+
     // create arguments for basic_publish
     let mut args = BasicPublishArguments::new();
-    // set target exchange name 
+    // set target exchange name
     args.exchange = exchange_name.to_string();
     args.routing_key = "eiffel.a.b.c.d".to_string();
     // basic publish
     channel
-        .basic_publish(args, BasicProperties::default(), content)
+        .basic_publish(BasicProperties::default(), content, args)
         .await
         .unwrap();
-    
+
     // keep the `channel` and `connection` object from dropping until publish is done
     // NOTE: channel/connection will be closed when drop
     time::sleep(time::Duration::from_secs(1)).await;
-    
 }

@@ -1,6 +1,6 @@
 use crate::{
     api::error::Error,
-    frame::{Bind, Declare, Delete, Frame, Unbind},
+    frame::{Bind, Declare, Delete, Frame, Unbind, UnbindOk, BindOk, DeleteOk, DeclareOk},
 };
 
 use super::{Channel, Result, ServerSpecificArguments};
@@ -136,10 +136,12 @@ impl Channel {
                 .await?;
             Ok(())
         } else {
+            let responder_rx = self.register_responder(DeclareOk::header()).await?;
+
             let _method = synchronous_request!(
                 self.outgoing_tx,
                 (self.channel_id, declare.into_frame()),
-                self.incoming_rx,
+                responder_rx,
                 Frame::DeclareOk,
                 Error::ChannelUseError
             )?;
@@ -161,10 +163,12 @@ impl Channel {
                 .await?;
             Ok(())
         } else {
+            let responder_rx = self.register_responder(DeleteOk::header()).await?;
+
             let _method = synchronous_request!(
                 self.outgoing_tx,
                 (self.channel_id, delete.into_frame()),
-                self.incoming_rx,
+                responder_rx,
                 Frame::DeleteOk,
                 Error::ChannelUseError
             )?;
@@ -187,10 +191,12 @@ impl Channel {
                 .await?;
             Ok(())
         } else {
+            let responder_rx = self.register_responder(BindOk::header()).await?;
+
             synchronous_request!(
                 self.outgoing_tx,
                 (self.channel_id, bind.into_frame()),
-                self.incoming_rx,
+                responder_rx,
                 Frame::BindOk,
                 Error::ChannelUseError
             )?;
@@ -213,10 +219,12 @@ impl Channel {
                 .await?;
             Ok(())
         } else {
+            let responder_rx = self.register_responder(UnbindOk::header()).await?;
+
             synchronous_request!(
                 self.outgoing_tx,
                 (self.channel_id, unbind.into_frame()),
-                self.incoming_rx,
+                responder_rx,
                 Frame::UnbindOk,
                 Error::ChannelUseError
             )?;

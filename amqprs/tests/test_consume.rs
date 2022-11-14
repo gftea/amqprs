@@ -1,8 +1,13 @@
-use amqprs::{api::{
-    channel::{BasicConsumeArguments, QueueBindArguments, QueueDeclareArguments, BasicPublishArguments},
-    connection::Connection,
-    consumer::DefaultConsumer,
-}, BasicProperties};
+use amqprs::{
+    api::{
+        channel::{
+            BasicConsumeArguments, BasicPublishArguments, QueueBindArguments, QueueDeclareArguments,
+        },
+        connection::Connection,
+        consumer::DefaultConsumer,
+    },
+    BasicProperties,
+};
 use tokio::time;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -23,7 +28,11 @@ async fn test_consume() {
 
     // bind the queue to exchange
     channel
-        .queue_bind(QueueBindArguments::new(queue_name, exchange_name, "eiffel.#"))
+        .queue_bind(QueueBindArguments::new(
+            queue_name,
+            exchange_name,
+            "eiffel.#",
+        ))
         .await
         .unwrap();
 
@@ -32,28 +41,32 @@ async fn test_consume() {
     args.queue = queue_name.to_string();
     args.consumer_tag = "amqprs-consumer-example".to_string();
 
-    channel.basic_consume(args, DefaultConsumer).await.unwrap();
+    channel
+        .basic_consume(DefaultConsumer::new(args.no_ack), args)
+        .await
+        .unwrap();
 
     // start consumer with generated name by server
     let mut args = BasicConsumeArguments::new();
     args.queue = queue_name.to_string();
-    channel.basic_consume(args, DefaultConsumer).await.unwrap();
-
+    channel
+        .basic_consume(DefaultConsumer::new(args.no_ack), args)
+        .await
+        .unwrap();
 
     // recover unacknowledged messages
-    // Edge case: 
+    // Edge case:
     //  When basic_consume start, we immediately got unacknowledge messages redelivered from servers
-    //  before ACK for a message with delivery_tag = 'A' is received by server, meanwhile server receive basic_recover, it will 
+    //  before ACK for a message with delivery_tag = 'A' is received by server, meanwhile server receive basic_recover, it will
     //  redeliver the message with different delivery_tag = 'B' and forget about tag 'A',
     //  then once the ACK with delivery_tag = 'A' is received by server later, server will report channel exception.
-    // 
+    //
     // Workaround: wait for all redelivered messages are handled
     time::sleep(time::Duration::from_secs(1)).await;
 
     channel.basic_recover(true).await.unwrap();
 
-
-    // contents to publish 
+    // contents to publish
     let content = String::from(
         r#"
             {
@@ -63,16 +76,16 @@ async fn test_consume() {
             }
         "#
         ).into_bytes();
-    
+
     // create arguments for basic_publish
     let mut args = BasicPublishArguments::new();
-    // set target exchange name 
+    // set target exchange name
     args.exchange = exchange_name.to_string();
     args.routing_key = "eiffel.a.b.c.d".to_string();
 
     for _ in 0..3 {
         channel
-            .basic_publish(args.clone(), BasicProperties::default(), content.clone())
+            .basic_publish( BasicProperties::default(), content.clone(), args.clone(),)
             .await
             .unwrap();
     }
@@ -93,5 +106,4 @@ async fn test_consume() {
         connection.close().await.unwrap();
     }
     time::sleep(time::Duration::from_secs(1)).await;
-
 }

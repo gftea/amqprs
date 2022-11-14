@@ -20,7 +20,7 @@ pub use exchange::*;
 pub use queue::*;
 pub use tx::*;
 //////////////////////////////////////////////////////////
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct MethodHeader {
     class_id: ShortUint,
     method_id: ShortUint,

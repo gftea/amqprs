@@ -1,7 +1,7 @@
 use crate::net;
 
 use std::fmt;
-use tokio::sync::mpsc::error::SendError;
+use tokio::sync::{mpsc::error::SendError, oneshot::error::RecvError};
 
 #[derive(Debug)]
 pub enum Error {
@@ -24,6 +24,11 @@ impl From<net::Error> for Error {
 }
 impl<T> From<SendError<T>> for Error {
     fn from(err: SendError<T>) -> Self {
+        Self::InternalChannelError(err.to_string())
+    }
+}
+impl From<RecvError> for Error {
+    fn from(err: RecvError) -> Self {
         Self::InternalChannelError(err.to_string())
     }
 }

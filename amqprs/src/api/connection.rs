@@ -1,22 +1,27 @@
 use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
+    collections::{BTreeMap, HashMap},
+    sync::{mpsc::Receiver, Arc, Mutex},
 };
 
 use amqp_serde::types::AmqpChannelId;
-use tokio::sync::{mpsc, oneshot, broadcast, Notify};
+use tokio::sync::{broadcast, mpsc, oneshot, Notify};
 
-use crate::frame::{
-    Close, Frame, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk, CONN_DEFAULT_CHANNEL,
-};
 use crate::{
-    frame::{Ack, BasicProperties, Deliver},
+    frame::{Ack, BasicProperties, CloseChannelOk, Deliver, OpenChannelOk},
     net::{
-        self, ChannelResource, IncomingMessage, ManagementCommand, OutgoingMessage, SplitConnection,
+        self, ChannelResource, IncomingMessage, ConnManagementCommand, OutgoingMessage,
+        SplitConnection,
     },
 };
+use crate::{
+    frame::{
+        Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk,
+        CONN_DEFAULT_CHANNEL,
+    },
+    net::RegisterResponder,
+};
 
-use super::{error::Error, channel::{Acker, SharedConsumerQueue}};
+use super::error::Error;
 use super::{channel::Channel, consumer::Consumer};
 type Result<T> = std::result::Result<T, Error>;
 
@@ -24,22 +29,23 @@ type Result<T> = std::result::Result<T, Error>;
 
 /////////////////////////////////////////////////////////////////////////////
 pub struct ClientCapabilities {}
+
+#[derive(Debug, Clone)]
 pub struct ServerCapabilities {}
+
+#[derive(Debug, Clone)]
 pub struct Connection {
     capabilities: Option<ServerCapabilities>,
     is_open: bool,
     outgoing_tx: mpsc::Sender<OutgoingMessage>,
-    incoming_rx: mpsc::Receiver<IncomingMessage>,
-    mgmt_tx: mpsc::Sender<ManagementCommand>,
+    conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
 }
 //  TODO: move below constants gto be part of static configuration of connection
 const DISPATCHER_FRAME_BUFFER_SIZE: usize = 256;
-const DISPATCHER_COMMAND_BUFFER_SIZE: usize = 32;
+const DISPATCHER_COMMAND_BUFFER_SIZE: usize = 128;
 
-const INCOMING_RESPONSE_BUFFER_SIZE: usize = 32;
-
-const OUTGOING_MESSAGE_CHANNEL_BUFFER_SIZE: usize = 128;
-const MANAGEMENT_CHANNEL_BUFFER_SIZE: usize = 32;
+const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 256;
+const NET_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 128;
 /// AMQP Connection API
 ///
 impl Connection {
@@ -97,50 +103,71 @@ impl Connection {
         )?;
 
         // spawn network management tasks and get internal channel' sender half.
-        let (outgoing_tx, outgoing_rx) = mpsc::channel(OUTGOING_MESSAGE_CHANNEL_BUFFER_SIZE);
-        let (mgmt_tx, mgmt_rx) = mpsc::channel(MANAGEMENT_CHANNEL_BUFFER_SIZE);
+        let (outgoing_tx, outgoing_rx) = mpsc::channel(OUTGOING_MESSAGE_BUFFER_SIZE);
+        let (conn_mgmt_tx, conn_mgmt_rx) = mpsc::channel(NET_MANAGEMENT_COMMAND_BUFFER_SIZE);
 
         net::spawn_handlers(
             connection,
             channel_max,
             outgoing_tx.clone(),
             outgoing_rx,
-            mgmt_tx.clone(),
-            mgmt_rx,
+            conn_mgmt_tx.clone(),
+            conn_mgmt_rx,
         )
         .await;
 
-        let (responder, incoming_rx) = mpsc::channel(INCOMING_RESPONSE_BUFFER_SIZE);
-
+        // register channel resource for connection's default channel
         net::register_channel_resource(
-            &mgmt_tx,
+            &conn_mgmt_tx,
             Some(CONN_DEFAULT_CHANNEL),
             ChannelResource {
-                // deliver_ongoing: false,
-                responder,
+                responders: HashMap::new(),
                 dispatcher: None,
             },
         )
         .await
         .ok_or_else(|| {
-            Error::ConnectionOpenError("register channel resource failure".to_string())
+            Error::ConnectionOpenError("Failed to register channel resource".to_string())
         })?;
 
         Ok(Self {
             capabilities: None,
             is_open: true,
             outgoing_tx,
-            incoming_rx,
-            mgmt_tx,
+            conn_mgmt_tx,
         })
     }
 
+    async fn register_responder(
+        &self,
+        channel_id: AmqpChannelId,
+        method_header: &'static MethodHeader,
+    ) -> Result<oneshot::Receiver<Frame>> {
+        let (responder, responder_rx) = oneshot::channel();
+        let (acker, acker_rx) = oneshot::channel();
+        let cmd = RegisterResponder {
+            channel_id,
+            method_header,
+            responder,
+            acker,
+        };
+        self.conn_mgmt_tx
+            .send(ConnManagementCommand::RegisterResponder(cmd))
+            .await?;
+        acker_rx.await?;
+        Ok(responder_rx)
+    }
     /// close and consume the AMQ connection
     pub async fn close(mut self) -> Result<()> {
+        let responder_rx = self
+            .register_responder(CONN_DEFAULT_CHANNEL, CloseOk::header())
+            .await?;
+
+        let close = Close::default();
         synchronous_request!(
             self.outgoing_tx,
-            (CONN_DEFAULT_CHANNEL, Close::default().into_frame()),
-            self.incoming_rx,
+            (CONN_DEFAULT_CHANNEL, close.into_frame()),
+            responder_rx,
             Frame::CloseOk,
             Error::ConnectionCloseError
         )?;
@@ -150,64 +177,59 @@ impl Connection {
 
     /// open a AMQ channel
     pub async fn open_channel(&self) -> Result<Channel> {
-        let (incoming_tx, incoming_rx) = mpsc::channel(INCOMING_RESPONSE_BUFFER_SIZE);
         let (dispatcher_tx, dispatcher_rx) = mpsc::channel(DISPATCHER_FRAME_BUFFER_SIZE);
-        let (dispatcher_mgmt_tx, dispatcher_mgmt_rx) = mpsc::channel(DISPATCHER_COMMAND_BUFFER_SIZE);
+        let (dispatcher_mgmt_tx, dispatcher_mgmt_rx) =
+            mpsc::channel(DISPATCHER_COMMAND_BUFFER_SIZE);
 
         let channel_id = net::register_channel_resource(
-            &self.mgmt_tx,
+            &self.conn_mgmt_tx,
             None,
             ChannelResource {
-                // deliver_ongoing: false,
-                responder: incoming_tx.clone(),
+                responders: HashMap::new(),
                 dispatcher: Some(dispatcher_tx),
             },
         )
         .await
         .ok_or_else(|| {
-            Error::ConnectionOpenError("register channel resource failure".to_string())
+            Error::ChannelOpenError("Failed to register channel resource".to_string())
         })?;
 
-        let consumer_queue: SharedConsumerQueue = Arc::new(Mutex::new(BTreeMap::new()));
-        let park_notify = Arc::new(Notify::new());
-        let unpark_notify = Arc::new(Notify::new());
-
-        let mut channel = Channel {
-            is_open: false,
-            channel_id,
-            outgoing_tx: self.outgoing_tx.clone(),
-            incoming_rx,
-            incoming_tx: Some(incoming_tx),
-            mgmt_tx: self.mgmt_tx.clone(),
-            dispatcher_rx: Some(dispatcher_rx),
-            dispatcher_mgmt_tx,
-            dispatcher_mgmt_rx: Some(dispatcher_mgmt_rx),
-        };
+        let responder_rx = self
+            .register_responder(channel_id, OpenChannelOk::header())
+            .await?;
         synchronous_request!(
-            channel.outgoing_tx,
-            (channel.channel_id, OpenChannel::default().into_frame()),
-            channel.incoming_rx,
+            self.outgoing_tx,
+            (channel_id, OpenChannel::default().into_frame()),
+            responder_rx,
             Frame::OpenChannelOk,
             Error::ChannelOpenError
         )?;
-        channel.is_open = true;
-        channel.spawn_dispatcher().await;
+
+        let channel = Channel {
+            is_open: true,
+            channel_id,
+            outgoing_tx: self.outgoing_tx.clone(),
+            conn_mgmt_tx: self.conn_mgmt_tx.clone(),
+            dispatcher_mgmt_tx,
+        };
+
+        channel
+            .spawn_dispatcher(dispatcher_rx, dispatcher_mgmt_rx)
+            .await;
 
         Ok(channel)
     }
-
-
-
 }
 
 impl Drop for Connection {
     fn drop(&mut self) {
         if self.is_open {
-            let tx = self.outgoing_tx.clone();
-            let _handle = tokio::spawn(async move {
-                tx.send((CONN_DEFAULT_CHANNEL, Close::default().into_frame()))
-                    .await
-                    .unwrap();
+            self.is_open = false;
+            let conn = self.clone();
+            tokio::spawn(async move {
+                if let Err(err) = conn.close().await {
+                    panic!("failed to close connection when drop, cause: {}", err);
+                }
             });
         }
     }
@@ -219,7 +241,7 @@ mod tests {
     use tokio::time;
 
     #[tokio::test]
-    async fn test_channel_open_use_close() {
+    async fn test_channel_open_close() {
         {
             // test close on drop
             let client = Connection::open("localhost:5672").await.unwrap();
@@ -227,39 +249,21 @@ mod tests {
             {
                 // test close on drop
                 let _channel = client.open_channel().await.unwrap();
-                // channel.close().await.unwrap();
             }
             time::sleep(time::Duration::from_millis(10)).await;
-            // client.close().await.unwrap();
         }
         // wait for finished, otherwise runtime exit before all tasks are done
         time::sleep(time::Duration::from_millis(100)).await;
     }
 
     #[tokio::test]
-    async fn test_multi_channel_open_close() {
-        let client = Connection::open("localhost:5672").await.unwrap();
-
-        let mut handles = vec![];
-
-        for _ in 0..10 {
-            let _ch = client.open_channel().await.unwrap();
-            handles.push(tokio::spawn(async move {
-                time::sleep(time::Duration::from_secs(1)).await;
-            }));
-        }
-        for h in handles {
-            h.await.unwrap();
-        }
-    }
-
-    #[tokio::test]
     async fn test_multi_conn_open_close() {
         let mut handles = vec![];
-        for i in 0..10 {
+        for _ in 0..10 {
             let handle = tokio::spawn(async move {
+                time::sleep(time::Duration::from_millis(200)).await;
                 let client = Connection::open("localhost:5672").await.unwrap();
-                time::sleep(time::Duration::from_millis((i % 3) * 50 + 100)).await;
+                time::sleep(time::Duration::from_millis(200)).await;
                 client.close().await.unwrap();
             });
             handles.push(handle);
@@ -267,5 +271,27 @@ mod tests {
         for h in handles {
             h.await.unwrap();
         }
+    }
+
+    #[tokio::test]
+    async fn test_multi_channel_open_close() {
+        {
+            let client = Connection::open("localhost:5672").await.unwrap();
+            let mut handles = vec![];
+
+            for _ in 0..10 {
+                let ch = client.open_channel().await.unwrap();
+                let handle = tokio::spawn(async move {
+                    let ch = ch;
+                    time::sleep(time::Duration::from_millis(100)).await;
+                });
+                handles.push(handle);
+            }
+            for h in handles {
+                h.await.unwrap();
+            }
+            time::sleep(time::Duration::from_millis(100)).await;
+        }
+        time::sleep(time::Duration::from_millis(100)).await;
     }
 }

@@ -9,31 +9,36 @@ use crate::{
     net::OutgoingMessage,
 };
 
-use super::channel::{Acker, BasicAckArguments};
+use super::channel::{BasicAckArguments, Channel};
 
 #[async_trait]
 pub trait Consumer {
     // fn is_auto_ack(&self) -> bool;
     async fn consume(
         &mut self,
-        acker: Option<&Acker>,
+        channel: &Channel,
         deliver: Deliver,
         basic_properties: BasicProperties,
         content: Vec<u8>,
     );
 }
 
-pub struct DefaultConsumer;
+pub struct DefaultConsumer {
+    no_ack: bool,
+}
+
+impl DefaultConsumer {
+    pub fn new(no_ack: bool) -> Self {
+        Self { no_ack }
+    }
+}
 
 #[async_trait]
 impl Consumer for DefaultConsumer {
-    // fn is_auto_ack(&self) -> bool {
-    //     false
-    // }
-
+    
     async fn consume(
         &mut self,
-        acker: Option<&Acker>,
+        channel: &Channel,
         deliver: Deliver,
         basic_properties: BasicProperties,
         content: Vec<u8>,
@@ -44,11 +49,11 @@ impl Consumer for DefaultConsumer {
         println!("{}", from_utf8(&content).unwrap());
         println!(">>>>> Consumer End <<<<<<");
 
-        // none if auto ack
-        if let Some(acker) = acker {
+        // ack explicitly if no_ack = false
+        if !self.no_ack {
             let mut args = BasicAckArguments::new();
             args.delivery_tag = deliver.delivery_tag();
-            acker.basic_ack(args).await.unwrap();
+            channel.basic_ack(args).await.unwrap();
         }
     }
 }

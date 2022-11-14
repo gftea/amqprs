@@ -1,52 +1,71 @@
 //! API implementation of AMQP Channel
 //!
 
+use std::collections::BTreeMap;
+
 use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     api::error::Error,
-    frame::{CloseChannel, Flow, Frame},
-    net::{IncomingMessage, ManagementCommand, OutgoingMessage},
+    frame::{CloseChannel, CloseChannelOk, Flow, FlowOk, Frame, MethodHeader},
+    net::{IncomingMessage, ConnManagementCommand, OutgoingMessage, RegisterResponder},
 };
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub struct Acker {
-    tx: mpsc::Sender<OutgoingMessage>,
-    channel_id: AmqpChannelId,
-}
+// pub struct Acker {
+//     tx: mpsc::Sender<OutgoingMessage>,
+//     channel_id: AmqpChannelId,
+// }
 
 /// Represent an AMQP Channel.
 ///
 /// To create a AMQP channel, use [`Connection::channel` method][`channel`]
 ///
 /// [`channel`]: crate::api::connection::Connection::channel
+#[derive(Debug, Clone)]
 pub struct Channel {
     pub(in crate::api) is_open: bool,
     pub(in crate::api) channel_id: AmqpChannelId,
     pub(in crate::api) outgoing_tx: mpsc::Sender<OutgoingMessage>,
-    pub(in crate::api) incoming_tx: Option<mpsc::Sender<IncomingMessage>>,
-    pub(in crate::api) incoming_rx: mpsc::Receiver<IncomingMessage>,
+    // pub(in crate::api) incoming_tx: Option<mpsc::Sender<IncomingMessage>>,
+    // pub(in crate::api) incoming_rx: mpsc::Receiver<IncomingMessage>,
+    pub(in crate::api) conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
 
-    pub(in crate::api) mgmt_tx: mpsc::Sender<ManagementCommand>,
-
-    pub(in crate::api) dispatcher_rx: Option<mpsc::Receiver<Frame>>,
-
+    // pub(in crate::api) dispatcher_rx: Option<mpsc::Receiver<Frame>>,
     pub(in crate::api) dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
-    pub(in crate::api) dispatcher_mgmt_rx: Option<mpsc::Receiver<DispatcherManagementCommand>>,
-
-
+    // pub(in crate::api) dispatcher_mgmt_rx: Option<mpsc::Receiver<DispatcherManagementCommand>>,
 }
 
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
+    async fn register_responder(
+        &self,
+        method_header: &'static MethodHeader,
+    ) -> Result<oneshot::Receiver<Frame>> {
+        let (responder, responder_rx) = oneshot::channel();
+        let (acker, acker_rx) = oneshot::channel();
+        let cmd = RegisterResponder {
+            channel_id: self.channel_id,
+            method_header,
+            responder,
+            acker,
+        };
+        self.conn_mgmt_tx
+            .send(ConnManagementCommand::RegisterResponder(cmd))
+            .await?;
+        acker_rx.await?;
+        Ok(responder_rx)
+    }
+
     ///
     pub async fn flow(&mut self, active: bool) -> Result<()> {
+        let responder_rx = self.register_responder(FlowOk::header()).await?;
         synchronous_request!(
             self.outgoing_tx,
             (self.channel_id, Flow { active }.into_frame()),
-            self.incoming_rx,
+            responder_rx,
             Frame::FlowOk,
             Error::ChannelUseError
         )?;
@@ -54,29 +73,35 @@ impl Channel {
     }
 
     /// User must close the channel to avoid channel leak
-    pub async fn close(mut self) -> Result<()> {
+    pub async fn close(&mut self) -> Result<()> {
+        let responder_rx = self.register_responder(CloseChannelOk::header()).await?;
         synchronous_request!(
             self.outgoing_tx,
             (self.channel_id, CloseChannel::default().into_frame()),
-            self.incoming_rx,
+            responder_rx,
             Frame::CloseChannelOk,
             Error::ChannelCloseError
         )?;
         self.is_open = false;
         Ok(())
     }
+
+    pub fn is_connection_closed(&self) -> bool {
+        self.conn_mgmt_tx.is_closed()
+    }
 }
 
 impl Drop for Channel {
     fn drop(&mut self) {
         if self.is_open {
-            let tx = self.outgoing_tx.clone();
-            let channel_id = self.channel_id;
-            // When a Channel drop, it should notify server to close it to avoid channel leak.
+            self.is_open = false;
+            let mut channel = self.clone();
             tokio::spawn(async move {
-                tx.send((channel_id, CloseChannel::default().into_frame()))
-                    .await
-                    .expect("CloseChannel when drop to avoid leak of channel");
+                if let Err(err) = channel.close().await {
+                    if !channel.is_connection_closed() {
+                        panic!("failed to close channel when drop, cause: {}", err);
+                    }
+                }
             });
         }
     }
@@ -145,4 +170,3 @@ mod queue;
 pub use basic::*;
 pub use exchange::*;
 pub use queue::*;
-

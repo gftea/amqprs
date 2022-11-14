@@ -1,5 +1,5 @@
 use super::{Channel, Result, ServerSpecificArguments};
-use crate::frame::{BindQueue, DeleteQueue, PurgeQueue, UnbindQueue};
+use crate::frame::{BindQueue, DeclareQueueOk, DeleteQueue, PurgeQueue, UnbindQueue, BindQueueOk, PurgeQueueOk, DeleteQueueOk, UnbindQueueOk};
 use crate::{
     api::error::Error,
     frame::{DeclareQueue, Frame},
@@ -124,16 +124,19 @@ impl Channel {
                 .await?;
             Ok(())
         } else {
+            let responder_rx = self.register_responder(DeclareQueueOk::header()).await?;
             synchronous_request!(
                 self.outgoing_tx,
                 (self.channel_id, declare.into_frame()),
-                self.incoming_rx,
+                responder_rx,
                 Frame::DeclareQueueOk,
                 Error::ChannelUseError
             )?;
             Ok(())
         }
     }
+
+
     pub async fn queue_bind(&mut self, args: QueueBindArguments) -> Result<()> {
         let bind = BindQueue {
             ticket: 0,
@@ -150,16 +153,20 @@ impl Channel {
                 .await?;
             Ok(())
         } else {
+            let responder_rx = self.register_responder(BindQueueOk::header()).await?;
+
             synchronous_request!(
                 self.outgoing_tx,
                 (self.channel_id, bind.into_frame()),
-                self.incoming_rx,
+                responder_rx,
                 Frame::BindQueueOk,
                 Error::ChannelUseError
             )?;
             Ok(())
         }
     }
+
+    
     pub async fn queue_purge(&mut self, args: QueuePurgeArguments) -> Result<()> {
         let purge = PurgeQueue {
             ticket: 0,
@@ -173,16 +180,19 @@ impl Channel {
                 .await?;
             Ok(())
         } else {
+            let responder_rx = self.register_responder(PurgeQueueOk::header()).await?;
+
             synchronous_request!(
                 self.outgoing_tx,
                 (self.channel_id, purge.into_frame()),
-                self.incoming_rx,
+                responder_rx,
                 Frame::PurgeQueueOk,
                 Error::ChannelUseError
             )?;
             Ok(())
         }
     }
+
 
     pub async fn queue_delete(&mut self, args: QueueDeleteArguments) -> Result<()> {
         let mut delete = DeleteQueue {
@@ -199,16 +209,20 @@ impl Channel {
                 .await?;
             Ok(())
         } else {
+            let responder_rx = self.register_responder(DeleteQueueOk::header()).await?;
+
             synchronous_request!(
                 self.outgoing_tx,
                 (self.channel_id, delete.into_frame()),
-                self.incoming_rx,
+                responder_rx,
                 Frame::DeleteQueueOk,
                 Error::ChannelUseError
             )?;
             Ok(())
         }
     }
+
+
     pub async fn queue_unbind(&mut self, args: QueueUnbindArguments) -> Result<()> {
         let unbind = UnbindQueue {
             ticket: 0,
@@ -218,10 +232,12 @@ impl Channel {
             arguments: args.arguments.into_field_table(),
         };
 
+        let responder_rx = self.register_responder(UnbindQueueOk::header()).await?;
+
         synchronous_request!(
             self.outgoing_tx,
             (self.channel_id, unbind.into_frame()),
-            self.incoming_rx,
+            responder_rx,
             Frame::UnbindQueueOk,
             Error::ChannelUseError
         )?;

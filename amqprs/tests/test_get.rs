@@ -1,12 +1,18 @@
-use amqprs::{api::{
-    channel::{BasicConsumeArguments, QueueBindArguments, QueueDeclareArguments, BasicPublishArguments, BasicGetArguments},
-    connection::Connection,
-    consumer::DefaultConsumer,
-}, BasicProperties};
+use amqprs::{
+    api::{
+        channel::{
+            BasicConsumeArguments, BasicGetArguments, BasicPublishArguments, QueueBindArguments,
+            QueueDeclareArguments,
+        },
+        connection::Connection,
+        consumer::DefaultConsumer,
+    },
+    BasicProperties,
+};
 use tokio::time;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_consume() {
+async fn test_get() {
     // open a connection to RabbitMQ server
     let connection = Connection::open("localhost:5672").await.unwrap();
 
@@ -23,7 +29,11 @@ async fn test_consume() {
 
     // bind the queue to exchange
     channel
-        .queue_bind(QueueBindArguments::new(queue_name, exchange_name, "eiffel.#"))
+        .queue_bind(QueueBindArguments::new(
+            queue_name,
+            exchange_name,
+            "eiffel.#",
+        ))
         .await
         .unwrap();
 
@@ -36,7 +46,7 @@ async fn test_consume() {
         panic!("expect return empty message");
     }
 
-    // contents to publish 
+    // contents to publish
     let content = String::from(
         r#"
             {
@@ -46,29 +56,28 @@ async fn test_consume() {
             }
         "#
         ).into_bytes();
-    
+
     // create arguments for basic_publish
     let mut args = BasicPublishArguments::new();
-    // set target exchange name 
+    // set target exchange name
     args.exchange = exchange_name.to_string();
     args.routing_key = "eiffel.a.b.c.d".to_string();
 
     for _ in 0..3 {
         channel
-            .basic_publish(args.clone(), BasicProperties::default(), content.clone())
+            .basic_publish(BasicProperties::default(), content.clone(), args.clone())
             .await
             .unwrap();
     }
-    
+
     // get single message
     let get_message = channel.basic_get(get_args.clone()).await.unwrap();
     match get_message {
         Some(msg) => {
             println!("Get a message: {:?}", msg);
-        },
+        }
         None => panic!("expect get a message"),
     }
-
 
     // TODO: move to separate test case, below is for test only
     if true {
@@ -81,5 +90,4 @@ async fn test_consume() {
         connection.close().await.unwrap();
     }
     time::sleep(time::Duration::from_secs(1)).await;
-
 }

@@ -1,47 +1,47 @@
-use tokio::sync::{broadcast, mpsc::Receiver};
+use tokio::sync::{broadcast, mpsc};
 
-use super::{BufWriter, OutgoingMessage};
+use super::{BufWriter, OutgoingMessage, ConnManagementCommand};
 
 pub(super) struct WriterHandler {
     stream: BufWriter,
     /// receiver half to forward outgoing messages from AMQ connection/channel to server
-    forwarder: Receiver<OutgoingMessage>,
+    outgoing_rx: mpsc::Receiver<OutgoingMessage>,
     /// listener of shutdown signal
-    shutdown_listener: broadcast::Receiver<()>,
+    shutdown: broadcast::Receiver<()>,
 }
 
 impl WriterHandler {
     pub fn new(
         stream: BufWriter,
-        forwarder: Receiver<OutgoingMessage>,
+        outgoing_rx: mpsc::Receiver<OutgoingMessage>,
         shutdown: broadcast::Receiver<()>,
     ) -> Self {
         Self {
             stream,
-            forwarder,
-            shutdown_listener: shutdown,
+            outgoing_rx,
+            shutdown,
         }
     }
 
     pub async fn run_until_shutdown(mut self) {
         loop {
             tokio::select! {
-                _ = self.shutdown_listener.recv() => {
-                    println!("received shutdown notification");
+                _ = self.shutdown.recv() => {
+                    println!("WriterHandler received shutdown notification");
                     break;
                 }
-                Some((channel_id, frame)) = self.forwarder.recv() => {
-                    if let Err(_) = self.stream.write_frame(channel_id, frame).await {
+                Some((channel_id, frame)) = self.outgoing_rx.recv() => {
+                    if let Err(err) = self.stream.write_frame(channel_id, frame).await {
+                        println!("Failed to send frame over network, cause: {}", err);
                         break;
                     }
-
                 }
                 else => {
                     break;
                 }
             }
         }
-        // TODO: send Close method to server?
-        println!("shutdown writer handler!");
+        // FIXME: should here send Close method to server?
+        println!("Shutdown WriterHandler!");
     }
 }

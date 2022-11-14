@@ -4,21 +4,11 @@ mod helpers {
 
     macro_rules! synchronous_request {
         ($tx:expr, $msg:expr, $rx:expr, $response:path, $err:path) => {{
-            $tx.send($msg).await.map_err(|_err| {
-                crate::api::error::Error::InternalChannelError("send error".to_string())
-            })?;
-            match $rx
-                .recv()
-                .await
-                .ok_or_else(|| Error::InternalChannelError("receive error".to_string()))?
+            $tx.send($msg).await?;
+            match $rx.await?
             {
-                crate::net::IncomingMessage::Ok(frame) => match frame {
-                    $response(_, method) => Ok(method),
-                    unexpected => Err($err(unexpected.to_string())),
-                },
-                crate::net::IncomingMessage::Exception(error_code, error_msg) => {
-                    Err($err(format!("{}: {}", error_code, error_msg)))
-                }
+                $response(_, method) => Ok(method),
+                unexpected => Err($err(unexpected.to_string())),
             }
         }};
     }

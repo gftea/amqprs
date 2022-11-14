@@ -5,36 +5,43 @@ mod reader_handler;
 mod split_connection;
 mod writer_handler;
 
+use std::collections::HashMap;
+
 pub(crate) use connection_manager::*;
 pub(crate) use error::*;
 pub(crate) use split_connection::*;
 
 /////////////////////////////////////////////////////////////////////////////
-use crate::frame::Frame;
+use crate::frame::{Frame, MethodHeader};
 use amqp_serde::types::{AmqpChannelId, AmqpReplyCode};
 use tokio::sync::{mpsc::Sender, oneshot};
 
 pub type OutgoingMessage = (AmqpChannelId, Frame);
 
-// TODO: move definition to receiver side, a.k.a API layer
-#[derive(Debug)]
-pub(crate) enum IncomingMessage {
-    Ok(Frame),
-    Exception(AmqpReplyCode, String),
-}
+pub(crate) type IncomingMessage = Frame;
 
 pub(crate) struct ChannelResource {
-    // pub deliver_ongoing: bool,
-    pub responder: Sender<IncomingMessage>,
+    /// responder to acknowledge synchronous request
+    pub responders: HashMap<&'static MethodHeader, oneshot::Sender<Frame>>,
     /// connection's default channel does not have dispatcher
     pub dispatcher: Option<Sender<Frame>>,
 }
 pub(crate) struct RegisterChannelResource {
+    /// If None, `net` handler will allocate a channel id for client 
     pub channel_id: Option<AmqpChannelId>,
+    /// send `None` to client if `net` handler fail to allocate a channel id
     pub acker: oneshot::Sender<Option<AmqpChannelId>>,
     pub resource: ChannelResource,
 }
 
-pub(crate) enum ManagementCommand {
+pub(crate) struct RegisterResponder {
+    pub channel_id: AmqpChannelId,
+    pub method_header: &'static MethodHeader,
+    pub responder: oneshot::Sender<Frame>,
+    pub acker: oneshot::Sender<()>,
+}
+
+pub(crate) enum ConnManagementCommand {
     RegisterChannelResource(RegisterChannelResource),
+    RegisterResponder(RegisterResponder),
 }
