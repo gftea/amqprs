@@ -1,10 +1,9 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap, VecDeque},
     ops::Deref,
-    sync::{Arc, Mutex},
 };
 
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, task::yield_now};
 
 use crate::{
     api::{
@@ -29,6 +28,7 @@ pub(crate) struct ConsumerMessage {
     basic_properties: Option<BasicProperties>,
     content: Option<Vec<u8>>,
 }
+
 pub(crate) struct RegisterConsumer {
     consumer_tag: String,
     consumer_tx: mpsc::Sender<ConsumerMessage>,
@@ -192,6 +192,63 @@ impl BasicPublishArguments {
     }
 }
 
+struct ConsumerResource {
+    fifo: VecDeque<ConsumerMessage>,
+    tx: Option<mpsc::Sender<ConsumerMessage>>,
+}
+
+impl ConsumerResource {
+    fn new() -> Self {
+        Self {
+            fifo: VecDeque::new(),
+            tx: None,
+        }
+    }
+    fn register_tx(
+        &mut self,
+        tx: mpsc::Sender<ConsumerMessage>,
+    ) -> Option<mpsc::Sender<ConsumerMessage>> {
+        self.tx.replace(tx)
+    }
+    fn unregister_tx(&mut self) -> Option<mpsc::Sender<ConsumerMessage>> {
+        self.tx.take()
+    }
+
+    fn get_tx(&self) -> Option<&mpsc::Sender<ConsumerMessage>> {
+        self.tx.as_ref()
+    }
+
+    fn push(&mut self, message: ConsumerMessage) {
+        self.fifo.push_back(message);
+    }
+    fn pop(&mut self) -> Option<ConsumerMessage> {
+        self.fifo.pop_front()
+    }
+}
+struct ConsumersResourcePool {
+    inner: HashMap<String, ConsumerResource>,
+}
+
+impl ConsumersResourcePool {
+    fn new() -> Self {
+        Self {
+            inner: HashMap::new(),
+        }
+    }
+    fn get_or_new_consumer(&mut self, consumer_tag: &String) -> &mut ConsumerResource {
+        if !self.inner.contains_key(consumer_tag) {          
+            let resource = ConsumerResource::new();
+            self.inner.insert(consumer_tag.clone(), resource);
+        }
+        self.inner.get_mut(consumer_tag).unwrap()
+
+    }
+
+    fn remove_consumer(&mut self, consumer_tag: &String) -> Option<ConsumerResource> {
+        self.inner.remove(consumer_tag)
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
     /// Dispatcher for content related frames
@@ -208,33 +265,46 @@ impl Channel {
                 basic_properties: None,
                 content: None,
             };
-            let mut consumers = BTreeMap::new();
+            let mut consumers = ConsumersResourcePool::new();
             let mut sync_responder = None;
             // internal state
             enum State {
+                Initial,
                 Deliver,
                 GetOk,
                 GetEmpty,
                 Return,
-                Initial,
             }
             // initial state
             let mut state = State::Initial;
+            println!("Dispatcher of channel {} starts!", channel_id);
+
             loop {
                 tokio::select! {
                     biased;
 
-                    Some(cmd) = dispatcher_mgmt_rx.recv() => {
+                    command = dispatcher_mgmt_rx.recv() => {
+                        let cmd = match command {
+                            None => break,
+                            Some(v) => v,
+                        };
                         match cmd {
                             DispatcherManagementCommand::RegisterConsumer(cmd) => {
                                 // TODO: check insert result
-                                println!("Consumer: {}, registered!", cmd.consumer_tag);
-                                consumers.insert(cmd.consumer_tag, cmd.consumer_tx);
+                                println!("Consumer: {}, tx registered!", cmd.consumer_tag);
+                                let consumer = consumers.get_or_new_consumer(&cmd.consumer_tag);
+                                consumer.register_tx(cmd.consumer_tx);
+                                // forward buffered messages
+                                while !consumer.fifo.is_empty() {
+                                    println!("Total buffered messages: {}", consumer.fifo.len());
+                                    let msg = consumer.pop().unwrap();
+                                    consumer.get_tx().unwrap().send(msg).await.unwrap();
+                                }
 
                             },
                             DispatcherManagementCommand::UnregisterConsumer(cmd) => {
                                 // TODO: check remove result
-                                consumers.remove(&cmd.consumer_tag);
+                                consumers.remove_consumer(&cmd.consumer_tag);
 
                             },
                             DispatcherManagementCommand::RegisterGetResponder(cmd) => {
@@ -242,7 +312,11 @@ impl Channel {
                             }
                         }
                     }
-                    Some(frame) = dispatcher_rx.recv() => {
+                    frame = dispatcher_rx.recv() => {
+                        let frame = match frame {
+                            None => break,
+                            Some(v) => v,
+                        };
                         match frame {
                             Frame::Return(_, method) => {
                                 state = State::Return;
@@ -263,6 +337,7 @@ impl Channel {
                             // server must send "Deliver + Content" in order, otherwise
                             // client cannot know to which consumer tag is the content frame
                             Frame::Deliver(_, deliver) => {
+
                                 state = State::Deliver;
                                 buffer.deliver = Some(deliver);
                             }
@@ -285,20 +360,24 @@ impl Channel {
                                         buffer.content = Some(body.inner);
 
                                         let consumer_tag = buffer.deliver.as_ref().unwrap().consumer_tag().clone();
-
-                                        match consumers.get(&consumer_tag) {
+                                        let consumer_message  = ConsumerMessage {
+                                            deliver: buffer.deliver.take(),
+                                            basic_properties: buffer.basic_properties.take(),
+                                            content: buffer.content.take(),
+                                        };
+                                        let consumer = consumers.get_or_new_consumer(&consumer_tag);
+                                        match consumer.get_tx() {
                                             Some(consumer_tx) => {
-                                                let consumer_message  = ConsumerMessage {
-                                                    deliver: buffer.deliver.take(),
-                                                    basic_properties: buffer.basic_properties.take(),
-                                                    content: buffer.content.take(),
-                                                };
                                                 if let Err(_) = consumer_tx.send(consumer_message).await {
                                                     println!("Failed to dispatch message to consumer {}", consumer_tag);
                                                 }
                                             },
                                             None => {
-                                                println!("Can't find consumer '{}', ignore message", consumer_tag);
+                                                println!("Can't find consumer '{}', buffering message", consumer_tag);
+                                                consumer.push(consumer_message);
+                                                // FIXME: try to yield for registering consumer
+                                                //      not sure if it is necessary
+                                                yield_now().await;
                                             },
                                         };
                                     }
@@ -316,12 +395,13 @@ impl Channel {
                         }
                     }
                     else => {
-                        println!("Exit dispatcher of channel {}", channel_id);
                         break;
                     }
 
                 }
             }
+            println!("Exit dispatcher of channel {}", channel_id);
+
         });
     }
 
@@ -416,6 +496,8 @@ impl Channel {
         let channel = self.clone();
         // spawn consumer task
         tokio::spawn(async move {
+            println!("Consumer task starts for {} on channel {}!", ctag, channel.channel_id);
+
             loop {
                 match consumer_rx.recv().await {
                     Some(mut msg) => {
@@ -653,6 +735,8 @@ mod tests {
                 .unwrap();
             time::sleep(time::Duration::from_secs(15)).await;
         }
+
+        println!("connection and channel are dropped");
         time::sleep(time::Duration::from_secs(1)).await;
     }
 
@@ -680,7 +764,11 @@ mod tests {
                 .unwrap();
             time::sleep(time::Duration::from_secs(15)).await;
         }
+
+        println!("connection and channel are dropped");
         time::sleep(time::Duration::from_secs(1)).await;
+        
+
     }
 
     #[tokio::test]
@@ -725,6 +813,8 @@ mod tests {
                 .unwrap();
             time::sleep(time::Duration::from_secs(1)).await;
         }
+
+        println!("connection and channel are dropped");
         time::sleep(time::Duration::from_secs(1)).await;
     }
 }

@@ -1,7 +1,7 @@
 use amqprs::{
     api::{
         channel::{
-            BasicConsumeArguments, BasicPublishArguments, QueueBindArguments, QueueDeclareArguments,
+            BasicConsumeArguments, BasicPublishArguments, QueueBindArguments, QueueDeclareArguments, Channel,
         },
         connection::Connection,
         consumer::DefaultConsumer,
@@ -66,6 +66,29 @@ async fn test_consume() {
 
     channel.basic_recover(true).await.unwrap();
 
+    publish_test_messages(&channel, exchange_name).await;
+
+    // keep the `channel` and `connection` object from dropping
+    // NOTE: channel/connection will be closed when drop
+    time::sleep(time::Duration::from_secs(10)).await;
+
+    // TODO: move to separate test case, below is for test only
+    if true {
+        // implicitly close by drop
+        drop(channel);
+        drop(connection);
+    } else {
+        // explicitly close
+        channel.close().await.unwrap();
+        connection.close().await.unwrap();
+    }
+
+    println!("connection and channel are dropped or closed");
+    time::sleep(time::Duration::from_secs(1)).await;
+}
+
+
+async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
     // contents to publish
     let content = String::from(
         r#"
@@ -89,21 +112,4 @@ async fn test_consume() {
             .await
             .unwrap();
     }
-    // basic publish
-
-    // keep the `channel` and `connection` object from dropping
-    // NOTE: channel/connection will be closed when drop
-    time::sleep(time::Duration::from_secs(10)).await;
-
-    // TODO: move to separate test case, below is for test only
-    if true {
-        // implicitly close by drop
-        drop(channel);
-        drop(connection);
-    } else {
-        // explicitly close
-        channel.close().await.unwrap();
-        connection.close().await.unwrap();
-    }
-    time::sleep(time::Duration::from_secs(1)).await;
 }

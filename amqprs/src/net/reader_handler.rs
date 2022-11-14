@@ -132,14 +132,14 @@ pub(super) struct ReaderHandler {
 impl ReaderHandler {
     pub fn new(
         stream: BufReader,
-        forwarder: Sender<OutgoingMessage>,
+        outgoing_tx: Sender<OutgoingMessage>,
         conn_mgmt_rx: Receiver<ConnManagementCommand>,
         channel_max: ShortUint,
         shutdown_notifier: broadcast::Sender<()>,
     ) -> Self {
         Self {
             stream,
-            outgoing_tx: forwarder,
+            outgoing_tx,
             conn_mgmt_rx,
             channel_manager: ChannelManager::new(channel_max),
             shutdown_notifier,
@@ -231,7 +231,7 @@ impl ReaderHandler {
             .map_err(|response| Error::InternalChannelError(response.to_string()))?;
 
         // clean up channel resource
-        let channel_resource = self
+        self
             .channel_manager
             .remove_resource(&channel_id)
             .ok_or_else(|| {
@@ -370,7 +370,6 @@ impl ReaderHandler {
             Frame::Cancel(method_header, _) |
             Frame::Publish(method_header, _) |
             Frame::Get(method_header, _) |
-            Frame::GetEmpty(method_header, _) |
             Frame::Ack(method_header, _) |
             Frame::Reject(method_header, _) |
             Frame::RecoverAsync(method_header, _) |
@@ -390,7 +389,11 @@ impl ReaderHandler {
             tokio::select! {
                 biased;
 
-                Some(command) = self.conn_mgmt_rx.recv() => {
+                command = self.conn_mgmt_rx.recv() => {
+                    let command = match command {
+                        None => break,
+                        Some(v) => v,
+                    };
                     match command {
                         ConnManagementCommand::RegisterChannelResource(cmd) => {
                             let id = self.channel_manager.insert_resource(cmd.channel_id, cmd.resource);
