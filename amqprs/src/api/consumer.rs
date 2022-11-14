@@ -1,12 +1,11 @@
 use std::str::from_utf8;
 
-use amqp_serde::types::AmqpChannelId;
+
 use async_trait::async_trait;
-use tokio::sync::mpsc::Sender;
+
 
 use crate::{
-    frame::{Ack, BasicProperties, Deliver},
-    net::OutgoingMessage,
+    frame::{BasicProperties, Deliver},
 };
 
 use super::channel::{BasicAckArguments, Channel};

@@ -1,15 +1,14 @@
 use std::{
-    collections::{BTreeMap, HashMap},
-    sync::{mpsc::Receiver, Arc, Mutex},
+    collections::{HashMap},
 };
 
 use amqp_serde::types::AmqpChannelId;
-use tokio::sync::{broadcast, mpsc, oneshot, Notify};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    frame::{Ack, BasicProperties, CloseChannelOk, Deliver, OpenChannelOk},
+    frame::{OpenChannelOk},
     net::{
-        self, ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage,
+        self, ChannelResource, ConnManagementCommand, OutgoingMessage,
         SplitConnection,
     },
 };
@@ -22,7 +21,7 @@ use crate::{
 };
 
 use super::error::Error;
-use super::{channel::Channel, consumer::Consumer};
+use super::{channel::Channel};
 type Result<T> = std::result::Result<T, Error>;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -282,7 +281,7 @@ mod tests {
             for _ in 0..10 {
                 let ch = client.open_channel().await.unwrap();
                 let handle = tokio::spawn(async move {
-                    let ch = ch;
+                    let _ch = ch;
                     time::sleep(time::Duration::from_millis(100)).await;
                 });
                 handles.push(handle);

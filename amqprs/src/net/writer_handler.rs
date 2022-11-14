@@ -1,6 +1,6 @@
 use tokio::sync::{broadcast, mpsc};
 
-use super::{BufWriter, ConnManagementCommand, OutgoingMessage};
+use super::{BufWriter, OutgoingMessage};
 
 pub(super) struct WriterHandler {
     stream: BufWriter,

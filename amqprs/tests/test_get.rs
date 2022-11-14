@@ -1,11 +1,10 @@
 use amqprs::{
     api::{
         channel::{
-            BasicConsumeArguments, BasicGetArguments, BasicPublishArguments, QueueBindArguments,
+            BasicGetArguments, BasicPublishArguments, QueueBindArguments,
             QueueDeclareArguments,
         },
         connection::Connection,
-        consumer::DefaultConsumer,
     },
     BasicProperties,
 };

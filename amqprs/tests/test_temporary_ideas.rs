@@ -16,7 +16,7 @@ async fn test_callback() {
         None => todo!(),
     }
 
-    let callback2 = |s: &'static str| async move {
+    let _callback2 = |s: &'static str| async move {
         println!("async callback: {}", s);
         println!("async callback: {}", s);
     };
@@ -30,7 +30,7 @@ async fn test_callback() {
     // }
 }
 
-fn send_callback<F>(callback: F)
+fn send_callback<F>(_callback: F)
 where
     F: FnMut() -> (),
 {

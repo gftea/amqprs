@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{HashMap, VecDeque},
     ops::Deref,
 };
 
@@ -7,7 +7,7 @@ use tokio::{sync::mpsc, task::yield_now};
 
 use crate::{
     api::{
-        consumer::{self, Consumer},
+        consumer::{Consumer},
         error::Error,
     },
     frame::{
@@ -15,7 +15,6 @@ use crate::{
         ContentHeaderCommon, Deliver, Frame, Get, GetOk, Nack, Publish, Qos, QosOk, Recover,
         RecoverOk, Reject,
     },
-    net::IncomingMessage,
 };
 
 use super::{Channel, Result, ServerSpecificArguments};

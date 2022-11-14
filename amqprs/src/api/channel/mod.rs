@@ -1,7 +1,7 @@
 //! API implementation of AMQP Channel
 //!
 
-use std::collections::BTreeMap;
+
 
 use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
 use tokio::sync::{mpsc, oneshot};
@@ -9,7 +9,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::{
     api::error::Error,
     frame::{CloseChannel, CloseChannelOk, Flow, FlowOk, Frame, MethodHeader},
-    net::{ConnManagementCommand, IncomingMessage, OutgoingMessage, RegisterResponder},
+    net::{ConnManagementCommand, OutgoingMessage, RegisterResponder},
 };
 
 type Result<T> = std::result::Result<T, Error>;
