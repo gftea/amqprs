@@ -1,18 +1,15 @@
-[![integration-test](https://github.com/gftea/amqprs/actions/workflows/rust.yml/badge.svg)](https://github.com/gftea/amqprs/actions/workflows/rust.yml)
-
-# amqprs
-
-## Design philosophy
-1. API first: easy to use, easy to understand. Keep the API similar as python client library so that it is easier for users to move from there.
-2. Minimum external dependencies: as less exteranl crates as possible
-3. lock free: no mutex/lock in client library itself 
-
-
-## Example: Consume and Publish
-
-[See basic example](amqprs/examples/basic_pub_sub.rs) 
-
-```rust
+use amqprs::{
+    api::{
+        channel::{
+            BasicConsumeArguments, BasicPublishArguments, QueueBindArguments,
+            QueueDeclareArguments,
+        },
+        connection::Connection,
+        consumer::DefaultConsumer,
+    },
+    BasicProperties,
+};
+use tokio::time;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
@@ -78,8 +75,3 @@ async fn main() {
     // NOTE: channel/connection will be closed when drop
     time::sleep(time::Duration::from_secs(10)).await;
 }
-
-```
-
-## Design Architecture
-![Lock-free Design](amqp-chosen_design.drawio.png) 

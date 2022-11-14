@@ -12,7 +12,7 @@ use amqprs::{
 use tokio::time;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_consume() {
+async fn test_multi_consumer() {
     // open a connection to RabbitMQ server
     let connection = Connection::open("localhost:5672").await.unwrap();
 
@@ -67,6 +67,7 @@ async fn test_consume() {
 
     channel.basic_recover(true).await.unwrap();
 
+    // publish messages
     publish_test_messages(&channel, exchange_name).await;
 
     // keep the `channel` and `connection` object from dropping
@@ -88,6 +89,7 @@ async fn test_consume() {
     time::sleep(time::Duration::from_secs(1)).await;
 }
 
+
 async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
     // contents to publish
     let content = String::from(
@@ -106,7 +108,7 @@ async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
     args.exchange = exchange_name.to_string();
     args.routing_key = "eiffel.a.b.c.d".to_string();
 
-    for _ in 0..3 {
+    for _ in 0..10 {
         channel
             .basic_publish(BasicProperties::default(), content.clone(), args.clone())
             .await
