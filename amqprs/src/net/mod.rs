@@ -27,7 +27,7 @@ pub(crate) struct ChannelResource {
     pub dispatcher: Option<Sender<Frame>>,
 }
 pub(crate) struct RegisterChannelResource {
-    /// If None, `net` handler will allocate a channel id for client 
+    /// If None, `net` handler will allocate a channel id for client
     pub channel_id: Option<AmqpChannelId>,
     /// send `None` to client if `net` handler fail to allocate a channel id
     pub acker: oneshot::Sender<Option<AmqpChannelId>>,

@@ -9,7 +9,7 @@ use tokio::sync::{broadcast, mpsc, oneshot, Notify};
 use crate::{
     frame::{Ack, BasicProperties, CloseChannelOk, Deliver, OpenChannelOk},
     net::{
-        self, ChannelResource, IncomingMessage, ConnManagementCommand, OutgoingMessage,
+        self, ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage,
         SplitConnection,
     },
 };

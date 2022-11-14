@@ -5,8 +5,7 @@ mod helpers {
     macro_rules! synchronous_request {
         ($tx:expr, $msg:expr, $rx:expr, $response:path, $err:path) => {{
             $tx.send($msg).await?;
-            match $rx.await?
-            {
+            match $rx.await? {
                 $response(_, method) => Ok(method),
                 unexpected => Err($err(unexpected.to_string())),
             }

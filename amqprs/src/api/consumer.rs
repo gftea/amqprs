@@ -35,7 +35,6 @@ impl DefaultConsumer {
 
 #[async_trait]
 impl Consumer for DefaultConsumer {
-    
     async fn consume(
         &mut self,
         channel: &Channel,

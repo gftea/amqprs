@@ -1,7 +1,8 @@
 use amqprs::{
     api::{
         channel::{
-            BasicConsumeArguments, BasicPublishArguments, QueueBindArguments, QueueDeclareArguments, Channel,
+            BasicConsumeArguments, BasicPublishArguments, Channel, QueueBindArguments,
+            QueueDeclareArguments,
         },
         connection::Connection,
         consumer::DefaultConsumer,
@@ -87,7 +88,6 @@ async fn test_consume() {
     time::sleep(time::Duration::from_secs(1)).await;
 }
 
-
 async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
     // contents to publish
     let content = String::from(
@@ -108,7 +108,7 @@ async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
 
     for _ in 0..3 {
         channel
-            .basic_publish( BasicProperties::default(), content.clone(), args.clone(),)
+            .basic_publish(BasicProperties::default(), content.clone(), args.clone())
             .await
             .unwrap();
     }

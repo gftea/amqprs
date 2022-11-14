@@ -12,8 +12,8 @@ use crate::frame::{
 };
 
 use super::{
-    channel_id_repo::ChannelIdRepository, BufReader, ChannelResource, Error, IncomingMessage,
-    ConnManagementCommand, OutgoingMessage,
+    channel_id_repo::ChannelIdRepository, BufReader, ChannelResource, ConnManagementCommand, Error,
+    IncomingMessage, OutgoingMessage,
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -76,7 +76,6 @@ impl ChannelManager {
         self.resource.remove(channel_id)
     }
 
-
     fn insert_responder(
         &mut self,
         channel_id: &AmqpChannelId,
@@ -88,7 +87,6 @@ impl ChannelManager {
             .responders
             .insert(method_header, responder)
     }
-
 
     fn remove_responder(
         &mut self,
@@ -231,8 +229,7 @@ impl ReaderHandler {
             .map_err(|response| Error::InternalChannelError(response.to_string()))?;
 
         // clean up channel resource
-        self
-            .channel_manager
+        self.channel_manager
             .remove_resource(&channel_id)
             .ok_or_else(|| {
                 Error::InternalChannelError(format!(
@@ -300,31 +297,31 @@ impl ReaderHandler {
             },
 
             // Method frames for synchronous response
-			Frame::StartOk(method_header, _) |
-			Frame::SecureOk(method_header, _) |
-			Frame::TuneOk(method_header, _) |
-			Frame::OpenOk(method_header, _) |
-			Frame::UpdateSecretOk(method_header, _) |
-			Frame::OpenChannelOk(method_header, _) |
-			Frame::FlowOk(method_header, _) |
-			Frame::RequestOk(method_header, _) |
-			Frame::DeclareOk(method_header, _) |
-			Frame::DeleteOk(method_header, _) |
-			Frame::BindOk(method_header, _) |
-			Frame::UnbindOk(method_header, _) |
-			Frame::DeclareQueueOk(method_header, _) |
-			Frame::BindQueueOk(method_header, _) |
-			Frame::PurgeQueueOk(method_header, _) |
-			Frame::DeleteQueueOk(method_header, _) |
-			Frame::UnbindQueueOk(method_header, _) |
-			Frame::QosOk(method_header, _) |
-			Frame::ConsumeOk(method_header, _) |
-			Frame::CancelOk(method_header, _) |
-			Frame::RecoverOk(method_header, _) |
-			Frame::SelectOk(method_header, _) |
-			Frame::SelectTxOk(method_header, _) |
-			Frame::CommitOk(method_header, _) |
-			Frame::RollbackOk(method_header, _) => {
+            Frame::StartOk(method_header, _)
+            | Frame::SecureOk(method_header, _)
+            | Frame::TuneOk(method_header, _)
+            | Frame::OpenOk(method_header, _)
+            | Frame::UpdateSecretOk(method_header, _)
+            | Frame::OpenChannelOk(method_header, _)
+            | Frame::FlowOk(method_header, _)
+            | Frame::RequestOk(method_header, _)
+            | Frame::DeclareOk(method_header, _)
+            | Frame::DeleteOk(method_header, _)
+            | Frame::BindOk(method_header, _)
+            | Frame::UnbindOk(method_header, _)
+            | Frame::DeclareQueueOk(method_header, _)
+            | Frame::BindQueueOk(method_header, _)
+            | Frame::PurgeQueueOk(method_header, _)
+            | Frame::DeleteQueueOk(method_header, _)
+            | Frame::UnbindQueueOk(method_header, _)
+            | Frame::QosOk(method_header, _)
+            | Frame::ConsumeOk(method_header, _)
+            | Frame::CancelOk(method_header, _)
+            | Frame::RecoverOk(method_header, _)
+            | Frame::SelectOk(method_header, _)
+            | Frame::SelectTxOk(method_header, _)
+            | Frame::CommitOk(method_header, _)
+            | Frame::RollbackOk(method_header, _) => {
                 // handle synchronous response
                 match self
                     .channel_manager
@@ -348,37 +345,37 @@ impl ReaderHandler {
             }
 
             // Method frames of asynchronous request
-            Frame::Start(method_header, _) |
-            Frame::Secure(method_header, _) |
-            Frame::Tune(method_header, _) |
-            Frame::Open(method_header, _) |
-            Frame::UpdateSecret(method_header, _) |
-            Frame::OpenChannel(method_header, _) |
-            Frame::Flow(method_header, _) |
-            Frame::Request(method_header, _) |
-            Frame::Declare(method_header, _) |
-            Frame::Delete(method_header, _) |
-            Frame::Bind(method_header, _) |
-            Frame::Unbind(method_header, _) |
-            Frame::DeclareQueue(method_header, _) |
-            Frame::BindQueue(method_header, _) |
-            Frame::PurgeQueue(method_header, _) |
-            Frame::DeleteQueue(method_header, _) |
-            Frame::UnbindQueue(method_header, _) |
-            Frame::Qos(method_header, _) |
-            Frame::Consume(method_header, _) |
-            Frame::Cancel(method_header, _) |
-            Frame::Publish(method_header, _) |
-            Frame::Get(method_header, _) |
-            Frame::Ack(method_header, _) |
-            Frame::Reject(method_header, _) |
-            Frame::RecoverAsync(method_header, _) |
-            Frame::Recover(method_header, _) |
-            Frame::Nack(method_header, _) |
-            Frame::Select(method_header, _) |
-            Frame::SelectTx(method_header, _) |
-            Frame::Commit(method_header, _) |
-            Frame::Rollback(method_header, _) => {
+            Frame::Start(method_header, _)
+            | Frame::Secure(method_header, _)
+            | Frame::Tune(method_header, _)
+            | Frame::Open(method_header, _)
+            | Frame::UpdateSecret(method_header, _)
+            | Frame::OpenChannel(method_header, _)
+            | Frame::Flow(method_header, _)
+            | Frame::Request(method_header, _)
+            | Frame::Declare(method_header, _)
+            | Frame::Delete(method_header, _)
+            | Frame::Bind(method_header, _)
+            | Frame::Unbind(method_header, _)
+            | Frame::DeclareQueue(method_header, _)
+            | Frame::BindQueue(method_header, _)
+            | Frame::PurgeQueue(method_header, _)
+            | Frame::DeleteQueue(method_header, _)
+            | Frame::UnbindQueue(method_header, _)
+            | Frame::Qos(method_header, _)
+            | Frame::Consume(method_header, _)
+            | Frame::Cancel(method_header, _)
+            | Frame::Publish(method_header, _)
+            | Frame::Get(method_header, _)
+            | Frame::Ack(method_header, _)
+            | Frame::Reject(method_header, _)
+            | Frame::RecoverAsync(method_header, _)
+            | Frame::Recover(method_header, _)
+            | Frame::Nack(method_header, _)
+            | Frame::Select(method_header, _)
+            | Frame::SelectTx(method_header, _)
+            | Frame::Commit(method_header, _)
+            | Frame::Rollback(method_header, _) => {
                 todo!("handle asynchronous request")
             }
         }

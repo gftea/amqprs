@@ -1,5 +1,8 @@
 use super::{Channel, Result, ServerSpecificArguments};
-use crate::frame::{BindQueue, DeclareQueueOk, DeleteQueue, PurgeQueue, UnbindQueue, BindQueueOk, PurgeQueueOk, DeleteQueueOk, UnbindQueueOk};
+use crate::frame::{
+    BindQueue, BindQueueOk, DeclareQueueOk, DeleteQueue, DeleteQueueOk, PurgeQueue, PurgeQueueOk,
+    UnbindQueue, UnbindQueueOk,
+};
 use crate::{
     api::error::Error,
     frame::{DeclareQueue, Frame},
@@ -136,7 +139,6 @@ impl Channel {
         }
     }
 
-
     pub async fn queue_bind(&mut self, args: QueueBindArguments) -> Result<()> {
         let bind = BindQueue {
             ticket: 0,
@@ -166,7 +168,6 @@ impl Channel {
         }
     }
 
-    
     pub async fn queue_purge(&mut self, args: QueuePurgeArguments) -> Result<()> {
         let purge = PurgeQueue {
             ticket: 0,
@@ -192,7 +193,6 @@ impl Channel {
             Ok(())
         }
     }
-
 
     pub async fn queue_delete(&mut self, args: QueueDeleteArguments) -> Result<()> {
         let mut delete = DeleteQueue {
@@ -221,7 +221,6 @@ impl Channel {
             Ok(())
         }
     }
-
 
     pub async fn queue_unbind(&mut self, args: QueueUnbindArguments) -> Result<()> {
         let unbind = UnbindQueue {

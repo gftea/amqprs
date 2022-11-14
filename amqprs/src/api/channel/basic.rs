@@ -236,12 +236,11 @@ impl ConsumersResourcePool {
         }
     }
     fn get_or_new_consumer(&mut self, consumer_tag: &String) -> &mut ConsumerResource {
-        if !self.inner.contains_key(consumer_tag) {          
+        if !self.inner.contains_key(consumer_tag) {
             let resource = ConsumerResource::new();
             self.inner.insert(consumer_tag.clone(), resource);
         }
         self.inner.get_mut(consumer_tag).unwrap()
-
     }
 
     fn remove_consumer(&mut self, consumer_tag: &String) -> Option<ConsumerResource> {
@@ -401,7 +400,6 @@ impl Channel {
                 }
             }
             println!("Exit dispatcher of channel {}", channel_id);
-
         });
     }
 
@@ -496,7 +494,10 @@ impl Channel {
         let channel = self.clone();
         // spawn consumer task
         tokio::spawn(async move {
-            println!("Consumer task starts for {} on channel {}!", ctag, channel.channel_id);
+            println!(
+                "Consumer task starts for {} on channel {}!",
+                ctag, channel.channel_id
+            );
 
             loop {
                 match consumer_rx.recv().await {
@@ -767,8 +768,6 @@ mod tests {
 
         println!("connection and channel are dropped");
         time::sleep(time::Duration::from_secs(1)).await;
-        
-
     }
 
     #[tokio::test]

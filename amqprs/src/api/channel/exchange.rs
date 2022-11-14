@@ -1,6 +1,6 @@
 use crate::{
     api::error::Error,
-    frame::{Bind, Declare, Delete, Frame, Unbind, UnbindOk, BindOk, DeleteOk, DeclareOk},
+    frame::{Bind, BindOk, Declare, DeclareOk, Delete, DeleteOk, Frame, Unbind, UnbindOk},
 };
 
 use super::{Channel, Result, ServerSpecificArguments};

@@ -33,8 +33,6 @@ pub struct ContentHeaderCommon {
     pub body_size: LongLongUint,
 }
 
-
-
 #[derive(Debug, Serialize, Default)]
 pub struct BasicProperties {
     // // property flags is included in this type

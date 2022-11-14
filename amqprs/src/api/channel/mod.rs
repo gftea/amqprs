@@ -9,7 +9,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::{
     api::error::Error,
     frame::{CloseChannel, CloseChannelOk, Flow, FlowOk, Frame, MethodHeader},
-    net::{IncomingMessage, ConnManagementCommand, OutgoingMessage, RegisterResponder},
+    net::{ConnManagementCommand, IncomingMessage, OutgoingMessage, RegisterResponder},
 };
 
 type Result<T> = std::result::Result<T, Error>;
