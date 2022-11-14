@@ -2,6 +2,8 @@
 
 # amqprs
 
+Yet another RabbitMQ client implementation in rust with different design goals.
+
 ## Design philosophy
 1. API first: easy to use, easy to understand. Keep the API similar as python client library so that it is easier for users to move from there.
 2. Minimum external dependencies: as less exteranl crates as possible
