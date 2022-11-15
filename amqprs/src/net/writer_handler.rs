@@ -3,7 +3,7 @@ use tracing::{error, info};
 
 use super::{BufWriter, OutgoingMessage};
 
-pub(super) struct WriterHandler {
+pub(crate) struct WriterHandler {
     stream: BufWriter,
     /// receiver half to forward outgoing messages from AMQ connection/channel to server
     outgoing_rx: mpsc::Receiver<OutgoingMessage>,
@@ -27,10 +27,8 @@ impl WriterHandler {
     pub async fn run_until_shutdown(mut self) {
         loop {
             tokio::select! {
-                _ = self.shutdown.recv() => {
-                    info!("WriterHandler received shutdown notification");
-                    break;
-                }
+                biased;
+                
                 channel_frame = self.outgoing_rx.recv() => {
                     let (channel_id, frame) = match channel_frame {
                         None => break,
@@ -40,6 +38,10 @@ impl WriterHandler {
                         error!("Failed to send frame over network, cause: {}", err);
                         break;
                     }
+                }
+                _ = self.shutdown.recv() => {
+                    info!("WriterHandler received shutdown notification");
+                    break;
                 }
                 else => {
                     break;

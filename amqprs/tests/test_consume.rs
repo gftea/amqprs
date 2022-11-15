@@ -10,9 +10,13 @@ use amqprs::{
     BasicProperties,
 };
 use tokio::time;
+use tracing::Level;
+mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_multi_consumer() {
+    common::setup_logging(Level::TRACE);
+
     // open a connection to RabbitMQ server
     let connection = Connection::open("localhost:5672").await.unwrap();
 
@@ -72,7 +76,7 @@ async fn test_multi_consumer() {
 
     // keep the `channel` and `connection` object from dropping
     // NOTE: channel/connection will be closed when drop
-    time::sleep(time::Duration::from_secs(10)).await;
+    time::sleep(time::Duration::from_secs(1)).await;
 
     // TODO: move to separate test case, below is for test only
     if true {

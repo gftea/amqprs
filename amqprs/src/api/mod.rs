@@ -23,7 +23,8 @@ mod helpers {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-pub mod channel;
 pub mod connection;
+pub mod channel;
 pub mod consumer;
+pub mod callbacks;
 pub mod error;

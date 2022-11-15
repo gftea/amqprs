@@ -8,106 +8,19 @@ use tokio::sync::{
 };
 use tracing::{debug, error, info};
 
-use crate::frame::{
+use crate::{frame::{
     Close, CloseChannel, CloseChannelOk, CloseOk, Frame, MethodHeader, CONN_DEFAULT_CHANNEL,
-};
+}, api::{callbacks::ConnectionCallback, connection::Connection}};
 
 use super::{
     channel_id_repo::ChannelIdRepository, BufReader, ChannelResource, ConnManagementCommand, Error,
-    OutgoingMessage, IncomingMessage,
+    OutgoingMessage, IncomingMessage, channel_manager::ChannelManager,
 };
 
-/////////////////////////////////////////////////////////////////////////////
-struct ChannelManager {
-    /// channel id allocator and manager
-    channel_id_repo: ChannelIdRepository,
-
-    /// channel resource registery store
-    resource: BTreeMap<AmqpChannelId, ChannelResource>,
-}
-
-impl ChannelManager {
-    fn new(channel_max: ShortUint) -> Self {
-        Self {
-            channel_id_repo: ChannelIdRepository::new(channel_max),
-            resource: BTreeMap::new(),
-        }
-    }
-    /// Insert channel resource, when open a new channel
-    fn insert_resource(
-        &mut self,
-        channel_id: Option<AmqpChannelId>,
-        resource: ChannelResource,
-    ) -> Option<AmqpChannelId> {
-        let id = match channel_id {
-            // reserve channel id as requested
-            Some(id) => {
-                if self.channel_id_repo.reserve(&id) {
-                    match self.resource.insert(id, resource) {
-                        Some(_old) => unreachable!("Implementation error"),
-                        None => id,
-                    }
-                } else {
-                    // fail to reserve the id
-                    return None;
-                }
-            }
-            // allocate a channel id
-            None => {
-                // allocate id never fail
-                let id = self.channel_id_repo.allocate();
-                match self.resource.insert(id, resource) {
-                    Some(_old) => unreachable!("Implementation error"),
-                    None => id,
-                }
-            }
-        };
-
-        Some(id)
-    }
-
-    /// remove channel resource, when channel to be closed
-    fn remove_resource(&mut self, channel_id: &AmqpChannelId) -> Option<ChannelResource> {
-        assert_eq!(
-            true,
-            self.channel_id_repo.release(channel_id),
-            "Implementation error"
-        );
-        // remove responder means channel is to be  closed
-        self.resource.remove(channel_id)
-    }
-
-    fn insert_responder(
-        &mut self,
-        channel_id: &AmqpChannelId,
-        method_header: &'static MethodHeader,
-        responder: oneshot::Sender<IncomingMessage>,
-    ) -> Option<oneshot::Sender<IncomingMessage>> {
-        self.resource
-            .get_mut(channel_id)?
-            .responders
-            .insert(method_header, responder)
-    }
-
-    fn remove_responder(
-        &mut self,
-        channel_id: &AmqpChannelId,
-        method_header: &'static MethodHeader,
-    ) -> Option<oneshot::Sender<IncomingMessage>> {
-        self.resource
-            .get_mut(channel_id)?
-            .responders
-            .remove(method_header)
-    }
-
-    fn get_dispatcher(&self, channel_id: &AmqpChannelId) -> Option<&Sender<IncomingMessage>> {
-        self.resource.get(channel_id)?.dispatcher.as_ref()
-    }
-}
 
 /////////////////////////////////////////////////////////////////////////////
 
-pub(super) struct ReaderHandler {
+pub(crate) struct ReaderHandler {
     stream: BufReader,
 
     /// sender half to forward outgoing message to `WriterHandler`
@@ -115,6 +28,10 @@ pub(super) struct ReaderHandler {
 
     /// receiver half to receive management command from AMQ Connection/Channel
     conn_mgmt_rx: Receiver<ConnManagementCommand>,
+
+    /// connection level callback
+    amq_conn: Connection,
+    callback: Option<Box<dyn ConnectionCallback + Send>>,
 
     channel_manager: ChannelManager,
 
@@ -125,12 +42,12 @@ pub(super) struct ReaderHandler {
     #[allow(dead_code /* notify shutdown just by dropping the instance */)]
     shutdown_notifier: broadcast::Sender<()>,
 
-    to_shutdown: bool,
 }
 
 impl ReaderHandler {
     pub fn new(
         stream: BufReader,
+        amq_conn: Connection,
         outgoing_tx: Sender<OutgoingMessage>,
         conn_mgmt_rx: Receiver<ConnManagementCommand>,
         channel_max: ShortUint,
@@ -138,11 +55,12 @@ impl ReaderHandler {
     ) -> Self {
         Self {
             stream,
+            amq_conn,
             outgoing_tx,
             conn_mgmt_rx,
+            callback: None,
             channel_manager: ChannelManager::new(channel_max),
             shutdown_notifier,
-            to_shutdown: false,
         }
     }
 
@@ -150,11 +68,17 @@ impl ReaderHandler {
         &mut self,
         channel_id: AmqpChannelId,
         _method_header: &'static MethodHeader,
-        _close: Close,
+        close: Close,
     ) -> Result<(), Error> {
         assert_eq!(CONN_DEFAULT_CHANNEL, channel_id, "must be from channel 0");
 
-        self.to_shutdown = true;
+        self.amq_conn.set_open_state(false);
+
+        if let Some(mut callback) = self.callback.take() {
+            callback.close(&self.amq_conn, close).await.unwrap();
+            self.callback.replace(callback);
+        }
+        // FIXME: now we always respond OK.
         self.outgoing_tx
             .send((CONN_DEFAULT_CHANNEL, CloseOk::default().into_frame()))
             .await?;
@@ -169,7 +93,8 @@ impl ReaderHandler {
     ) -> Result<(), Error> {
         assert_eq!(CONN_DEFAULT_CHANNEL, channel_id, "must be from channel 0");
 
-        self.to_shutdown = true;
+        self.amq_conn.set_open_state(false);
+
         let responder = self
             .channel_manager
             .remove_responder(&channel_id, method_header)
@@ -401,6 +326,9 @@ impl ReaderHandler {
                             self.channel_manager.insert_responder(&cmd.channel_id, cmd.method_header, cmd.responder);
                             cmd.acker.send(()).expect("Acknowledge to command RegisterResponder should succeed");
                         },
+                        ConnManagementCommand::RegisterConnectionCallback(cmd) => {
+                            self.callback.replace(cmd.callback);
+                        }
                     }
                 }
 
@@ -411,7 +339,7 @@ impl ReaderHandler {
                                 error!("Failed to handle frame, cause: {} ", err);
                                 break;
                             }
-                            if self.to_shutdown {
+                            if !self.amq_conn.get_open_state() {
                                 info!("Client has requested to shutdown connection or shutdown requested by server!");
                                 break;
                             }

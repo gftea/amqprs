@@ -1,13 +1,18 @@
 //! API implementation of AMQP Channel
 //!
 
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+
 use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     api::error::Error,
     frame::{CloseChannel, CloseChannelOk, Flow, FlowOk, Frame, MethodHeader},
-    net::{ConnManagementCommand, OutgoingMessage, RegisterResponder, IncomingMessage},
+    net::{ConnManagementCommand, IncomingMessage, OutgoingMessage, RegisterResponder},
 };
 
 type Result<T> = std::result::Result<T, Error>;
@@ -24,17 +29,44 @@ type Result<T> = std::result::Result<T, Error>;
 /// [`channel`]: crate::api::connection::Connection::channel
 #[derive(Debug, Clone)]
 pub struct Channel {
-    pub(in crate::api) is_open: bool,
-    pub(in crate::api) channel_id: AmqpChannelId,
-    pub(in crate::api) outgoing_tx: mpsc::Sender<OutgoingMessage>,
-  
-    pub(in crate::api) conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
+    shared: Arc<SharedChannelInner>,
+}
 
-    pub(in crate::api) dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
+#[derive(Debug)]
+pub(in crate::api) struct SharedChannelInner {
+    is_open: AtomicBool,
+
+    channel_id: AmqpChannelId,
+
+    outgoing_tx: mpsc::Sender<OutgoingMessage>,
+
+    conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
+
+    dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
+}
+
+impl SharedChannelInner {
+    pub(in crate::api) fn new(
+        is_open: AtomicBool,
+        channel_id: AmqpChannelId,
+        outgoing_tx: mpsc::Sender<OutgoingMessage>,
+        conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
+        dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
+    ) -> Self {
+        Self {
+            is_open,
+            channel_id,
+            outgoing_tx,
+            conn_mgmt_tx,
+            dispatcher_mgmt_tx,
+        }
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
+    pub(in crate::api) fn new(shared: Arc<SharedChannelInner>) -> Self { Self { shared } }
+
     async fn register_responder(
         &self,
         method_header: &'static MethodHeader,
@@ -42,12 +74,13 @@ impl Channel {
         let (responder, responder_rx) = oneshot::channel();
         let (acker, acker_rx) = oneshot::channel();
         let cmd = RegisterResponder {
-            channel_id: self.channel_id,
+            channel_id: self.shared.channel_id,
             method_header,
             responder,
             acker,
         };
-        self.conn_mgmt_tx
+        self.shared
+            .conn_mgmt_tx
             .send(ConnManagementCommand::RegisterResponder(cmd))
             .await?;
         acker_rx.await?;
@@ -58,8 +91,8 @@ impl Channel {
     pub async fn flow(&mut self, active: bool) -> Result<()> {
         let responder_rx = self.register_responder(FlowOk::header()).await?;
         synchronous_request!(
-            self.outgoing_tx,
-            (self.channel_id, Flow { active }.into_frame()),
+            self.shared.outgoing_tx,
+            (self.shared.channel_id, Flow { active }.into_frame()),
             responder_rx,
             Frame::FlowOk,
             Error::ChannelUseError
@@ -68,29 +101,29 @@ impl Channel {
     }
 
     /// User must close the channel to avoid channel leak
-    pub async fn close(&mut self) -> Result<()> {
+    pub async fn close(&self) -> Result<()> {
         let responder_rx = self.register_responder(CloseChannelOk::header()).await?;
         synchronous_request!(
-            self.outgoing_tx,
-            (self.channel_id, CloseChannel::default().into_frame()),
+            self.shared.outgoing_tx,
+            (self.shared.channel_id, CloseChannel::default().into_frame()),
             responder_rx,
             Frame::CloseChannelOk,
             Error::ChannelCloseError
         )?;
-        self.is_open = false;
+        self.shared.is_open.store(false, Ordering::Relaxed);
         Ok(())
     }
 
     pub fn is_connection_closed(&self) -> bool {
-        self.conn_mgmt_tx.is_closed()
+        self.shared.conn_mgmt_tx.is_closed()
     }
 }
 
 impl Drop for Channel {
     fn drop(&mut self) {
-        if self.is_open {
-            self.is_open = false;
-            let mut channel = self.clone();
+        if self.shared.is_open.load(Ordering::Relaxed) {
+            self.shared.is_open.store(false, Ordering::Relaxed);
+            let channel = self.clone();
             tokio::spawn(async move {
                 if let Err(err) = channel.close().await {
                     if !channel.is_connection_closed() {

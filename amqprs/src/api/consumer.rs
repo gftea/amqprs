@@ -1,4 +1,4 @@
-use std::str::from_utf8;
+use std::{str::from_utf8, sync::Arc};
 
 use async_trait::async_trait;
 use tracing::info;
@@ -8,10 +8,9 @@ use crate::frame::{BasicProperties, Deliver};
 use super::channel::{BasicAckArguments, Channel};
 
 #[async_trait]
-pub trait Consumer {
-    // fn is_auto_ack(&self) -> bool;
+pub trait AsyncConsumer {
     async fn consume(
-        &mut self,
+        &mut self,  // use `&mut self` to make trait object to be `Sync`
         channel: &Channel,
         deliver: Deliver,
         basic_properties: BasicProperties,
@@ -30,7 +29,7 @@ impl DefaultConsumer {
 }
 
 #[async_trait]
-impl Consumer for DefaultConsumer {
+impl AsyncConsumer for DefaultConsumer {
     async fn consume(
         &mut self,
         channel: &Channel,

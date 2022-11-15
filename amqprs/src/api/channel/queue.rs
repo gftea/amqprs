@@ -122,15 +122,15 @@ impl Channel {
         declare.set_auto_delete(args.auto_delete);
         declare.set_no_wait(args.no_wait);
         if args.no_wait {
-            self.outgoing_tx
-                .send((self.channel_id, declare.into_frame()))
+            self.shared.outgoing_tx
+                .send((self.shared.channel_id, declare.into_frame()))
                 .await?;
             Ok(())
         } else {
             let responder_rx = self.register_responder(DeclareQueueOk::header()).await?;
             synchronous_request!(
-                self.outgoing_tx,
-                (self.channel_id, declare.into_frame()),
+                self.shared.outgoing_tx,
+                (self.shared.channel_id, declare.into_frame()),
                 responder_rx,
                 Frame::DeclareQueueOk,
                 Error::ChannelUseError
@@ -150,16 +150,16 @@ impl Channel {
         };
 
         if args.no_wait {
-            self.outgoing_tx
-                .send((self.channel_id, bind.into_frame()))
+            self.shared.outgoing_tx
+                .send((self.shared.channel_id, bind.into_frame()))
                 .await?;
             Ok(())
         } else {
             let responder_rx = self.register_responder(BindQueueOk::header()).await?;
 
             synchronous_request!(
-                self.outgoing_tx,
-                (self.channel_id, bind.into_frame()),
+                self.shared.outgoing_tx,
+                (self.shared.channel_id, bind.into_frame()),
                 responder_rx,
                 Frame::BindQueueOk,
                 Error::ChannelUseError
@@ -176,16 +176,16 @@ impl Channel {
         };
 
         if args.no_wait {
-            self.outgoing_tx
-                .send((self.channel_id, purge.into_frame()))
+            self.shared.outgoing_tx
+                .send((self.shared.channel_id, purge.into_frame()))
                 .await?;
             Ok(())
         } else {
             let responder_rx = self.register_responder(PurgeQueueOk::header()).await?;
 
             synchronous_request!(
-                self.outgoing_tx,
-                (self.channel_id, purge.into_frame()),
+                self.shared.outgoing_tx,
+                (self.shared.channel_id, purge.into_frame()),
                 responder_rx,
                 Frame::PurgeQueueOk,
                 Error::ChannelUseError
@@ -204,16 +204,16 @@ impl Channel {
         delete.set_if_empty(args.if_empty);
         delete.set_no_wait(args.no_wait);
         if args.no_wait {
-            self.outgoing_tx
-                .send((self.channel_id, delete.into_frame()))
+            self.shared.outgoing_tx
+                .send((self.shared.channel_id, delete.into_frame()))
                 .await?;
             Ok(())
         } else {
             let responder_rx = self.register_responder(DeleteQueueOk::header()).await?;
 
             synchronous_request!(
-                self.outgoing_tx,
-                (self.channel_id, delete.into_frame()),
+                self.shared.outgoing_tx,
+                (self.shared.channel_id, delete.into_frame()),
                 responder_rx,
                 Frame::DeleteQueueOk,
                 Error::ChannelUseError
@@ -234,8 +234,8 @@ impl Channel {
         let responder_rx = self.register_responder(UnbindQueueOk::header()).await?;
 
         synchronous_request!(
-            self.outgoing_tx,
-            (self.channel_id, unbind.into_frame()),
+            self.shared.outgoing_tx,
+            (self.shared.channel_id, unbind.into_frame()),
             responder_rx,
             Frame::UnbindQueueOk,
             Error::ChannelUseError

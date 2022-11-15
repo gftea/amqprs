@@ -1,11 +1,22 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
-use amqp_serde::types::AmqpChannelId;
-use tokio::sync::{mpsc, oneshot};
+use amqp_serde::types::{AmqpChannelId, ShortUint};
+use tokio::sync::{broadcast, mpsc, oneshot};
+use tracing::debug;
 
 use crate::{
     frame::OpenChannelOk,
-    net::{self, ChannelResource, ConnManagementCommand, OutgoingMessage, SplitConnection, IncomingMessage},
+    net::{
+        self, ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage,
+        ReaderHandler, RegisterChannelResource, RegisterConnectionCallback, SplitConnection,
+        WriterHandler,
+    },
 };
 use crate::{
     frame::{
@@ -15,8 +26,8 @@ use crate::{
     net::RegisterResponder,
 };
 
-use super::channel::Channel;
-use super::error::Error;
+use super::{callbacks::ConnectionCallback, channel::Channel};
+use super::{channel::SharedChannelInner, error::Error};
 type Result<T> = std::result::Result<T, Error>;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -29,11 +40,18 @@ pub struct ServerCapabilities {}
 
 #[derive(Debug, Clone)]
 pub struct Connection {
+    shared: Arc<SharedConnectionInner>,
+}
+
+#[derive(Debug)]
+struct SharedConnectionInner {
     capabilities: Option<ServerCapabilities>,
-    is_open: bool,
+    channel_max: ShortUint,
+    is_open: AtomicBool,
     outgoing_tx: mpsc::Sender<OutgoingMessage>,
     conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
 }
+
 //  TODO: move below constants gto be part of static configuration of connection
 const DISPATCHER_MESSAGE_BUFFER_SIZE: usize = 256;
 const DISPATCHER_COMMAND_BUFFER_SIZE: usize = 128;
@@ -100,36 +118,35 @@ impl Connection {
         let (outgoing_tx, outgoing_rx) = mpsc::channel(OUTGOING_MESSAGE_BUFFER_SIZE);
         let (conn_mgmt_tx, conn_mgmt_rx) = mpsc::channel(CONN_MANAGEMENT_COMMAND_BUFFER_SIZE);
 
-        net::spawn_handlers(
-            connection,
-            channel_max,
-            outgoing_tx.clone(),
-            outgoing_rx,
-            conn_mgmt_tx.clone(),
-            conn_mgmt_rx,
-        )
-        .await;
-
-        // register channel resource for connection's default channel
-        net::register_channel_resource(
-            &conn_mgmt_tx,
-            Some(CONN_DEFAULT_CHANNEL),
-            ChannelResource {
-                responders: HashMap::new(),
-                dispatcher: None,
-            },
-        )
-        .await
-        .ok_or_else(|| {
-            Error::ConnectionOpenError("Failed to register channel resource".to_string())
-        })?;
-
-        Ok(Self {
+        let shared = Arc::new(SharedConnectionInner {
             capabilities: None,
-            is_open: true,
+            channel_max,
+            is_open: AtomicBool::new(true),
             outgoing_tx,
             conn_mgmt_tx,
-        })
+        });
+
+        let new_amq_conn = Self { shared };
+
+        new_amq_conn
+            .spawn_handlers(connection, outgoing_rx, conn_mgmt_rx)
+            .await;
+
+        // register channel resource for connection's default channel
+        new_amq_conn
+            .register_channel_resource(
+                Some(CONN_DEFAULT_CHANNEL),
+                ChannelResource {
+                    responders: HashMap::new(),
+                    dispatcher: None,
+                },
+            )
+            .await
+            .ok_or_else(|| {
+                Error::ConnectionOpenError("Failed to register channel resource".to_string())
+            })?;
+
+        Ok(new_amq_conn)
     }
 
     async fn register_responder(
@@ -145,28 +162,119 @@ impl Connection {
             responder,
             acker,
         };
-        self.conn_mgmt_tx
+        self.shared
+            .conn_mgmt_tx
             .send(ConnManagementCommand::RegisterResponder(cmd))
             .await?;
         acker_rx.await?;
         Ok(responder_rx)
     }
+
+    pub async fn register_callback<F>(&self, callback: F) -> Result<()>
+    where
+        F: ConnectionCallback + Send + 'static,
+    {
+        let cmd = RegisterConnectionCallback {
+            callback: Box::new(callback),
+        };
+        self.shared
+            .conn_mgmt_tx
+            .send(ConnManagementCommand::RegisterConnectionCallback(cmd))
+            .await?;
+        Ok(())
+    }
+
+    pub fn set_open_state(&self, is_open: bool) {
+        self.shared.is_open.store(is_open, Ordering::Relaxed);
+    }
+    pub fn get_open_state(&self) -> bool {
+        self.shared.is_open.load(Ordering::Relaxed)
+    }
     /// close and consume the AMQ connection
-    pub async fn close(mut self) -> Result<()> {
+    pub async fn close(&self) -> Result<()> {
         let responder_rx = self
             .register_responder(CONN_DEFAULT_CHANNEL, CloseOk::header())
             .await?;
 
         let close = Close::default();
         synchronous_request!(
-            self.outgoing_tx,
+            self.shared.outgoing_tx,
             (CONN_DEFAULT_CHANNEL, close.into_frame()),
             responder_rx,
             Frame::CloseOk,
             Error::ConnectionCloseError
         )?;
-        self.is_open = false;
+        self.shared.is_open.store(false, Ordering::Relaxed);
         Ok(())
+    }
+
+    pub(crate) async fn register_channel_resource(
+        &self,
+        channel_id: Option<AmqpChannelId>,
+        resource: ChannelResource,
+    ) -> Option<AmqpChannelId> {
+        let (acker, acker_rx) = oneshot::channel();
+        let cmd = ConnManagementCommand::RegisterChannelResource(RegisterChannelResource {
+            channel_id,
+            resource,
+            acker,
+        });
+
+        // If no channel id is given, it will be allocated by management task and included in acker response
+        // otherwise same id will be received in response
+        if let Err(err) = self.shared.conn_mgmt_tx.send(cmd).await {
+            debug!("Failed to register channel resource, cause: {}", err);
+            return None;
+        }
+
+        // expect a channel id in response
+        match acker_rx.await {
+            Ok(res) => {
+                if let None = res {
+                    debug!("Failed to register channel resource, error in channel id allocation");
+                }
+                res
+            }
+            Err(err) => {
+                debug!("Failed to register channel resource, cause: {}", err);
+                None
+            }
+        }
+    }
+
+    /// It spawns tasks for `WriterHandler` and `ReaderHandler` to handle outgoing/incoming messages cocurrently.
+    pub(crate) async fn spawn_handlers(
+        &self,
+        connection: SplitConnection,
+        outgoing_rx: mpsc::Receiver<OutgoingMessage>,
+        conn_mgmt_rx: mpsc::Receiver<ConnManagementCommand>,
+    ) {
+        // Spawn two tasks for the connection
+        // - one task for writer
+        // - one task for reader
+
+        let (shutdown_notifer, shutdown_listener) = broadcast::channel::<()>(1);
+
+        let (reader, writer) = connection.into_split();
+
+        // spawn task for read connection handler
+        let rh = ReaderHandler::new(
+            reader,
+            self.clone(),
+            self.shared.outgoing_tx.clone(),
+            conn_mgmt_rx,
+            self.shared.channel_max,
+            shutdown_notifer,
+        );
+        tokio::spawn(async move {
+            rh.run_until_shutdown().await;
+        });
+
+        // spawn task for write connection handler
+        let wh = WriterHandler::new(writer, outgoing_rx, shutdown_listener);
+        tokio::spawn(async move {
+            wh.run_until_shutdown().await;
+        });
     }
 
     /// open a AMQ channel
@@ -175,37 +283,37 @@ impl Connection {
         let (dispatcher_mgmt_tx, dispatcher_mgmt_rx) =
             mpsc::channel(DISPATCHER_COMMAND_BUFFER_SIZE);
 
-        let channel_id = net::register_channel_resource(
-            &self.conn_mgmt_tx,
-            None,
-            ChannelResource {
-                responders: HashMap::new(),
-                dispatcher: Some(dispatcher_tx),
-            },
-        )
-        .await
-        .ok_or_else(|| {
-            Error::ChannelOpenError("Failed to register channel resource".to_string())
-        })?;
+        let channel_id = self
+            .register_channel_resource(
+                None,
+                ChannelResource {
+                    responders: HashMap::new(),
+                    dispatcher: Some(dispatcher_tx),
+                },
+            )
+            .await
+            .ok_or_else(|| {
+                Error::ChannelOpenError("Failed to register channel resource".to_string())
+            })?;
 
         let responder_rx = self
             .register_responder(channel_id, OpenChannelOk::header())
             .await?;
         synchronous_request!(
-            self.outgoing_tx,
+            self.shared.outgoing_tx,
             (channel_id, OpenChannel::default().into_frame()),
             responder_rx,
             Frame::OpenChannelOk,
             Error::ChannelOpenError
         )?;
-
-        let channel = Channel {
-            is_open: true,
+        let shared = Arc::new(SharedChannelInner::new(
+            AtomicBool::new(true),
             channel_id,
-            outgoing_tx: self.outgoing_tx.clone(),
-            conn_mgmt_tx: self.conn_mgmt_tx.clone(),
+            self.shared.outgoing_tx.clone(),
+            self.shared.conn_mgmt_tx.clone(),
             dispatcher_mgmt_tx,
-        };
+        ));
+        let channel = Channel::new(shared);
 
         channel
             .spawn_dispatcher(dispatcher_rx, dispatcher_mgmt_rx)
@@ -217,8 +325,8 @@ impl Connection {
 
 impl Drop for Connection {
     fn drop(&mut self) {
-        if self.is_open {
-            self.is_open = false;
+        if self.shared.is_open.load(Ordering::Relaxed) {
+            self.shared.is_open.store(false, Ordering::Relaxed);
             let conn = self.clone();
             tokio::spawn(async move {
                 if let Err(err) = conn.close().await {

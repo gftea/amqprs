@@ -21,11 +21,11 @@ pub(crate) struct SplitConnection {
     reader: BufReader,
     writer: BufWriter,
 }
-pub(super) struct BufReader {
+pub(crate) struct BufReader {
     stream: OwnedReadHalf,
     buffer: BytesMut,
 }
-pub(super) struct BufWriter {
+pub(crate) struct BufWriter {
     stream: OwnedWriteHalf,
     buffer: BytesMut,
 }
@@ -53,7 +53,7 @@ impl SplitConnection {
     }
 
     // split connection into reader half and writer half
-    pub(super) fn into_split(self) -> (BufReader, BufWriter) {
+    pub(crate) fn into_split(self) -> (BufReader, BufWriter) {
         (self.reader, self.writer)
     }
 

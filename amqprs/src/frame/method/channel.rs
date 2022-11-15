@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::frame::REPLY_SUCCESS;
 use amqp_serde::types::{Boolean, LongStr, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
@@ -14,10 +16,40 @@ pub struct OpenChannelOk {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CloseChannel {
-    pub reply_code: ShortUint,
-    pub reply_text: ShortStr,
-    pub class_id: ShortUint,
-    pub method_id: ShortUint,
+    reply_code: ShortUint,
+    reply_text: ShortStr,
+    class_id: ShortUint,
+    method_id: ShortUint,
+}
+
+impl CloseChannel {
+    pub fn reply_code(&self) -> u16 {
+        self.reply_code
+    }
+
+    pub fn reply_text(&self) -> &String {
+        &self.reply_text
+    }
+
+    pub fn class_id(&self) -> u16 {
+        self.class_id
+    }
+
+    pub fn method_id(&self) -> u16 {
+        self.method_id
+    }
+}
+
+impl fmt::Display for CloseChannel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!(
+            "Close channel due to '{}: {}', (class_id = {}, method_id = {})",
+            self.reply_code(),
+            self.reply_text(),
+            self.class_id(),
+            self.method_id()
+        ))
+    }
 }
 impl Default for CloseChannel {
     fn default() -> Self {

@@ -1,16 +1,21 @@
 use amqprs::{
     api::{
         channel::{
-            BasicGetArguments, BasicPublishArguments, QueueBindArguments, QueueDeclareArguments,
+            BasicAckArguments, BasicGetArguments, BasicPublishArguments, QueueBindArguments,
+            QueueDeclareArguments,
         },
         connection::Connection,
     },
     BasicProperties,
 };
 use tokio::time;
+use tracing::{info, Level};
+mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_get() {
+    common::setup_logging(Level::TRACE);
+
     // open a connection to RabbitMQ server
     let connection = Connection::open("localhost:5672").await.unwrap();
 
@@ -61,22 +66,32 @@ async fn test_get() {
     args.exchange = exchange_name.to_string();
     args.routing_key = "eiffel.a.b.c.d".to_string();
 
-    for _ in 0..3 {
+    let num_of_msg = 3;
+    for _ in 0..num_of_msg {
         channel
             .basic_publish(BasicProperties::default(), content.clone(), args.clone())
             .await
             .unwrap();
     }
 
-    // get single message
-    let get_message = channel.basic_get(get_args.clone()).await.unwrap();
-    match get_message {
-        Some(msg) => {
-            println!("Get a message: {:?}", msg);
-        }
-        None => panic!("expect get a message"),
+    for _ in 0..num_of_msg {
+        // get single message
+        let get_message = channel.basic_get(get_args.clone()).await.unwrap();
+        let msg = match get_message {
+            Some(msg) => {
+                info!("Get a message: {:?}", msg);
+                msg
+            }
+            None => panic!("expect get a message"),
+        };
+        channel
+            .basic_ack(BasicAckArguments {
+                delivery_tag: msg.get_ok.delivery_tag(),
+                multiple: false,
+            })
+            .await
+            .unwrap();
     }
-
     // TODO: move to separate test case, below is for test only
     if true {
         // implicitly close by drop

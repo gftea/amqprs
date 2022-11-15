@@ -1,13 +1,13 @@
 use std::{
     collections::{HashMap, VecDeque},
-    ops::Deref,
+    ops::Deref, sync::Arc,
 };
 
 use tokio::{sync::mpsc, task::yield_now};
 use tracing::{debug, trace};
 
 use crate::{
-    api::{consumer::Consumer, error::Error},
+    api::{consumer::AsyncConsumer, error::Error},
     frame::{
         Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody, ContentHeader,
         ContentHeaderCommon, Deliver, Frame, Get, GetOk, Nack, Publish, Qos, QosOk, Recover,
@@ -118,9 +118,9 @@ impl BasicGetArguments {
 
 #[derive(Debug)]
 pub struct GetMessage {
-    get_ok: GetOk,
-    basic_properties: BasicProperties,
-    content: Vec<u8>,
+    pub get_ok: GetOk,
+    pub basic_properties: BasicProperties,
+    pub content: Vec<u8>,
 }
 
 #[derive(Debug, Clone)]
@@ -253,7 +253,7 @@ impl Channel {
         mut dispatcher_rx: mpsc::Receiver<IncomingMessage>,
         mut dispatcher_mgmt_rx: mpsc::Receiver<DispatcherManagementCommand>,
     ) {
-        let channel_id = self.channel_id;
+        let channel_id = self.shared.channel_id;
 
         tokio::spawn(async move {
             let mut buffer = ConsumerMessage {
@@ -287,7 +287,7 @@ impl Channel {
                         match cmd {
                             DispatcherManagementCommand::RegisterConsumer(cmd) => {
                                 // TODO: check insert result
-                                trace!("Consumer: {}, tx registered!", cmd.consumer_tag);
+                                trace!("AsyncConsumer: {}, tx registered!", cmd.consumer_tag);
                                 let consumer = consumers.get_or_new_consumer(&cmd.consumer_tag);
                                 consumer.register_tx(cmd.consumer_tx);
                                 // forward buffered messages
@@ -409,8 +409,8 @@ impl Channel {
         let responder_rx = self.register_responder(QosOk::header()).await?;
 
         let _method = synchronous_request!(
-            self.outgoing_tx,
-            (self.channel_id, qos.into_frame()),
+            self.shared.outgoing_tx,
+            (self.shared.channel_id, qos.into_frame()),
             responder_rx,
             Frame::QosOk,
             Error::ChannelUseError
@@ -427,7 +427,7 @@ impl Channel {
     where
         // TODO: this is blocking callback, spawn blocking task in connection manager
         // to provide async callback, and spawn async task  in connection manager
-        F: Consumer + Send + 'static,
+        F: AsyncConsumer + Send + 'static,
     {
         let BasicConsumeArguments {
             queue,
@@ -456,16 +456,16 @@ impl Channel {
         // self.park_notify.notify_one();
 
         let consumer_tag = if args.no_wait {
-            self.outgoing_tx
-                .send((self.channel_id, consume.into_frame()))
+            self.shared.outgoing_tx
+                .send((self.shared.channel_id, consume.into_frame()))
                 .await?;
             consumer_tag
         } else {
             let responder_rx = self.register_responder(ConsumeOk::header()).await?;
 
             let method = synchronous_request!(
-                self.outgoing_tx,
-                (self.channel_id, consume.into_frame()),
+                self.shared.outgoing_tx,
+                (self.shared.channel_id, consume.into_frame()),
                 responder_rx,
                 Frame::ConsumeOk,
                 Error::ChannelUseError
@@ -480,7 +480,7 @@ impl Channel {
 
     async fn spawn_consumer<F>(&self, consumer_tag: String, mut consumer: F) -> Result<()>
     where
-        F: Consumer + Send + 'static,
+        F: AsyncConsumer + Send + 'static,
     {
         let (consumer_tx, mut consumer_rx): (
             mpsc::Sender<ConsumerMessage>,
@@ -492,12 +492,13 @@ impl Channel {
         // spawn consumer task
         tokio::spawn(async move {
             trace!(
-                "Consumer task starts for {} on channel {}!",
+                "AsyncConsumer task starts for {} on channel {}!",
                 ctag,
-                channel.channel_id
+                channel.shared.channel_id
             );
 
             loop {
+                
                 match consumer_rx.recv().await {
                     Some(mut msg) => {
                         consumer
@@ -516,7 +517,7 @@ impl Channel {
                 }
             }
         });
-        self.dispatcher_mgmt_tx
+        self.shared.dispatcher_mgmt_tx
             .send(DispatcherManagementCommand::RegisterConsumer(
                 RegisterConsumer {
                     consumer_tag,
@@ -533,8 +534,8 @@ impl Channel {
             delivery_tag: args.delivery_tag,
             mutiple: args.multiple,
         };
-        self.outgoing_tx
-            .send((self.channel_id, ack.into_frame()))
+        self.shared.outgoing_tx
+            .send((self.shared.channel_id, ack.into_frame()))
             .await?;
         Ok(())
     }
@@ -546,8 +547,8 @@ impl Channel {
         };
         nack.set_multiple(args.multiple);
         nack.set_requeue(args.requeue);
-        self.outgoing_tx
-            .send((self.channel_id, nack.into_frame()))
+        self.shared.outgoing_tx
+            .send((self.shared.channel_id, nack.into_frame()))
             .await?;
         Ok(())
     }
@@ -557,8 +558,8 @@ impl Channel {
             delivery_tag: args.delivery_tag,
             requeue: args.requeue,
         };
-        self.outgoing_tx
-            .send((self.channel_id, reject.into_frame()))
+        self.shared.outgoing_tx
+            .send((self.shared.channel_id, reject.into_frame()))
             .await?;
         Ok(())
     }
@@ -573,16 +574,16 @@ impl Channel {
             no_wait,
         };
         let consumer_tag = if args.no_wait {
-            self.outgoing_tx
-                .send((self.channel_id, cancel.into_frame()))
+            self.shared.outgoing_tx
+                .send((self.shared.channel_id, cancel.into_frame()))
                 .await?;
             consumer_tag
         } else {
             let responder_rx = self.register_responder(CancelOk::header()).await?;
 
             let method = synchronous_request!(
-                self.outgoing_tx,
-                (self.channel_id, cancel.into_frame()),
+                self.shared.outgoing_tx,
+                (self.shared.channel_id, cancel.into_frame()),
                 responder_rx,
                 Frame::CancelOk,
                 Error::ChannelUseError
@@ -603,12 +604,12 @@ impl Channel {
 
         let (tx, mut rx) = mpsc::channel(3);
         let command = RegisterGetResponder { tx };
-        self.dispatcher_mgmt_tx
+        self.shared.dispatcher_mgmt_tx
             .send(DispatcherManagementCommand::RegisterGetResponder(command))
             .await?;
 
-        self.outgoing_tx
-            .send((self.channel_id, get.into_frame()))
+        self.shared.outgoing_tx
+            .send((self.shared.channel_id, get.into_frame()))
             .await?;
         let get_ok = match rx.recv().await.ok_or_else(|| {
             Error::InternalChannelError("Failed to receive response to Get".to_string())
@@ -645,8 +646,8 @@ impl Channel {
         let responder_rx = self.register_responder(RecoverOk::header()).await?;
 
         let _method = synchronous_request!(
-            self.outgoing_tx,
-            (self.channel_id, recover.into_frame()),
+            self.shared.outgoing_tx,
+            (self.shared.channel_id, recover.into_frame()),
             responder_rx,
             Frame::RecoverOk,
             Error::ChannelUseError
@@ -670,8 +671,8 @@ impl Channel {
         publish.set_mandatory(args.mandatory);
         publish.set_immediate(args.immediate);
 
-        self.outgoing_tx
-            .send((self.channel_id, publish.into_frame()))
+        self.shared.outgoing_tx
+            .send((self.shared.channel_id, publish.into_frame()))
             .await?;
 
         let content_header = ContentHeader::new(
@@ -682,13 +683,13 @@ impl Channel {
             },
             basic_properties,
         );
-        self.outgoing_tx
-            .send((self.channel_id, content_header.into_frame()))
+        self.shared.outgoing_tx
+            .send((self.shared.channel_id, content_header.into_frame()))
             .await?;
 
         let content = ContentBody::new(content);
-        self.outgoing_tx
-            .send((self.channel_id, content.into_frame()))
+        self.shared.outgoing_tx
+            .send((self.shared.channel_id, content.into_frame()))
             .await?;
         Ok(())
     }
