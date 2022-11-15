@@ -22,9 +22,9 @@ pub(crate) type IncomingMessage = Frame;
 
 pub(crate) struct ChannelResource {
     /// responder to acknowledge synchronous request
-    pub responders: HashMap<&'static MethodHeader, oneshot::Sender<Frame>>,
+    pub responders: HashMap<&'static MethodHeader, oneshot::Sender<IncomingMessage>>,
     /// connection's default channel does not have dispatcher
-    pub dispatcher: Option<Sender<Frame>>,
+    pub dispatcher: Option<Sender<IncomingMessage>>,
 }
 pub(crate) struct RegisterChannelResource {
     /// If None, `net` handler will allocate a channel id for client
@@ -37,7 +37,7 @@ pub(crate) struct RegisterChannelResource {
 pub(crate) struct RegisterResponder {
     pub channel_id: AmqpChannelId,
     pub method_header: &'static MethodHeader,
-    pub responder: oneshot::Sender<Frame>,
+    pub responder: oneshot::Sender<IncomingMessage>,
     pub acker: oneshot::Sender<()>,
 }
 

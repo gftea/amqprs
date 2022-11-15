@@ -9,7 +9,6 @@ pub(crate) enum Error {
     InternalChannelError(String),
     SerdeError(String),
     FramingError(String),
-    AMQPError(String),
     PeerShutdown,
     Interrupted,
 }
@@ -42,7 +41,6 @@ impl fmt::Display for Error {
             Error::InternalChannelError(msg)
             | Error::SerdeError(msg)
             | Error::FramingError(msg) => write!(f, "{}", msg),
-            Error::AMQPError(msg) => write!(f, "{}", msg),
 
             Error::PeerShutdown => f.write_str("Peer shutdown"),
             Error::Interrupted => f.write_str("connection exceptionally interrupted"),

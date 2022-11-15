@@ -12,7 +12,7 @@ use crate::{
         Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody, ContentHeader,
         ContentHeaderCommon, Deliver, Frame, Get, GetOk, Nack, Publish, Qos, QosOk, Recover,
         RecoverOk, Reject,
-    },
+    }, net::IncomingMessage,
 };
 
 use super::{Channel, Result, ServerSpecificArguments};
@@ -35,7 +35,7 @@ pub(crate) struct UnregisterConsumer {
 }
 
 pub(crate) struct RegisterGetResponder {
-    tx: mpsc::Sender<Frame>,
+    tx: mpsc::Sender<IncomingMessage>,
 }
 pub(crate) enum DispatcherManagementCommand {
     RegisterConsumer(RegisterConsumer),
@@ -250,7 +250,7 @@ impl Channel {
     /// Dispatcher for content related frames
     pub(in crate::api) async fn spawn_dispatcher(
         &self,
-        mut dispatcher_rx: mpsc::Receiver<Frame>,
+        mut dispatcher_rx: mpsc::Receiver<IncomingMessage>,
         mut dispatcher_mgmt_rx: mpsc::Receiver<DispatcherManagementCommand>,
     ) {
         let channel_id = self.channel_id;
@@ -308,8 +308,8 @@ impl Channel {
                             }
                         }
                     }
-                    frame = dispatcher_rx.recv() => {
-                        let frame = match frame {
+                    message = dispatcher_rx.recv() => {
+                        let frame = match message {
                             None => break,
                             Some(v) => v,
                         };

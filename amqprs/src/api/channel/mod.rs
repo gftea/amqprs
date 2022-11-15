@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::{
     api::error::Error,
     frame::{CloseChannel, CloseChannelOk, Flow, FlowOk, Frame, MethodHeader},
-    net::{ConnManagementCommand, OutgoingMessage, RegisterResponder},
+    net::{ConnManagementCommand, OutgoingMessage, RegisterResponder, IncomingMessage},
 };
 
 type Result<T> = std::result::Result<T, Error>;
@@ -27,13 +27,10 @@ pub struct Channel {
     pub(in crate::api) is_open: bool,
     pub(in crate::api) channel_id: AmqpChannelId,
     pub(in crate::api) outgoing_tx: mpsc::Sender<OutgoingMessage>,
-    // pub(in crate::api) incoming_tx: Option<mpsc::Sender<IncomingMessage>>,
-    // pub(in crate::api) incoming_rx: mpsc::Receiver<IncomingMessage>,
+  
     pub(in crate::api) conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
 
-    // pub(in crate::api) dispatcher_rx: Option<mpsc::Receiver<Frame>>,
     pub(in crate::api) dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
-    // pub(in crate::api) dispatcher_mgmt_rx: Option<mpsc::Receiver<DispatcherManagementCommand>>,
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -41,7 +38,7 @@ impl Channel {
     async fn register_responder(
         &self,
         method_header: &'static MethodHeader,
-    ) -> Result<oneshot::Receiver<Frame>> {
+    ) -> Result<oneshot::Receiver<IncomingMessage>> {
         let (responder, responder_rx) = oneshot::channel();
         let (acker, acker_rx) = oneshot::channel();
         let cmd = RegisterResponder {

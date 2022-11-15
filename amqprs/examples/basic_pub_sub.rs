@@ -9,7 +9,7 @@ use amqprs::{
     BasicProperties,
 };
 use tokio::time;
-use tracing::{info, Level};
+use tracing::Level;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {

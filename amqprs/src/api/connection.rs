@@ -5,7 +5,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     frame::OpenChannelOk,
-    net::{self, ChannelResource, ConnManagementCommand, OutgoingMessage, SplitConnection},
+    net::{self, ChannelResource, ConnManagementCommand, OutgoingMessage, SplitConnection, IncomingMessage},
 };
 use crate::{
     frame::{
@@ -35,11 +35,11 @@ pub struct Connection {
     conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
 }
 //  TODO: move below constants gto be part of static configuration of connection
-const DISPATCHER_FRAME_BUFFER_SIZE: usize = 256;
+const DISPATCHER_MESSAGE_BUFFER_SIZE: usize = 256;
 const DISPATCHER_COMMAND_BUFFER_SIZE: usize = 128;
 
 const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 256;
-const NET_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 128;
+const CONN_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 128;
 /// AMQP Connection API
 ///
 impl Connection {
@@ -98,7 +98,7 @@ impl Connection {
 
         // spawn network management tasks and get internal channel' sender half.
         let (outgoing_tx, outgoing_rx) = mpsc::channel(OUTGOING_MESSAGE_BUFFER_SIZE);
-        let (conn_mgmt_tx, conn_mgmt_rx) = mpsc::channel(NET_MANAGEMENT_COMMAND_BUFFER_SIZE);
+        let (conn_mgmt_tx, conn_mgmt_rx) = mpsc::channel(CONN_MANAGEMENT_COMMAND_BUFFER_SIZE);
 
         net::spawn_handlers(
             connection,
@@ -136,7 +136,7 @@ impl Connection {
         &self,
         channel_id: AmqpChannelId,
         method_header: &'static MethodHeader,
-    ) -> Result<oneshot::Receiver<Frame>> {
+    ) -> Result<oneshot::Receiver<IncomingMessage>> {
         let (responder, responder_rx) = oneshot::channel();
         let (acker, acker_rx) = oneshot::channel();
         let cmd = RegisterResponder {
@@ -171,7 +171,7 @@ impl Connection {
 
     /// open a AMQ channel
     pub async fn open_channel(&self) -> Result<Channel> {
-        let (dispatcher_tx, dispatcher_rx) = mpsc::channel(DISPATCHER_FRAME_BUFFER_SIZE);
+        let (dispatcher_tx, dispatcher_rx) = mpsc::channel(DISPATCHER_MESSAGE_BUFFER_SIZE);
         let (dispatcher_mgmt_tx, dispatcher_mgmt_rx) =
             mpsc::channel(DISPATCHER_COMMAND_BUFFER_SIZE);
 

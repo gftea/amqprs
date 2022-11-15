@@ -14,7 +14,7 @@ use crate::frame::{
 
 use super::{
     channel_id_repo::ChannelIdRepository, BufReader, ChannelResource, ConnManagementCommand, Error,
-    OutgoingMessage,
+    OutgoingMessage, IncomingMessage,
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -81,8 +81,8 @@ impl ChannelManager {
         &mut self,
         channel_id: &AmqpChannelId,
         method_header: &'static MethodHeader,
-        responder: oneshot::Sender<Frame>,
-    ) -> Option<oneshot::Sender<Frame>> {
+        responder: oneshot::Sender<IncomingMessage>,
+    ) -> Option<oneshot::Sender<IncomingMessage>> {
         self.resource
             .get_mut(channel_id)?
             .responders
@@ -93,14 +93,14 @@ impl ChannelManager {
         &mut self,
         channel_id: &AmqpChannelId,
         method_header: &'static MethodHeader,
-    ) -> Option<oneshot::Sender<Frame>> {
+    ) -> Option<oneshot::Sender<IncomingMessage>> {
         self.resource
             .get_mut(channel_id)?
             .responders
             .remove(method_header)
     }
 
-    fn get_dispatcher(&self, channel_id: &AmqpChannelId) -> Option<&Sender<Frame>> {
+    fn get_dispatcher(&self, channel_id: &AmqpChannelId) -> Option<&Sender<IncomingMessage>> {
         self.resource.get(channel_id)?.dispatcher.as_ref()
     }
 }

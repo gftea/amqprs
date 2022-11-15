@@ -308,7 +308,7 @@ mod test {
         let mut connection = SplitConnection::open("localhost:5672").await.unwrap();
 
         connection.write(&ProtocolHeader::default()).await.unwrap();
-        let (channel_id, frame) = connection.read_frame().await.unwrap();
+        let (channel_id, _frame) = connection.read_frame().await.unwrap();
         assert_eq!(CONN_DEFAULT_CHANNEL, channel_id);
 
         connection.close().await.unwrap();
@@ -322,7 +322,7 @@ mod test {
             .into_split();
 
         writer.write(&ProtocolHeader::default()).await.unwrap();
-        let (channel_id, frame) = reader.read_frame().await.unwrap();
+        let (channel_id, _frame) = reader.read_frame().await.unwrap();
         assert_eq!(CONN_DEFAULT_CHANNEL, channel_id);
 
         reader.close().await;
