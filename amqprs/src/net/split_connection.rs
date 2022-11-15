@@ -269,14 +269,14 @@ mod test {
 
         // S: 'Tune'
         let tune = rx_resp.recv().await.unwrap();
+        let tune = match tune.1 {
+            Frame::Tune(_, v) => v,
+            _ => panic!("expect Tune message"),
+        };
 
         // C: TuneOk
         let mut tune_ok = TuneOk::default();
-        let tune = match tune.1 {
-            Frame::Tune(_, v) => v,
-            _ => panic!("wrong message"),
-        };
-
+       
         tune_ok.channel_max = tune.channel_max;
         tune_ok.frame_max = tune.frame_max;
         tune_ok.heartbeat = tune.heartbeat;
@@ -310,11 +310,7 @@ mod test {
         connection.write(&ProtocolHeader::default()).await.unwrap();
         let (channel_id, frame) = connection.read_frame().await.unwrap();
         assert_eq!(CONN_DEFAULT_CHANNEL, channel_id);
-        println!(" {frame:?}");
-        connection
-            .write_frame(channel_id, StartOk::default().into_frame())
-            .await
-            .unwrap();
+        
         connection.close().await.unwrap();
     }
 
@@ -328,11 +324,7 @@ mod test {
         writer.write(&ProtocolHeader::default()).await.unwrap();
         let (channel_id, frame) = reader.read_frame().await.unwrap();
         assert_eq!(CONN_DEFAULT_CHANNEL, channel_id);
-        println!(" {frame:?}");
-        writer
-            .write_frame(channel_id, StartOk::default().into_frame())
-            .await
-            .unwrap();
+        
         reader.close().await;
         writer.close().await.unwrap();
     }

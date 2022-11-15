@@ -42,7 +42,7 @@ async fn test_get() {
 
     let get_message = channel.basic_get(get_args.clone()).await.unwrap();
     if let Some(_) = get_message {
-        panic!("expect return empty message");
+        panic!("expect ReturnEmpty message");
     }
 
     // contents to publish
