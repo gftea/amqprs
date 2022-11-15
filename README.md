@@ -91,7 +91,7 @@ async fn main() {
 
 _Console Output_
 
-```json
+```Python console
 2022-11-15T13:22:19.207063Z  INFO amqprs::api::consumer: >>>>> Consumer 'amqprs-consumer-example' Start <<<<<
 2022-11-15T13:22:19.207127Z  INFO amqprs::api::consumer: Deliver { consumer_tag: ShortStr(23, "amqprs-consumer-example"), delivery_tag: 1, redelivered: false, exchange: ShortStr(9, "amq.topic"), routing_key: ShortStr(14, "eiffel.a.b.c.d") }
 2022-11-15T13:22:19.207170Z  INFO amqprs::api::consumer: BasicProperties { property_flags: [0, 0], content_type: None, content_encoding: None, headers: None, delivery_mode: None, priority: None, correlation_id: None, reply_to: None, expiration: None, message_id: None, timestamp: None, typ: None, user_id: None, app_id: None, cluster_id: None }
