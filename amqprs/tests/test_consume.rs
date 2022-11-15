@@ -89,7 +89,6 @@ async fn test_multi_consumer() {
     time::sleep(time::Duration::from_secs(1)).await;
 }
 
-
 async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
     // contents to publish
     let content = String::from(

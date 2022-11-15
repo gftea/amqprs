@@ -13,7 +13,8 @@ use crate::frame::{
 };
 
 use super::{
-    channel_id_repo::ChannelIdRepository, BufReader, ChannelResource, ConnManagementCommand, Error, OutgoingMessage,
+    channel_id_repo::ChannelIdRepository, BufReader, ChannelResource, ConnManagementCommand, Error,
+    OutgoingMessage,
 };
 
 /////////////////////////////////////////////////////////////////////////////

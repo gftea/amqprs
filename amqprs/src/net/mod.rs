@@ -13,7 +13,7 @@ pub(crate) use split_connection::*;
 
 /////////////////////////////////////////////////////////////////////////////
 use crate::frame::{Frame, MethodHeader};
-use amqp_serde::types::{AmqpChannelId};
+use amqp_serde::types::AmqpChannelId;
 use tokio::sync::{mpsc::Sender, oneshot};
 
 pub type OutgoingMessage = (AmqpChannelId, Frame);

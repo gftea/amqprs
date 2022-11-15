@@ -3,7 +3,6 @@ use crate::frame::{Frame, FrameHeader, FRAME_END};
 use amqp_serde::{to_buffer, types::AmqpChannelId};
 use bytes::{Buf, BytesMut};
 use serde::Serialize;
-use tracing::trace;
 use std::io;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -12,6 +11,7 @@ use tokio::{
         TcpStream,
     },
 };
+use tracing::trace;
 
 use super::Error;
 type Result<T> = std::result::Result<T, Error>;
@@ -276,7 +276,7 @@ mod test {
 
         // C: TuneOk
         let mut tune_ok = TuneOk::default();
-       
+
         tune_ok.channel_max = tune.channel_max;
         tune_ok.frame_max = tune.frame_max;
         tune_ok.heartbeat = tune.heartbeat;
@@ -310,7 +310,7 @@ mod test {
         connection.write(&ProtocolHeader::default()).await.unwrap();
         let (channel_id, frame) = connection.read_frame().await.unwrap();
         assert_eq!(CONN_DEFAULT_CHANNEL, channel_id);
-        
+
         connection.close().await.unwrap();
     }
 
@@ -324,7 +324,7 @@ mod test {
         writer.write(&ProtocolHeader::default()).await.unwrap();
         let (channel_id, frame) = reader.read_frame().await.unwrap();
         assert_eq!(CONN_DEFAULT_CHANNEL, channel_id);
-        
+
         reader.close().await;
         writer.close().await.unwrap();
     }

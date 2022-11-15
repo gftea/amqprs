@@ -1,5 +1,5 @@
 use tokio::sync::{broadcast, mpsc};
-use tracing::{info, error};
+use tracing::{error, info};
 
 use super::{BufWriter, OutgoingMessage};
 

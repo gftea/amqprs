@@ -1,16 +1,11 @@
-use std::{
-    collections::{HashMap},
-};
+use std::collections::HashMap;
 
 use amqp_serde::types::AmqpChannelId;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    frame::{OpenChannelOk},
-    net::{
-        self, ChannelResource, ConnManagementCommand, OutgoingMessage,
-        SplitConnection,
-    },
+    frame::OpenChannelOk,
+    net::{self, ChannelResource, ConnManagementCommand, OutgoingMessage, SplitConnection},
 };
 use crate::{
     frame::{
@@ -20,8 +15,8 @@ use crate::{
     net::RegisterResponder,
 };
 
+use super::channel::Channel;
 use super::error::Error;
-use super::{channel::Channel};
 type Result<T> = std::result::Result<T, Error>;
 
 /////////////////////////////////////////////////////////////////////////////

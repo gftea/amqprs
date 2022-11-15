@@ -1,8 +1,7 @@
 use amqprs::{
     api::{
         channel::{
-            BasicConsumeArguments, BasicPublishArguments, QueueBindArguments,
-            QueueDeclareArguments,
+            BasicConsumeArguments, BasicPublishArguments, QueueBindArguments, QueueDeclareArguments,
         },
         connection::Connection,
         consumer::DefaultConsumer,
@@ -15,7 +14,9 @@ use tracing::{info, Level};
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
     // construct a subscriber that prints formatted traces to stdout
-    let subscriber = tracing_subscriber::fmt().with_max_level(Level::INFO).finish();
+    let subscriber = tracing_subscriber::fmt()
+        .with_max_level(Level::INFO)
+        .finish();
 
     // use that subscriber to process traces emitted after this point
     tracing::subscriber::set_global_default(subscriber).unwrap();

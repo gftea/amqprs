@@ -54,6 +54,13 @@ mod tests {
         let ProtocolHeader { name, id, version } = frame;
         assert_eq!(ProtocolName(b'A', b'M', b'Q', b'P'), name);
         assert_eq!(0, id);
-        assert_eq!(ProtocolVersion { major: 0, minor: 9, revision: 1 }, version);
+        assert_eq!(
+            ProtocolVersion {
+                major: 0,
+                minor: 9,
+                revision: 1
+            },
+            version
+        );
     }
 }

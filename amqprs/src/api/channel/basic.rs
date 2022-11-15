@@ -4,13 +4,10 @@ use std::{
 };
 
 use tokio::{sync::mpsc, task::yield_now};
-use tracing::{trace, debug};
+use tracing::{debug, trace};
 
 use crate::{
-    api::{
-        consumer::{Consumer},
-        error::Error,
-    },
+    api::{consumer::Consumer, error::Error},
     frame::{
         Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody, ContentHeader,
         ContentHeaderCommon, Deliver, Frame, Get, GetOk, Nack, Publish, Qos, QosOk, Recover,
@@ -496,7 +493,8 @@ impl Channel {
         tokio::spawn(async move {
             trace!(
                 "Consumer task starts for {} on channel {}!",
-                ctag, channel.channel_id
+                ctag,
+                channel.channel_id
             );
 
             loop {

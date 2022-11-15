@@ -1,8 +1,7 @@
 use amqprs::{
     api::{
         channel::{
-            BasicGetArguments, BasicPublishArguments, QueueBindArguments,
-            QueueDeclareArguments,
+            BasicGetArguments, BasicPublishArguments, QueueBindArguments, QueueDeclareArguments,
         },
         connection::Connection,
     },

@@ -1,8 +1,6 @@
 //! API implementation of AMQP Channel
 //!
 
-
-
 use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
 use tokio::sync::{mpsc, oneshot};
 
