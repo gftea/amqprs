@@ -5,6 +5,7 @@
 Yet another RabbitMQ client implementation in rust with different design goals.
 
 ## Design philosophy
+
 1. API first: easy to use, easy to understand. Keep the API similar as python client library so that it is easier for users to move from there.
 2. Minimum external dependencies: as less exteranl crates as possible
 3. lock free: no mutex/lock in client library itself 
@@ -12,10 +13,9 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 
 ## Example: Consume and Publish
 
-[See basic example](amqprs/examples/basic_pub_sub.rs) 
+[Example source code](amqprs/examples/basic_pub_sub.rs) 
 
 ```rust
-
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
     // construct a subscriber that prints formatted traces to stdout
@@ -87,10 +87,11 @@ async fn main() {
     // NOTE: channel/connection will be closed when drop
     time::sleep(time::Duration::from_secs(10)).await;
 }
-
 ```
 
-```log
+_Console Output_
+
+```json
 2022-11-15T13:22:19.207063Z  INFO amqprs::api::consumer: >>>>> Consumer 'amqprs-consumer-example' Start <<<<<
 2022-11-15T13:22:19.207127Z  INFO amqprs::api::consumer: Deliver { consumer_tag: ShortStr(23, "amqprs-consumer-example"), delivery_tag: 1, redelivered: false, exchange: ShortStr(9, "amq.topic"), routing_key: ShortStr(14, "eiffel.a.b.c.d") }
 2022-11-15T13:22:19.207170Z  INFO amqprs::api::consumer: BasicProperties { property_flags: [0, 0], content_type: None, content_encoding: None, headers: None, delivery_mode: None, priority: None, correlation_id: None, reply_to: None, expiration: None, message_id: None, timestamp: None, typ: None, user_id: None, app_id: None, cluster_id: None }
