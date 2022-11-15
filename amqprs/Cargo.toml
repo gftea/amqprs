@@ -6,13 +6,22 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.0", features = ["full"]}
+tokio = { version = "1.0", features = [
+    "rt",
+    "rt-multi-thread",
+    "sync",
+    "net",
+    "io-util",
+    "time",
+    "macros",
+] }
 bytes = { version = "1.0" }
 serde = { version = "1.0", features = ["derive"] }
 amqp_serde = { path = "../amqp_serde" }
 # futures = "0.3"
-tokio-stream = "0.1"
+# tokio-stream = "0.1"
 async-trait = "0.1"
-
+tracing = "0.1"
 
 [dev-dependencies]
+tracing-subscriber = "0.3"

@@ -1,5 +1,6 @@
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 use tokio::sync::{broadcast, mpsc, oneshot};
+use tracing::debug;
 
 use super::{
     reader_handler::ReaderHandler, writer_handler::WriterHandler, ChannelResource,
@@ -57,7 +58,7 @@ pub(crate) async fn register_channel_resource(
     // If no channel id is given, it will be allocated by management task and included in acker response
     // otherwise same id will be received in response
     if let Err(err) = conn_mgmt_tx.send(cmd).await {
-        println!("Failed to register channel resource, cause: {}", err);
+        debug!("Failed to register channel resource, cause: {}", err);
         return None;
     }
 
@@ -65,12 +66,12 @@ pub(crate) async fn register_channel_resource(
     match acker_rx.await {
         Ok(res) => {
             if let None = res {
-                println!("Failed to register channel resource, error in channel id allocation");
+                debug!("Failed to register channel resource, error in channel id allocation");
             }
             res
         }
         Err(err) => {
-            println!("Failed to register channel resource, cause: {}", err);
+            debug!("Failed to register channel resource, cause: {}", err);
             None
         }
     }

@@ -4,6 +4,7 @@ use std::{
 };
 
 use tokio::{sync::mpsc, task::yield_now};
+use tracing::{trace, debug};
 
 use crate::{
     api::{
@@ -275,7 +276,7 @@ impl Channel {
             }
             // initial state
             let mut state = State::Initial;
-            println!("Dispatcher of channel {} starts!", channel_id);
+            trace!("Dispatcher of channel {} starts!", channel_id);
 
             loop {
                 tokio::select! {
@@ -289,12 +290,12 @@ impl Channel {
                         match cmd {
                             DispatcherManagementCommand::RegisterConsumer(cmd) => {
                                 // TODO: check insert result
-                                println!("Consumer: {}, tx registered!", cmd.consumer_tag);
+                                trace!("Consumer: {}, tx registered!", cmd.consumer_tag);
                                 let consumer = consumers.get_or_new_consumer(&cmd.consumer_tag);
                                 consumer.register_tx(cmd.consumer_tx);
                                 // forward buffered messages
                                 while !consumer.fifo.is_empty() {
-                                    println!("Total buffered messages: {}", consumer.fifo.len());
+                                    trace!("Total buffered messages: {}", consumer.fifo.len());
                                     let msg = consumer.pop().unwrap();
                                     consumer.get_tx().unwrap().send(msg).await.unwrap();
                                 }
@@ -318,18 +319,18 @@ impl Channel {
                         match frame {
                             Frame::Return(_, method) => {
                                 state = State::Return;
-                                println!("returned : {}, {}", method.reply_code, method.reply_text.deref());
+                                debug!("returned : {}, {}", method.reply_code, method.reply_text.deref());
                             }
                             Frame::GetEmpty(_, get_empty) => {
                                 state = State::GetEmpty;
                                 if let Err(err) = sync_responder.take().expect("Get responder must be registered").send(get_empty.into_frame()).await {
-                                    println!("Failed to dispatch GetEmpty frame, cause: {}", err);
+                                    debug!("Failed to dispatch GetEmpty frame, cause: {}", err);
                                 }
                             }
                             Frame::GetOk(_, get_ok) => {
                                 state = State::GetOk;
                                 if let Err(err) = sync_responder.as_ref().expect("Get responder must be registered").send(get_ok.into_frame()).await {
-                                    println!("Failed to dispatch GetOk frame, cause: {}", err);
+                                    debug!("Failed to dispatch GetOk frame, cause: {}", err);
                                 }
                             }
                             // server must send "Deliver + Content" in order, otherwise
@@ -344,7 +345,7 @@ impl Channel {
                                     State::Deliver => buffer.basic_properties = Some(header.basic_properties),
                                     State::GetOk => {
                                         if let Err(err) = sync_responder.as_ref().expect("Get responder must be registered").send(header.into_frame()).await {
-                                            println!("Failed to dispatch GetOk ContentHeader frame, cause: {}", err);
+                                            debug!("Failed to dispatch GetOk ContentHeader frame, cause: {}", err);
                                         }
                                     },
                                     State::Return => todo!("handle Return content"),
@@ -367,11 +368,11 @@ impl Channel {
                                         match consumer.get_tx() {
                                             Some(consumer_tx) => {
                                                 if let Err(_) = consumer_tx.send(consumer_message).await {
-                                                    println!("Failed to dispatch message to consumer {}", consumer_tag);
+                                                    debug!("Failed to dispatch message to consumer {}", consumer_tag);
                                                 }
                                             },
                                             None => {
-                                                println!("Can't find consumer '{}', buffering message", consumer_tag);
+                                                debug!("Can't find consumer '{}', buffering message", consumer_tag);
                                                 consumer.push(consumer_message);
                                                 // FIXME: try to yield for registering consumer
                                                 //      not sure if it is necessary
@@ -381,7 +382,7 @@ impl Channel {
                                     }
                                     State::GetOk => {
                                         if let Err(err) = sync_responder.take().expect("Get responder must be registered").send(body.into_frame()).await {
-                                            println!("Failed to dispatch GetOk ContentBody frame, cause: {}", err);
+                                            debug!("Failed to dispatch GetOk ContentBody frame, cause: {}", err);
                                         }
                                     },
                                     State::Return => todo!("handle Return content"),
@@ -398,7 +399,7 @@ impl Channel {
 
                 }
             }
-            println!("Exit dispatcher of channel {}", channel_id);
+            trace!("Exit dispatcher of channel {}", channel_id);
         });
     }
 
@@ -493,7 +494,7 @@ impl Channel {
         let channel = self.clone();
         // spawn consumer task
         tokio::spawn(async move {
-            println!(
+            trace!(
                 "Consumer task starts for {} on channel {}!",
                 ctag, channel.channel_id
             );
@@ -511,7 +512,7 @@ impl Channel {
                             .await;
                     }
                     None => {
-                        println!("Exit consumer: {}", ctag);
+                        trace!("Exit consumer: {}", ctag);
                         break;
                     }
                 }
@@ -525,7 +526,7 @@ impl Channel {
                 },
             ))
             .await?;
-        println!("RegisterConsumer command is sent!");
+        trace!("RegisterConsumer command is sent!");
         Ok(())
     }
 

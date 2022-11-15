@@ -403,6 +403,7 @@ mod test {
         println!("{:?}", std::mem::size_of_val("s"));
         println!("{:?}", std::mem::size_of_val(&FieldValue::t(true)));
     }
+    
     #[test]
     fn test_struct() {
         #[derive(Serialize)]

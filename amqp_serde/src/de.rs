@@ -611,7 +611,6 @@ mod tests {
         };
         let result: Frame = from_bytes(&input).unwrap();
         assert_eq!(expected, result);
-        // println!("{result:?}");
     }
 
     #[test]
@@ -628,7 +627,6 @@ mod tests {
             FieldValue::V,
         );
         assert_eq!(expected, result);
-        // println!("{result:?}");
     }
 
     #[test]
@@ -655,7 +653,6 @@ mod tests {
             b'f', 0x3F, 0xC0, 0, 0,
         ];
         let result: Frame = from_bytes(&input).unwrap();
-        // println!("{result:?}");
         assert_eq!(expected, result);
     }
 }

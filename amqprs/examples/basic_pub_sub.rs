@@ -10,9 +10,16 @@ use amqprs::{
     BasicProperties,
 };
 use tokio::time;
+use tracing::{info, Level};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
+    // construct a subscriber that prints formatted traces to stdout
+    let subscriber = tracing_subscriber::fmt().with_max_level(Level::INFO).finish();
+
+    // use that subscriber to process traces emitted after this point
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+
     // open a connection to RabbitMQ server
     let connection = Connection::open("localhost:5672").await.unwrap();
 
@@ -57,8 +64,7 @@ async fn main() {
                 "data": { "customData": []}, 
                 "links": [{"type": "BASE", "target": "fa321ff0-faa6-474e-aa1d-45edf8c99896"}]
             }
-        "#
-        ).into_bytes();
+        "#).into_bytes();
 
     // create arguments for basic_publish
     let mut args = BasicPublishArguments::new();

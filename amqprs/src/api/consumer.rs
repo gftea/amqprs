@@ -2,6 +2,7 @@ use std::str::from_utf8;
 
 
 use async_trait::async_trait;
+use tracing::info;
 
 
 use crate::{
@@ -41,11 +42,11 @@ impl Consumer for DefaultConsumer {
         basic_properties: BasicProperties,
         content: Vec<u8>,
     ) {
-        println!(">>>>> Consumer Start <<<<<<");
-        println!("{:?}", deliver,);
-        println!("{:?}", basic_properties,);
-        println!("{}", from_utf8(&content).unwrap());
-        println!(">>>>> Consumer End <<<<<<");
+        info!(">>>>> Consumer '{}' Start <<<<<", deliver.consumer_tag());
+        info!("{:?}", deliver,);
+        info!("{:?}", basic_properties,);
+        info!("{}", from_utf8(&content).unwrap());
+        info!(">>>>> Consumer '{}' End <<<<<", deliver.consumer_tag());
 
         // ack explicitly if no_ack = false
         if !self.no_ack {

@@ -199,10 +199,7 @@ impl Frame {
             Some(s) => s,
             None => unreachable!("out of bound"),
         })?;
-        // println!(
-        //     ">>> frame type: {}, channel: {}, payload size: {}",
-        //     frame_type, channel, payload_size
-        // );
+        
         // check full frame is received payload_size + 8 octects
         let total_size = payload_size as usize + FRAME_HEADER_SIZE + 1;
         if total_size > buf.len() {
@@ -251,7 +248,7 @@ impl Frame {
                     Some(s) => s,
                     None => unreachable!("out of bound"),
                 })?;
-                // println!("basic propertities > {:?}", basic_properties);
+                
                 Ok(Some((
                     total_size,
                     channel,

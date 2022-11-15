@@ -1,4 +1,5 @@
 use tokio::sync::{broadcast, mpsc};
+use tracing::{info, error};
 
 use super::{BufWriter, OutgoingMessage};
 
@@ -27,7 +28,7 @@ impl WriterHandler {
         loop {
             tokio::select! {
                 _ = self.shutdown.recv() => {
-                    println!("WriterHandler received shutdown notification");
+                    info!("WriterHandler received shutdown notification");
                     break;
                 }
                 channel_frame = self.outgoing_rx.recv() => {
@@ -36,7 +37,7 @@ impl WriterHandler {
                         Some(v) => v,
                     };
                     if let Err(err) = self.stream.write_frame(channel_id, frame).await {
-                        println!("Failed to send frame over network, cause: {}", err);
+                        error!("Failed to send frame over network, cause: {}", err);
                         break;
                     }
                 }
@@ -46,6 +47,6 @@ impl WriterHandler {
             }
         }
         // FIXME: should here send Close method to server?
-        println!("Shutdown WriterHandler!");
+        info!("Shutdown WriterHandler!");
     }
 }

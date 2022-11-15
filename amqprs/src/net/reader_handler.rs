@@ -6,6 +6,7 @@ use tokio::sync::{
     mpsc::{Receiver, Sender},
     oneshot,
 };
+use tracing::{debug, error, info};
 
 use crate::frame::{
     Close, CloseChannel, CloseChannelOk, CloseOk, Frame, MethodHeader, CONN_DEFAULT_CHANNEL,
@@ -271,7 +272,7 @@ impl ReaderHandler {
 
             // TODO: Handle heartbeat
             Frame::HeartBeat(_) => {
-                println!("heartbeat, to be handled...");
+                debug!("heartbeat, to be handled...");
                 Ok(())
             }
 
@@ -287,7 +288,7 @@ impl ReaderHandler {
                     Ok(())
                 }
                 None => {
-                    println!(
+                    debug!(
                         "No dispatcher registered yet for channel {}, discard frame: {}",
                         channel_id, frame
                     );
@@ -328,14 +329,14 @@ impl ReaderHandler {
                 {
                     Some(responder) => {
                         if let Err(response) = responder.send(frame) {
-                            println!(
+                            debug!(
                                 "Failed to forward response frame {} to channel {}",
                                 response, channel_id
                             );
                         }
                     }
-                    None => println!(
-                        "DEBUG: No responder to forward frame {} to channel {}",
+                    None => debug!(
+                        "No responder to forward frame {} to channel {}",
                         frame, channel_id
                     ),
                 }
@@ -406,16 +407,16 @@ impl ReaderHandler {
                     match res {
                         Ok((channel_id, frame)) => {
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
-                                println!("Failed to handle frame, cause: {} ", err);
+                                error!("Failed to handle frame, cause: {} ", err);
                                 break;
                             }
                             if self.to_shutdown {
-                                println!("Client has requested to shutdown connection or shutdown requested by server!");
+                                info!("Client has requested to shutdown connection or shutdown requested by server!");
                                 break;
                             }
                         },
                         Err(err) => {
-                            println!("Failed to read frame, cause: {}", err);
+                            error!("Failed to read frame, cause: {}", err);
                             break;
                         },
                     }
@@ -429,6 +430,6 @@ impl ReaderHandler {
 
         // `self` will drop, so the `self.shutdown_notifier`
         // all tasks which have `subscribed` to `shutdown_notifier` will be notified
-        println!("Shutdown ReaderHandler!");
+        info!("Shutdown ReaderHandler!");
     }
 }
