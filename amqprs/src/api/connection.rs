@@ -13,7 +13,7 @@ use tracing::debug;
 use crate::{
     frame::OpenChannelOk,
     net::{
-        self, ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage,
+        ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage,
         ReaderHandler, RegisterChannelResource, RegisterConnectionCallback, SplitConnection,
         WriterHandler,
     },

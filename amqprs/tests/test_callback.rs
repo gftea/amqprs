@@ -22,16 +22,16 @@ async fn test_connection_callback() {
         .await
         .unwrap();
     // open a channel on the connection
-    let mut channel = connection.open_channel().await.unwrap();
+    let channel = connection.open_channel().await.unwrap();
 
     // create arguments for exchange_declare
     let exchange_name = "amq.topic";
     let exchange_type = "topic";
-    let mut args = ExchangeDeclareArguments::new(exchange_name, exchange_type);
+    let _args = ExchangeDeclareArguments::new(exchange_name, exchange_type);
     // contents to publish
     let content = String::from("null").into_bytes();
     // create arguments for basic_publish
-    let mut args = BasicPublishArguments::new();
+    let args = BasicPublishArguments::new();
 
     // Set invalid basic propertities to trigger Close connection from server
     let props = BasicProperties::new(

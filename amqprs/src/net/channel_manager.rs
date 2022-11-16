@@ -2,19 +2,18 @@ use std::collections::BTreeMap;
 
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 use tokio::sync::{
-    broadcast,
-    mpsc::{Receiver, Sender},
+    mpsc::{Sender},
     oneshot,
 };
-use tracing::{debug, error, info};
+
 
 use crate::frame::{
-    Close, CloseChannel, CloseChannelOk, CloseOk, Frame, MethodHeader, CONN_DEFAULT_CHANNEL,
+    MethodHeader,
 };
 
 use super::{
-    channel_id_repo::ChannelIdRepository, BufReader, ChannelResource, ConnManagementCommand, Error,
-    IncomingMessage, OutgoingMessage,
+    channel_id_repo::ChannelIdRepository, ChannelResource,
+    IncomingMessage,
 };
 
 pub(super) struct ChannelManager {

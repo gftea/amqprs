@@ -1,10 +1,9 @@
-use std::collections::BTreeMap;
+
 
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 use tokio::sync::{
     broadcast,
     mpsc::{Receiver, Sender},
-    oneshot,
 };
 use tracing::{debug, error, info};
 
@@ -16,8 +15,7 @@ use crate::{
 };
 
 use super::{
-    channel_id_repo::ChannelIdRepository, channel_manager::ChannelManager, BufReader,
-    ChannelResource, ConnManagementCommand, Error, IncomingMessage, OutgoingMessage,
+    channel_manager::ChannelManager, BufReader, ConnManagementCommand, Error, OutgoingMessage,
 };
 
 /////////////////////////////////////////////////////////////////////////////
