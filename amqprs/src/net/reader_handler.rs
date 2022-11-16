@@ -31,7 +31,7 @@ pub(crate) struct ReaderHandler {
 
     /// connection level callback
     amq_conn: Connection,
-    callback: Option<Box<dyn ConnectionCallback + Send>>,
+    callback: Option<Box<dyn ConnectionCallback + Send + 'static>>,
 
     channel_manager: ChannelManager,
 

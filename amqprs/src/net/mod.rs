@@ -15,7 +15,7 @@ pub(crate) use reader_handler::*;
 pub(crate) use writer_handler::*;
 
 /////////////////////////////////////////////////////////////////////////////
-use crate::{frame::{Frame, MethodHeader}, api::callbacks::ConnectionCallback};
+use crate::{frame::{Frame, MethodHeader}, api::callbacks::{ConnectionCallback, ChannelCallback}};
 use amqp_serde::types::AmqpChannelId;
 use tokio::sync::{mpsc::Sender, oneshot};
 
@@ -45,9 +45,11 @@ pub(crate) struct RegisterResponder {
 }
 
 pub(crate) struct RegisterConnectionCallback {
-    pub callback: Box<dyn ConnectionCallback + Send>,
+    pub callback: Box<dyn ConnectionCallback + Send + 'static>,
 }
-
+pub(crate) struct RegisterChannelCallback {
+    pub callback: Box<dyn ChannelCallback + Send + 'static>,
+}
 pub(crate) enum ConnManagementCommand {
     RegisterChannelResource(RegisterChannelResource),
     RegisterResponder(RegisterResponder),
