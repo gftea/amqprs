@@ -109,7 +109,7 @@ impl QueueUnbindArguments {
 
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
-    pub async fn queue_declare(&mut self, args: QueueDeclareArguments) -> Result<()> {
+    pub async fn queue_declare(&self, args: QueueDeclareArguments) -> Result<()> {
         let mut declare = DeclareQueue {
             ticket: 0,
             queue: args.queue.try_into().unwrap(),
@@ -140,7 +140,7 @@ impl Channel {
         }
     }
 
-    pub async fn queue_bind(&mut self, args: QueueBindArguments) -> Result<()> {
+    pub async fn queue_bind(&self, args: QueueBindArguments) -> Result<()> {
         let bind = BindQueue {
             ticket: 0,
             queue: args.queue.try_into().unwrap(),
@@ -170,7 +170,7 @@ impl Channel {
         }
     }
 
-    pub async fn queue_purge(&mut self, args: QueuePurgeArguments) -> Result<()> {
+    pub async fn queue_purge(&self, args: QueuePurgeArguments) -> Result<()> {
         let purge = PurgeQueue {
             ticket: 0,
             queue: args.queue.try_into().unwrap(),
@@ -197,7 +197,7 @@ impl Channel {
         }
     }
 
-    pub async fn queue_delete(&mut self, args: QueueDeleteArguments) -> Result<()> {
+    pub async fn queue_delete(&self, args: QueueDeleteArguments) -> Result<()> {
         let mut delete = DeleteQueue {
             ticket: 0,
             queue: args.queue.try_into().unwrap(),
@@ -226,7 +226,7 @@ impl Channel {
         }
     }
 
-    pub async fn queue_unbind(&mut self, args: QueueUnbindArguments) -> Result<()> {
+    pub async fn queue_unbind(&self, args: QueueUnbindArguments) -> Result<()> {
         let unbind = UnbindQueue {
             ticket: 0,
             queue: args.queue.try_into().unwrap(),

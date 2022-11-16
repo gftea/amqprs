@@ -115,7 +115,7 @@ impl ExchangeUnbindArguments {
 /////////////////////////////////////////////////////////////////////////////
 /// API for Exchange methods
 impl Channel {
-    pub async fn exchange_declare(&mut self, args: ExchangeDeclareArguments) -> Result<()> {
+    pub async fn exchange_declare(&self, args: ExchangeDeclareArguments) -> Result<()> {
         let mut declare = Declare {
             ticket: 0,
             exchange: args.name.try_into().unwrap(),
@@ -150,7 +150,7 @@ impl Channel {
         }
     }
 
-    pub async fn exchange_delete(&mut self, args: ExchangeDeleteArguments) -> Result<()> {
+    pub async fn exchange_delete(&self, args: ExchangeDeleteArguments) -> Result<()> {
         let mut delete = Delete {
             ticket: 0,
             exchange: args.name.try_into().unwrap(),
@@ -178,7 +178,7 @@ impl Channel {
         }
     }
 
-    pub async fn exchange_bind(&mut self, args: ExchangeBindArguments) -> Result<()> {
+    pub async fn exchange_bind(&self, args: ExchangeBindArguments) -> Result<()> {
         let bind = Bind {
             ticket: 0,
             destination: args.destination.try_into().unwrap(),
@@ -207,7 +207,7 @@ impl Channel {
         }
     }
 
-    pub async fn exchange_unbind(&mut self, args: ExchangeUnbindArguments) -> Result<()> {
+    pub async fn exchange_unbind(&self, args: ExchangeUnbindArguments) -> Result<()> {
         let unbind = Unbind {
             ticket: 0,
             destination: args.destination.try_into().unwrap(),
@@ -246,18 +246,18 @@ mod tests {
     async fn test_exchange_declare() {
         let client = Connection::open("localhost:5672").await.unwrap();
 
-        let mut channel = client.open_channel().await.unwrap();
+        let channel = client.open_channel().await.unwrap();
         let mut args = ExchangeDeclareArguments::new("amq.direct", "direct");
         args.passive = true;
         channel.exchange_declare(args).await.unwrap();
     }
 
     #[tokio::test]
-    #[should_panic]
+    #[should_panic = "InternalChannelError(\"channel closed\")"]
     async fn test_exchange_delete() {
         let client = Connection::open("localhost:5672").await.unwrap();
 
-        let mut channel = client.open_channel().await.unwrap();
+        let channel = client.open_channel().await.unwrap();
         let args = ExchangeDeleteArguments::new("amq.direct");
         channel.exchange_delete(args).await.unwrap();
     }

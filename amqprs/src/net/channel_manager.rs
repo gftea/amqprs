@@ -1,20 +1,11 @@
 use std::collections::BTreeMap;
 
 use amqp_serde::types::{AmqpChannelId, ShortUint};
-use tokio::sync::{
-    mpsc::{Sender},
-    oneshot,
-};
+use tokio::sync::{mpsc::Sender, oneshot};
 
+use crate::frame::MethodHeader;
 
-use crate::frame::{
-    MethodHeader,
-};
-
-use super::{
-    channel_id_repo::ChannelIdRepository, ChannelResource,
-    IncomingMessage,
-};
+use super::{channel_id_repo::ChannelIdRepository, ChannelResource, IncomingMessage};
 
 pub(super) struct ChannelManager {
     /// channel id allocator and manager

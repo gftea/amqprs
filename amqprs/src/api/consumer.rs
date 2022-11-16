@@ -1,4 +1,4 @@
-use std::{str::from_utf8};
+use std::str::from_utf8;
 
 use async_trait::async_trait;
 use tracing::info;

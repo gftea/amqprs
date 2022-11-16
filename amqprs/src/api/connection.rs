@@ -8,14 +8,13 @@ use std::{
 
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 use tokio::sync::{broadcast, mpsc, oneshot};
-use tracing::debug;
+use tracing::{debug, error};
 
 use crate::{
     frame::OpenChannelOk,
     net::{
-        ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage,
-        ReaderHandler, RegisterChannelResource, RegisterConnectionCallback, SplitConnection,
-        WriterHandler,
+        ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage, ReaderHandler,
+        RegisterChannelResource, RegisterConnectionCallback, SplitConnection, WriterHandler,
     },
 };
 use crate::{
@@ -330,7 +329,10 @@ impl Drop for Connection {
             let conn = self.clone();
             tokio::spawn(async move {
                 if let Err(err) = conn.close().await {
-                    panic!("failed to close connection when drop, cause: {}", err);
+                    error!(
+                        "error occurred during close connection when drop, cause: {}",
+                        err
+                    );
                 }
             });
         }

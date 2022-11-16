@@ -10,10 +10,11 @@ use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    api::error::Error,
+    api::error::{Error},
     frame::{CloseChannel, CloseChannelOk, Flow, FlowOk, Frame, MethodHeader},
     net::{ConnManagementCommand, IncomingMessage, OutgoingMessage, RegisterResponder},
 };
+use tracing::error;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -129,7 +130,10 @@ impl Drop for Channel {
             tokio::spawn(async move {
                 if let Err(err) = channel.close().await {
                     if !channel.is_connection_closed() {
-                        panic!("failed to close channel when drop, cause: {}", err);
+                        error!(
+                            "error occurred during close channel when drop, cause: {}",
+                            err
+                        );
                     }
                 }
             });

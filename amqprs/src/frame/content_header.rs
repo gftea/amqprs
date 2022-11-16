@@ -1,6 +1,8 @@
 use std::fmt;
 
-use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
+use amqp_serde::types::{
+    FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp,
+};
 use serde::{de::Visitor, Deserialize, Serialize};
 
 use crate::api::channel::ServerSpecificArguments;
@@ -49,7 +51,7 @@ pub struct BasicProperties {
     expiration: Option<ShortStr>,
     message_id: Option<ShortStr>,
     timestamp: Option<TimeStamp>,
-    typ: Option<ShortStr>,
+    message_type: Option<ShortStr>,
     user_id: Option<ShortStr>,
     app_id: Option<ShortStr>,
     cluster_id: Option<ShortStr>,
@@ -67,7 +69,7 @@ impl BasicProperties {
         expiration: Option<String>,
         message_id: Option<String>,
         timestamp: Option<TimeStamp>,
-        typ: Option<String>,
+        message_type: Option<String>,
         user_id: Option<String>,
         app_id: Option<String>,
         cluster_id: Option<String>,
@@ -98,7 +100,14 @@ impl BasicProperties {
         let delivery_mode = match delivery_mode {
             Some(v) => {
                 property_flags[0] |= 1 << 4;
-                Some(v.try_into().unwrap())
+                Some(v)
+            }
+            None => None,
+        };
+        let priority = match priority {
+            Some(v) => {
+                property_flags[0] |= 1 << 3;
+                Some(v)
             }
             None => None,
         };
@@ -131,7 +140,14 @@ impl BasicProperties {
             }
             None => None,
         };
-        let typ = match typ {
+        let timestamp = match timestamp {
+            Some(v) => {
+                property_flags[1] |= 1 << 6;
+                Some(v)
+            }
+            None => None,
+        };
+        let message_type = match message_type {
             Some(v) => {
                 property_flags[1] |= 1 << 5;
                 Some(v.try_into().unwrap())
@@ -171,7 +187,7 @@ impl BasicProperties {
             expiration,
             message_id,
             timestamp,
-            typ,
+            message_type,
             user_id,
             app_id,
             cluster_id,
@@ -215,11 +231,11 @@ impl BasicProperties {
     }
 
     pub fn timestamp(&self) -> Option<u64> {
-        self.timestamp
+        self.timestamp      
     }
 
-    pub fn typ(&self) -> Option<&String> {
-        self.typ.as_deref()
+    pub fn message_type(&self) -> Option<&String> {
+        self.message_type.as_deref()
     }
 
     pub fn user_id(&self) -> Option<&String> {
@@ -284,7 +300,7 @@ impl<'de> Deserialize<'de> for BasicProperties {
                     expiration: None,
                     message_id: None,
                     timestamp: None,
-                    typ: None,
+                    message_type: None,
                     user_id: None,
                     app_id: None,
                     cluster_id: None,
@@ -341,7 +357,7 @@ impl<'de> Deserialize<'de> for BasicProperties {
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }
                 if (flags[1] & 1 << 5) != 0 {
-                    basic_properties.typ = seq
+                    basic_properties.message_type = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                 }

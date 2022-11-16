@@ -2,7 +2,7 @@ use crate::frame::{Close, CloseChannel};
 
 use super::{channel::Channel, connection::Connection, error::Error};
 use async_trait::async_trait;
-use tracing::{error};
+use tracing::error;
 
 type Result<T> = std::result::Result<T, Error>;
 

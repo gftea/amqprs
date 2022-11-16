@@ -1,5 +1,3 @@
-
-
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 use tokio::sync::{
     broadcast,
