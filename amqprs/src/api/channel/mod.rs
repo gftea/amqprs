@@ -65,7 +65,9 @@ impl SharedChannelInner {
 
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
-    pub(in crate::api) fn new(shared: Arc<SharedChannelInner>) -> Self { Self { shared } }
+    pub(in crate::api) fn new(shared: Arc<SharedChannelInner>) -> Self {
+        Self { shared }
+    }
 
     async fn register_responder(
         &self,

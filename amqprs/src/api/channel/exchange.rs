@@ -131,7 +131,8 @@ impl Channel {
         declare.set_no_wait(args.no_wait);
 
         if args.no_wait {
-            self.shared.outgoing_tx
+            self.shared
+                .outgoing_tx
                 .send((self.shared.channel_id, declare.into_frame()))
                 .await?;
             Ok(())
@@ -158,7 +159,8 @@ impl Channel {
         delete.set_if_unused(args.if_unused);
         delete.set_no_wait(args.no_wait);
         if args.no_wait {
-            self.shared.outgoing_tx
+            self.shared
+                .outgoing_tx
                 .send((self.shared.channel_id, delete.into_frame()))
                 .await?;
             Ok(())
@@ -186,7 +188,8 @@ impl Channel {
             arguments: args.arguments.into_field_table(),
         };
         if args.no_wait {
-            self.shared.outgoing_tx
+            self.shared
+                .outgoing_tx
                 .send((self.shared.channel_id, bind.into_frame()))
                 .await?;
             Ok(())
@@ -214,7 +217,8 @@ impl Channel {
             arguments: args.arguments.into_field_table(),
         };
         if args.no_wait {
-            self.shared.outgoing_tx
+            self.shared
+                .outgoing_tx
                 .send((self.shared.channel_id, unbind.into_frame()))
                 .await?;
             Ok(())

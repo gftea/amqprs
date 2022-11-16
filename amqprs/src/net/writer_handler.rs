@@ -28,7 +28,7 @@ impl WriterHandler {
         loop {
             tokio::select! {
                 biased;
-                
+
                 channel_frame = self.outgoing_rx.recv() => {
                     let (channel_id, frame) = match channel_frame {
                         None => break,

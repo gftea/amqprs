@@ -10,7 +10,7 @@ use super::channel::{BasicAckArguments, Channel};
 #[async_trait]
 pub trait AsyncConsumer {
     async fn consume(
-        &mut self,  // use `&mut self` to make trait object to be `Sync`
+        &mut self, // use `&mut self` to make trait object to be `Sync`
         channel: &Channel,
         deliver: Deliver,
         basic_properties: BasicProperties,

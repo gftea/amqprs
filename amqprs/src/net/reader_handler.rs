@@ -8,15 +8,17 @@ use tokio::sync::{
 };
 use tracing::{debug, error, info};
 
-use crate::{frame::{
-    Close, CloseChannel, CloseChannelOk, CloseOk, Frame, MethodHeader, CONN_DEFAULT_CHANNEL,
-}, api::{callbacks::ConnectionCallback, connection::Connection}};
-
-use super::{
-    channel_id_repo::ChannelIdRepository, BufReader, ChannelResource, ConnManagementCommand, Error,
-    OutgoingMessage, IncomingMessage, channel_manager::ChannelManager,
+use crate::{
+    api::{callbacks::ConnectionCallback, connection::Connection},
+    frame::{
+        Close, CloseChannel, CloseChannelOk, CloseOk, Frame, MethodHeader, CONN_DEFAULT_CHANNEL,
+    },
 };
 
+use super::{
+    channel_id_repo::ChannelIdRepository, channel_manager::ChannelManager, BufReader,
+    ChannelResource, ConnManagementCommand, Error, IncomingMessage, OutgoingMessage,
+};
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +43,6 @@ pub(crate) struct ReaderHandler {
     /// so socket read will return, and reader handler can detect connection shutdown without separate signal.
     #[allow(dead_code /* notify shutdown just by dropping the instance */)]
     shutdown_notifier: broadcast::Sender<()>,
-
 }
 
 impl ReaderHandler {

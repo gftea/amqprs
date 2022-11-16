@@ -11,9 +11,7 @@ mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_publish() {
-
     common::setup_logging(Level::TRACE);
-
 
     // open a connection to RabbitMQ server
     let connection = Connection::open("localhost:5672").await.unwrap();

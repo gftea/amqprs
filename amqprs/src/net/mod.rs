@@ -1,6 +1,6 @@
 mod channel_id_repo;
-mod connection_manager;
 mod channel_manager;
+mod connection_manager;
 mod error;
 mod reader_handler;
 mod split_connection;
@@ -10,12 +10,15 @@ use std::collections::HashMap;
 
 pub(crate) use connection_manager::*;
 pub(crate) use error::*;
-pub(crate) use split_connection::*;
 pub(crate) use reader_handler::*;
+pub(crate) use split_connection::*;
 pub(crate) use writer_handler::*;
 
 /////////////////////////////////////////////////////////////////////////////
-use crate::{frame::{Frame, MethodHeader}, api::callbacks::{ConnectionCallback, ChannelCallback}};
+use crate::{
+    api::callbacks::{ChannelCallback, ConnectionCallback},
+    frame::{Frame, MethodHeader},
+};
 use amqp_serde::types::AmqpChannelId;
 use tokio::sync::{mpsc::Sender, oneshot};
 

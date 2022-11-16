@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, VecDeque},
-    ops::Deref, sync::Arc,
+    ops::Deref,
+    sync::Arc,
 };
 
 use tokio::{sync::mpsc, task::yield_now};
@@ -12,7 +13,8 @@ use crate::{
         Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody, ContentHeader,
         ContentHeaderCommon, Deliver, Frame, Get, GetOk, Nack, Publish, Qos, QosOk, Recover,
         RecoverOk, Reject,
-    }, net::IncomingMessage,
+    },
+    net::IncomingMessage,
 };
 
 use super::{Channel, Result, ServerSpecificArguments};
@@ -456,7 +458,8 @@ impl Channel {
         // self.park_notify.notify_one();
 
         let consumer_tag = if args.no_wait {
-            self.shared.outgoing_tx
+            self.shared
+                .outgoing_tx
                 .send((self.shared.channel_id, consume.into_frame()))
                 .await?;
             consumer_tag
@@ -498,7 +501,6 @@ impl Channel {
             );
 
             loop {
-                
                 match consumer_rx.recv().await {
                     Some(mut msg) => {
                         consumer
@@ -517,7 +519,8 @@ impl Channel {
                 }
             }
         });
-        self.shared.dispatcher_mgmt_tx
+        self.shared
+            .dispatcher_mgmt_tx
             .send(DispatcherManagementCommand::RegisterConsumer(
                 RegisterConsumer {
                     consumer_tag,
@@ -534,7 +537,8 @@ impl Channel {
             delivery_tag: args.delivery_tag,
             mutiple: args.multiple,
         };
-        self.shared.outgoing_tx
+        self.shared
+            .outgoing_tx
             .send((self.shared.channel_id, ack.into_frame()))
             .await?;
         Ok(())
@@ -547,7 +551,8 @@ impl Channel {
         };
         nack.set_multiple(args.multiple);
         nack.set_requeue(args.requeue);
-        self.shared.outgoing_tx
+        self.shared
+            .outgoing_tx
             .send((self.shared.channel_id, nack.into_frame()))
             .await?;
         Ok(())
@@ -558,7 +563,8 @@ impl Channel {
             delivery_tag: args.delivery_tag,
             requeue: args.requeue,
         };
-        self.shared.outgoing_tx
+        self.shared
+            .outgoing_tx
             .send((self.shared.channel_id, reject.into_frame()))
             .await?;
         Ok(())
@@ -574,7 +580,8 @@ impl Channel {
             no_wait,
         };
         let consumer_tag = if args.no_wait {
-            self.shared.outgoing_tx
+            self.shared
+                .outgoing_tx
                 .send((self.shared.channel_id, cancel.into_frame()))
                 .await?;
             consumer_tag
@@ -604,11 +611,13 @@ impl Channel {
 
         let (tx, mut rx) = mpsc::channel(3);
         let command = RegisterGetResponder { tx };
-        self.shared.dispatcher_mgmt_tx
+        self.shared
+            .dispatcher_mgmt_tx
             .send(DispatcherManagementCommand::RegisterGetResponder(command))
             .await?;
 
-        self.shared.outgoing_tx
+        self.shared
+            .outgoing_tx
             .send((self.shared.channel_id, get.into_frame()))
             .await?;
         let get_ok = match rx.recv().await.ok_or_else(|| {
@@ -671,7 +680,8 @@ impl Channel {
         publish.set_mandatory(args.mandatory);
         publish.set_immediate(args.immediate);
 
-        self.shared.outgoing_tx
+        self.shared
+            .outgoing_tx
             .send((self.shared.channel_id, publish.into_frame()))
             .await?;
 
@@ -683,12 +693,14 @@ impl Channel {
             },
             basic_properties,
         );
-        self.shared.outgoing_tx
+        self.shared
+            .outgoing_tx
             .send((self.shared.channel_id, content_header.into_frame()))
             .await?;
 
         let content = ContentBody::new(content);
-        self.shared.outgoing_tx
+        self.shared
+            .outgoing_tx
             .send((self.shared.channel_id, content.into_frame()))
             .await?;
         Ok(())
