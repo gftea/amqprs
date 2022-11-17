@@ -12,13 +12,11 @@ pub(crate) use split_connection::*;
 pub(crate) use writer_handler::*;
 /////////////////////////////////////////////////////////////////////////////
 use crate::{
-    api::{
-        callbacks::{ConnectionCallback},
-    },
+    api::callbacks::ConnectionCallback,
     frame::{Frame, MethodHeader},
 };
 use amqp_serde::types::AmqpChannelId;
-use tokio::sync::{oneshot};
+use tokio::sync::oneshot;
 
 pub type OutgoingMessage = (AmqpChannelId, Frame);
 
@@ -45,6 +43,8 @@ pub(crate) struct RegisterConnectionCallback {
 
 pub(crate) enum ConnManagementCommand {
     RegisterChannelResource(RegisterChannelResource),
+    UnregisterChannelResource(AmqpChannelId),
+
     RegisterResponder(RegisterResponder),
     RegisterConnectionCallback(RegisterConnectionCallback),
 }

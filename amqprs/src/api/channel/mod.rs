@@ -2,8 +2,6 @@
 //!
 
 use std::{
-    collections::{HashMap, VecDeque},
-    ops::Deref,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -13,7 +11,6 @@ use std::{
 use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
 use tokio::{
     sync::{mpsc, oneshot},
-    task::yield_now,
 };
 
 use super::callbacks::ChannelCallback;
@@ -23,7 +20,7 @@ use crate::{
     net::{ConnManagementCommand, IncomingMessage, OutgoingMessage},
     BasicProperties,
 };
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 
 type Result<T> = std::result::Result<T, Error>;
 

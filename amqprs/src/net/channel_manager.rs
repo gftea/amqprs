@@ -3,9 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 use tokio::sync::{mpsc::Sender, oneshot};
 
-use crate::{
-    frame::MethodHeader,
-};
+use crate::frame::MethodHeader;
 
 use super::{channel_id_repo::ChannelIdRepository, IncomingMessage};
 

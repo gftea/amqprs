@@ -79,18 +79,24 @@ async fn test_multi_consumer() {
     time::sleep(time::Duration::from_secs(1)).await;
 
     // TODO: move to separate test case, below is for test only
-    if true {
+    if false {
         // implicitly close by drop
         drop(channel);
+        time::sleep(time::Duration::from_millis(10)).await;
         drop(connection);
+        time::sleep(time::Duration::from_millis(10)).await;
+
     } else {
         // explicitly close
         channel.close().await.unwrap();
+        time::sleep(time::Duration::from_millis(10)).await;
         connection.close().await.unwrap();
+        time::sleep(time::Duration::from_millis(10)).await;
+
     }
 
-    println!("connection and channel are dropped or closed");
-    time::sleep(time::Duration::from_secs(1)).await;
+    
+    
 }
 
 async fn publish_test_messages(channel: &Channel, exchange_name: &str) {

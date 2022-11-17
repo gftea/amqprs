@@ -114,7 +114,7 @@ impl Channel {
     /// When result is Ok
     ///     - no_wait = false, which means require synchronous response, return `(queue_name, message_count, consumer_count)` wrapped in `Some`
     ///     - no_wait = true, which means no response required, return `None`
-    /// 
+    ///
     pub async fn queue_declare(
         &self,
         args: QueueDeclareArguments,

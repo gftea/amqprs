@@ -1,5 +1,5 @@
 use tokio::sync::mpsc;
-use tracing::trace;
+use tracing::{trace, debug};
 
 use crate::{
     api::{
@@ -171,8 +171,6 @@ impl BasicPublishArguments {
 
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
-    
-
     pub async fn basic_qos(&mut self, args: BasicQosArguments) -> Result<()> {
         let qos = Qos::new(args.prefetch_size, args.prefetch_count, args.global);
         let responder_rx = self.register_responder(QosOk::header()).await?;
@@ -279,7 +277,7 @@ impl Channel {
                             .await;
                     }
                     None => {
-                        trace!("Exit consumer: {}", ctag);
+                        debug!("Exit consumer: {}", ctag);
                         break;
                     }
                 }

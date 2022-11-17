@@ -1,5 +1,5 @@
 use tokio::sync::{broadcast, mpsc};
-use tracing::{error, info};
+use tracing::{error, info, debug};
 
 use super::{BufWriter, OutgoingMessage};
 
@@ -49,6 +49,6 @@ impl WriterHandler {
             }
         }
         // FIXME: should here send Close method to server?
-        info!("Shutdown WriterHandler!");
+        debug!("Shutdown WriterHandler!");
     }
 }

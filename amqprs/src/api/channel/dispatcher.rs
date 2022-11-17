@@ -4,29 +4,22 @@
 use std::{
     collections::{HashMap, VecDeque},
     ops::Deref,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
 };
 
-use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
+
 use tokio::{
     sync::{mpsc, oneshot},
     task::yield_now,
 };
 
 use crate::{
-    api::{callbacks::ChannelCallback, error::Error},
-    frame::{CloseChannel, CloseChannelOk, Deliver, Flow, FlowOk, Frame, MethodHeader},
-    net::{ConnManagementCommand, IncomingMessage, OutgoingMessage},
-    BasicProperties,
+    api::{callbacks::ChannelCallback},
+    frame::{CloseChannelOk, Frame, MethodHeader},
+    net::{IncomingMessage, ConnManagementCommand},
 };
-use tracing::{debug, error, trace};
+use tracing::{debug, trace, error};
 
 use super::{Channel, ConsumerMessage, DispatcherManagementCommand};
-
-type Result<T> = std::result::Result<T, Error>;
 
 struct ConsumerResource {
     fifo: VecDeque<ConsumerMessage>,
@@ -82,7 +75,9 @@ pub(crate) struct ChannelDispatcher {
 /////////////////////////////////////////////////////////////////////////////
 impl ChannelDispatcher {
     pub(crate) fn new(
-        channel: Channel,       dispatcher_rx: mpsc::Receiver<IncomingMessage>,dispatcher_mgmt_rx: mpsc::Receiver<DispatcherManagementCommand>,
+        channel: Channel,
+        dispatcher_rx: mpsc::Receiver<IncomingMessage>,
+        dispatcher_mgmt_rx: mpsc::Receiver<DispatcherManagementCommand>,
     ) -> Self {
         Self {
             channel,
@@ -106,11 +101,7 @@ impl ChannelDispatcher {
     fn remove_consumer(&mut self, consumer_tag: &String) -> Option<ConsumerResource> {
         self.consumers.remove(consumer_tag)
     }
-    pub(in crate::api) async fn spawn(
-        mut self,
-        
-    ) {
-
+    pub(in crate::api) async fn spawn(mut self) {
         tokio::spawn(async move {
             // internal state
 
@@ -135,7 +126,10 @@ impl ChannelDispatcher {
             // // initial state
             // let mut state = State::Initial;
 
-            trace!("Dispatcher of channel {} starts!", self.channel.channel_id());
+            trace!(
+                "Dispatcher of channel {} starts!",
+                self.channel.channel_id()
+            );
 
             loop {
                 tokio::select! {
@@ -339,7 +333,12 @@ impl ChannelDispatcher {
 
                 }
             }
-            trace!("Exit dispatcher of channel {}", self.channel.channel_id());
+            let cmd = ConnManagementCommand::UnregisterChannelResource(self.channel.channel_id());
+            debug!("Request to unregister channel resource {}", self.channel.channel_id());
+            if let Err(err) = self.channel.shared.conn_mgmt_tx.send(cmd).await {
+                error!("Failed to unregister channel resource, cause: {}", err);
+            }
+            debug!("Exit dispatcher of channel {}", self.channel.channel_id());
         });
     }
 }

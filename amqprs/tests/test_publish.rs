@@ -53,4 +53,6 @@ async fn test_publish() {
     // keep the `channel` and `connection` object from dropping until publish is done
     // NOTE: channel/connection will be closed when drop
     time::sleep(time::Duration::from_secs(1)).await;
+    channel.close().await.unwrap();
+    connection.close().await.unwrap();
 }

@@ -1,7 +1,4 @@
-use tracing::{
-    subscriber::{SetGlobalDefaultError},
-    Level,
-};
+use tracing::{subscriber::SetGlobalDefaultError, Level};
 
 pub fn setup_logging(level: Level) -> Result<(), SetGlobalDefaultError> {
     // construct a subscriber that prints formatted traces to stdout

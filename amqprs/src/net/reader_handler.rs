@@ -7,9 +7,7 @@ use tracing::{debug, error, info};
 
 use crate::{
     api::{callbacks::ConnectionCallback, connection::Connection},
-    frame::{
-        Close, CloseOk, Frame, MethodHeader, CONN_DEFAULT_CHANNEL,
-    },
+    frame::{Close, CloseOk, Frame, MethodHeader, CONN_DEFAULT_CHANNEL},
 };
 
 use super::{
@@ -150,6 +148,7 @@ impl ReaderHandler {
                     .await
             }
 
+
             // Method frames of asynchronous request
             // Server request to close connection
             Frame::Close(method_header, close) => {
@@ -168,7 +167,7 @@ impl ReaderHandler {
                     }
                     None => {
                         error!(
-                            "No dispatcher registered yet for channel {}, discard frame: {}",
+                            "No dispatcher registered  for channel {}, discard frame: {}",
                             channel_id, frame
                         );
                         Ok(())
@@ -191,8 +190,13 @@ impl ReaderHandler {
                     match command {
 
                         ConnManagementCommand::RegisterChannelResource(cmd) => {
+                            
                             let id = self.channel_manager.insert_resource(cmd.channel_id, cmd.resource);
                             cmd.acker.send(id).expect("Acknowledge to command RegisterChannelResource should succeed");
+                        },
+                        ConnManagementCommand::UnregisterChannelResource(channel_id) => {                            
+                            self.channel_manager.remove_resource(&channel_id);
+                            debug!("Channel {} resource unregistered from connection", channel_id);
                         },
                         ConnManagementCommand::RegisterResponder(cmd) => {
                             self.channel_manager.insert_responder(&cmd.channel_id, cmd.method_header, cmd.responder);
@@ -200,6 +204,7 @@ impl ReaderHandler {
                         },
                         ConnManagementCommand::RegisterConnectionCallback(cmd) => {
                             self.callback.replace(cmd.callback);
+                            debug!("Connection callback registered");
                         },
 
                     }
@@ -232,6 +237,6 @@ impl ReaderHandler {
 
         // `self` will drop, so the `self.shutdown_notifier`
         // all tasks which have `subscribed` to `shutdown_notifier` will be notified
-        info!("Shutdown ReaderHandler!");
+        debug!("Shutdown ReaderHandler!");
     }
 }

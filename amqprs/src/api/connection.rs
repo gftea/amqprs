@@ -26,7 +26,7 @@ use super::{
     callbacks::ConnectionCallback,
     channel::{Channel, ChannelDispatcher},
 };
-use super::{channel::SharedChannelInner, error::Error};
+use super::{error::Error};
 type Result<T> = std::result::Result<T, Error>;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -345,10 +345,13 @@ impl Drop for Connection {
 mod tests {
     use super::Connection;
     use tokio::time;
+    use tracing::{Level, subscriber::SetGlobalDefaultError};
 
     #[tokio::test]
     async fn test_channel_open_close() {
+        setup_logging(Level::DEBUG);
         {
+
             // test close on drop
             let connection = Connection::open("localhost:5672").await.unwrap();
 
@@ -364,6 +367,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_multi_conn_open_close() {
+        setup_logging(Level::DEBUG);
+
         let mut handles = vec![];
         for _ in 0..10 {
             let handle = tokio::spawn(async move {
@@ -381,6 +386,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multi_channel_open_close() {
+        setup_logging(Level::DEBUG);
         {
             let connection = Connection::open("localhost:5672").await.unwrap();
             let mut handles = vec![];
@@ -400,4 +406,13 @@ mod tests {
         }
         time::sleep(time::Duration::from_millis(100)).await;
     }
+
+    pub fn setup_logging(level: Level) -> Result<(), SetGlobalDefaultError> {
+        // construct a subscriber that prints formatted traces to stdout
+        let subscriber = tracing_subscriber::fmt().with_max_level(level).finish();
+    
+        // use that subscriber to process traces emitted after this point
+        tracing::subscriber::set_global_default(subscriber)
+    }
+    
 }

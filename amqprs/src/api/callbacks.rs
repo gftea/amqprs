@@ -4,7 +4,6 @@ use super::{channel::Channel, connection::Connection};
 use async_trait::async_trait;
 use tracing::error;
 
-
 /////////////////////////////////////////////////////////////////////////////
 #[async_trait]
 pub trait ConnectionCallback {

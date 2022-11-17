@@ -52,5 +52,5 @@ impl AsyncConsumer for DefaultConsumer {
         }
     }
 
-    async fn cancel(&mut self, channel: &Channel) {}
+    async fn cancel(&mut self, _channel: &Channel) {}
 }
