@@ -1,14 +1,40 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 use tokio::sync::{mpsc::Sender, oneshot};
 
-use crate::frame::MethodHeader;
+use crate::{
+    api::{callbacks::ChannelCallback, channel::Channel},
+    frame::MethodHeader,
+};
 
-use super::{channel_id_repo::ChannelIdRepository, ChannelResource, IncomingMessage};
+use super::{channel_id_repo::ChannelIdRepository, IncomingMessage};
 
+pub(crate) struct ChannelResource {
+    /// responder to acknowledge synchronous request
+    /// responders are oneshot channel, which are not dedicated resource for channel
+    pub responders: HashMap<&'static MethodHeader, oneshot::Sender<IncomingMessage>>,
+
+    /// connection's default channel does not have dispatcher
+    /// each channel has one and only one dispatcher
+    pub dispatcher: Option<Sender<IncomingMessage>>,
+}
+
+impl ChannelResource {
+    pub(crate) fn new(dispatcher: Option<Sender<IncomingMessage>>) -> Self {
+        Self {
+            responders: HashMap::new(),
+            dispatcher,
+            // amqp_channel,
+            // callback: None,
+        }
+    }
+}
 pub(super) struct ChannelManager {
-    /// channel id allocator and manager
+    /// channel id manager to allocate, reserve, and free id
+    /// Keep the id manager out of AMQ connection type and use registeration machanism to manage id,
+    /// which allows a slim Connection type that can be easily shared concurrently
+    /// If we have the id manager in AMQ Connection type, then shared Connection object need to be mutable concurrently
     channel_id_repo: ChannelIdRepository,
 
     /// channel resource registery store
@@ -66,6 +92,11 @@ impl ChannelManager {
         self.resource.remove(channel_id)
     }
 
+      
+    pub fn get_dispatcher(&self, channel_id: &AmqpChannelId) -> Option<&Sender<IncomingMessage>> {
+        self.resource.get(channel_id)?.dispatcher.as_ref()
+    }
+
     pub fn insert_responder(
         &mut self,
         channel_id: &AmqpChannelId,
@@ -89,7 +120,5 @@ impl ChannelManager {
             .remove(method_header)
     }
 
-    pub fn get_dispatcher(&self, channel_id: &AmqpChannelId) -> Option<&Sender<IncomingMessage>> {
-        self.resource.get(channel_id)?.dispatcher.as_ref()
-    }
+
 }

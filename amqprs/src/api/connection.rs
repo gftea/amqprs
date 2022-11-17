@@ -8,7 +8,7 @@ use std::{
 
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 use tokio::sync::{broadcast, mpsc, oneshot};
-use tracing::{debug, error};
+use tracing::{debug, error, trace};
 
 use crate::{
     frame::OpenChannelOk,
@@ -127,19 +127,14 @@ impl Connection {
 
         let new_amq_conn = Self { shared };
 
+        // spawn handlers for reader and writer of network connection
         new_amq_conn
             .spawn_handlers(connection, outgoing_rx, conn_mgmt_rx)
             .await;
 
         // register channel resource for connection's default channel
         new_amq_conn
-            .register_channel_resource(
-                Some(CONN_DEFAULT_CHANNEL),
-                ChannelResource {
-                    responders: HashMap::new(),
-                    dispatcher: None,
-                },
-            )
+            .register_channel_resource(Some(CONN_DEFAULT_CHANNEL), ChannelResource::new(None))
             .await
             .ok_or_else(|| {
                 Error::ConnectionOpenError("Failed to register channel resource".to_string())
@@ -183,28 +178,11 @@ impl Connection {
         Ok(())
     }
 
-    pub fn set_open_state(&self, is_open: bool) {
+    pub(crate) fn set_open_state(&self, is_open: bool) {
         self.shared.is_open.store(is_open, Ordering::Relaxed);
     }
     pub fn get_open_state(&self) -> bool {
         self.shared.is_open.load(Ordering::Relaxed)
-    }
-    /// close and consume the AMQ connection
-    pub async fn close(&self) -> Result<()> {
-        let responder_rx = self
-            .register_responder(CONN_DEFAULT_CHANNEL, CloseOk::header())
-            .await?;
-
-        let close = Close::default();
-        synchronous_request!(
-            self.shared.outgoing_tx,
-            (CONN_DEFAULT_CHANNEL, close.into_frame()),
-            responder_rx,
-            Frame::CloseOk,
-            Error::ConnectionCloseError
-        )?;
-        self.shared.is_open.store(false, Ordering::Relaxed);
-        Ok(())
     }
 
     pub(crate) async fn register_channel_resource(
@@ -283,13 +261,7 @@ impl Connection {
             mpsc::channel(DISPATCHER_COMMAND_BUFFER_SIZE);
 
         let channel_id = self
-            .register_channel_resource(
-                None,
-                ChannelResource {
-                    responders: HashMap::new(),
-                    dispatcher: Some(dispatcher_tx),
-                },
-            )
+            .register_channel_resource(None, ChannelResource::new(Some(dispatcher_tx)))
             .await
             .ok_or_else(|| {
                 Error::ChannelOpenError("Failed to register channel resource".to_string())
@@ -320,12 +292,35 @@ impl Connection {
 
         Ok(channel)
     }
+
+    /// close and consume the AMQ connection
+    pub async fn close(self) -> Result<()> {
+        self.set_open_state(false);
+        let responder_rx = self
+            .register_responder(CONN_DEFAULT_CHANNEL, CloseOk::header())
+            .await?;
+
+        let close = Close::default();
+        synchronous_request!(
+            self.shared.outgoing_tx,
+            (CONN_DEFAULT_CHANNEL, close.into_frame()),
+            responder_rx,
+            Frame::CloseOk,
+            Error::ConnectionCloseError
+        )?;
+
+        Ok(())
+    }
 }
 
 impl Drop for Connection {
     fn drop(&mut self) {
-        if self.shared.is_open.load(Ordering::Relaxed) {
-            self.shared.is_open.store(false, Ordering::Relaxed);
+        if let Ok(true) =
+            self.shared
+                .is_open
+                .compare_exchange(true, false, Ordering::Relaxed, Ordering::Relaxed)
+        {
+            trace!("drop and close connection");
             let conn = self.clone();
             tokio::spawn(async move {
                 if let Err(err) = conn.close().await {
@@ -348,11 +343,11 @@ mod tests {
     async fn test_channel_open_close() {
         {
             // test close on drop
-            let client = Connection::open("localhost:5672").await.unwrap();
+            let connection = Connection::open("localhost:5672").await.unwrap();
 
             {
                 // test close on drop
-                let _channel = client.open_channel().await.unwrap();
+                let _channel = connection.open_channel().await.unwrap();
             }
             time::sleep(time::Duration::from_millis(10)).await;
         }
@@ -366,9 +361,9 @@ mod tests {
         for _ in 0..10 {
             let handle = tokio::spawn(async move {
                 time::sleep(time::Duration::from_millis(200)).await;
-                let client = Connection::open("localhost:5672").await.unwrap();
+                let connection = Connection::open("localhost:5672").await.unwrap();
                 time::sleep(time::Duration::from_millis(200)).await;
-                client.close().await.unwrap();
+                connection.close().await.unwrap();
             });
             handles.push(handle);
         }
@@ -380,11 +375,11 @@ mod tests {
     #[tokio::test]
     async fn test_multi_channel_open_close() {
         {
-            let client = Connection::open("localhost:5672").await.unwrap();
+            let connection = Connection::open("localhost:5672").await.unwrap();
             let mut handles = vec![];
 
             for _ in 0..10 {
-                let ch = client.open_channel().await.unwrap();
+                let ch = connection.open_channel().await.unwrap();
                 let handle = tokio::spawn(async move {
                     let _ch = ch;
                     time::sleep(time::Duration::from_millis(100)).await;

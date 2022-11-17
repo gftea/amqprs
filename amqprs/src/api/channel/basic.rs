@@ -3,46 +3,25 @@ use std::{
     ops::Deref,
 };
 
-use tokio::{sync::mpsc, task::yield_now};
+use tokio::{
+    sync::{mpsc, oneshot},
+    task::yield_now,
+};
 use tracing::{debug, trace};
 
 use crate::{
-    api::{consumer::AsyncConsumer, error::Error},
+    api::{callbacks::ChannelCallback, consumer::AsyncConsumer, error::Error, channel::{ConsumerMessage, CONSUMER_MESSAGE_BUFFER_SIZE, DispatcherManagementCommand, RegisterContentConsumer}},
     frame::{
-        Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody, ContentHeader,
-        ContentHeaderCommon, Deliver, Frame, Get, GetOk, Nack, Publish, Qos, QosOk, Recover,
-        RecoverOk, Reject,
+        Ack, BasicProperties, Cancel, CancelOk, CloseChannelOk, Consume, ConsumeOk, ContentBody,
+        ContentHeader, ContentHeaderCommon, Deliver, Frame, Get, GetOk, MethodHeader, Nack,
+        Publish, Qos, QosOk, Recover, RecoverOk, Reject,
     },
     net::IncomingMessage,
 };
 
-use super::{Channel, Result, ServerSpecificArguments};
+use super::{Channel, Result, ServerSpecificArguments, RegisterGetContentResponder};
 
-const CONSUMER_MESSAGE_BUFFER_SIZE: usize = 32;
 
-#[derive(Debug)]
-pub(crate) struct ConsumerMessage {
-    deliver: Option<Deliver>,
-    basic_properties: Option<BasicProperties>,
-    content: Option<Vec<u8>>,
-}
-
-pub(crate) struct RegisterConsumer {
-    consumer_tag: String,
-    consumer_tx: mpsc::Sender<ConsumerMessage>,
-}
-pub(crate) struct UnregisterConsumer {
-    consumer_tag: String,
-}
-
-pub(crate) struct RegisterGetResponder {
-    tx: mpsc::Sender<IncomingMessage>,
-}
-pub(crate) enum DispatcherManagementCommand {
-    RegisterConsumer(RegisterConsumer),
-    UnregisterConsumer(UnregisterConsumer),
-    RegisterGetResponder(RegisterGetResponder),
-}
 #[derive(Debug, Clone)]
 pub struct BasicQosArguments {
     pub prefetch_size: u32,
@@ -190,216 +169,255 @@ impl BasicPublishArguments {
     }
 }
 
-struct ConsumerResource {
-    fifo: VecDeque<ConsumerMessage>,
-    tx: Option<mpsc::Sender<ConsumerMessage>>,
-}
-
-impl ConsumerResource {
-    fn new() -> Self {
-        Self {
-            fifo: VecDeque::new(),
-            tx: None,
-        }
-    }
-    fn register_tx(
-        &mut self,
-        tx: mpsc::Sender<ConsumerMessage>,
-    ) -> Option<mpsc::Sender<ConsumerMessage>> {
-        self.tx.replace(tx)
-    }
-    fn unregister_tx(&mut self) -> Option<mpsc::Sender<ConsumerMessage>> {
-        self.tx.take()
-    }
-
-    fn get_tx(&self) -> Option<&mpsc::Sender<ConsumerMessage>> {
-        self.tx.as_ref()
-    }
-
-    fn push(&mut self, message: ConsumerMessage) {
-        self.fifo.push_back(message);
-    }
-    fn pop(&mut self) -> Option<ConsumerMessage> {
-        self.fifo.pop_front()
-    }
-}
-struct ConsumersResourcePool {
-    inner: HashMap<String, ConsumerResource>,
-}
-
-impl ConsumersResourcePool {
-    fn new() -> Self {
-        Self {
-            inner: HashMap::new(),
-        }
-    }
-    fn get_or_new_consumer(&mut self, consumer_tag: &String) -> &mut ConsumerResource {
-        if !self.inner.contains_key(consumer_tag) {
-            let resource = ConsumerResource::new();
-            self.inner.insert(consumer_tag.clone(), resource);
-        }
-        self.inner.get_mut(consumer_tag).unwrap()
-    }
-
-    fn remove_consumer(&mut self, consumer_tag: &String) -> Option<ConsumerResource> {
-        self.inner.remove(consumer_tag)
-    }
-}
 
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
-    /// Dispatcher for content related frames
-    pub(in crate::api) async fn spawn_dispatcher(
-        &self,
-        mut dispatcher_rx: mpsc::Receiver<IncomingMessage>,
-        mut dispatcher_mgmt_rx: mpsc::Receiver<DispatcherManagementCommand>,
-    ) {
-        let channel_id = self.shared.channel_id;
+    // /// Dispatcher for content related frames
+    // pub(in crate::api) async fn spawn_dispatcher(
+    //     &self,
+    //     mut dispatcher_rx: mpsc::Receiver<IncomingMessage>,
+    //     mut dispatcher_mgmt_rx: mpsc::Receiver<DispatcherManagementCommand>,
+    // ) {
+    //     let channel_id = self.shared.channel_id;
+    //     let channel = self.clone();
 
-        tokio::spawn(async move {
-            let mut buffer = ConsumerMessage {
-                deliver: None,
-                basic_properties: None,
-                content: None,
-            };
-            let mut consumers = ConsumersResourcePool::new();
-            let mut sync_responder = None;
-            // internal state
-            enum State {
-                Initial,
-                Deliver,
-                GetOk,
-                GetEmpty,
-                Return,
-            }
-            // initial state
-            let mut state = State::Initial;
-            trace!("Dispatcher of channel {} starts!", channel_id);
+    //     tokio::spawn(async move {
+    //         // internal state
+    //         enum State {
+    //             Initial,
+    //             Deliver,
+    //             GetOk,
+    //             GetEmpty,
+    //             Return,
+    //         }
+    //         let channel = &channel;
+    //         // buffer pool for all consumers
+    //         let mut consumers = ConsumerBuffersPool::new();
+    //         // single message buffer
+    //         let mut message_buffer = ConsumerMessage {
+    //             deliver: None,
+    //             basic_properties: None,
+    //             content: None,
+    //         };
+    //         // responders for Get content and synchronous response
+    //         let mut get_responder = None;
+    //         let mut oneshot_responders: HashMap<
+    //             &'static MethodHeader,
+    //             oneshot::Sender<IncomingMessage>,
+    //         > = HashMap::new();
 
-            loop {
-                tokio::select! {
-                    biased;
 
-                    command = dispatcher_mgmt_rx.recv() => {
-                        let cmd = match command {
-                            None => break,
-                            Some(v) => v,
-                        };
-                        match cmd {
-                            DispatcherManagementCommand::RegisterConsumer(cmd) => {
-                                // TODO: check insert result
-                                trace!("AsyncConsumer: {}, tx registered!", cmd.consumer_tag);
-                                let consumer = consumers.get_or_new_consumer(&cmd.consumer_tag);
-                                consumer.register_tx(cmd.consumer_tx);
-                                // forward buffered messages
-                                while !consumer.fifo.is_empty() {
-                                    trace!("Total buffered messages: {}", consumer.fifo.len());
-                                    let msg = consumer.pop().unwrap();
-                                    consumer.get_tx().unwrap().send(msg).await.unwrap();
-                                }
+    //         // initial state
+    //         let mut state = State::Initial;
 
-                            },
-                            DispatcherManagementCommand::UnregisterConsumer(cmd) => {
-                                // TODO: check remove result
-                                consumers.remove_consumer(&cmd.consumer_tag);
+    //         trace!("Dispatcher of channel {} starts!", channel_id);
 
-                            },
-                            DispatcherManagementCommand::RegisterGetResponder(cmd) => {
-                                sync_responder = Some(cmd.tx);
-                            }
-                        }
-                    }
-                    message = dispatcher_rx.recv() => {
-                        let frame = match message {
-                            None => break,
-                            Some(v) => v,
-                        };
-                        match frame {
-                            Frame::Return(_, method) => {
-                                state = State::Return;
-                                debug!("returned : {}, {}", method.reply_code, method.reply_text.deref());
-                            }
-                            Frame::GetEmpty(_, get_empty) => {
-                                state = State::GetEmpty;
-                                if let Err(err) = sync_responder.take().expect("Get responder must be registered").send(get_empty.into_frame()).await {
-                                    debug!("Failed to dispatch GetEmpty frame, cause: {}", err);
-                                }
-                            }
-                            Frame::GetOk(_, get_ok) => {
-                                state = State::GetOk;
-                                if let Err(err) = sync_responder.as_ref().expect("Get responder must be registered").send(get_ok.into_frame()).await {
-                                    debug!("Failed to dispatch GetOk frame, cause: {}", err);
-                                }
-                            }
-                            // server must send "Deliver + Content" in order, otherwise
-                            // client cannot know to which consumer tag is the content frame
-                            Frame::Deliver(_, deliver) => {
+    //         loop {
+    //             tokio::select! {
+    //                 biased;
 
-                                state = State::Deliver;
-                                buffer.deliver = Some(deliver);
-                            }
-                            Frame::ContentHeader(header) => {
-                                match state {
-                                    State::Deliver => buffer.basic_properties = Some(header.basic_properties),
-                                    State::GetOk => {
-                                        if let Err(err) = sync_responder.as_ref().expect("Get responder must be registered").send(header.into_frame()).await {
-                                            debug!("Failed to dispatch GetOk ContentHeader frame, cause: {}", err);
-                                        }
-                                    },
-                                    State::Return => todo!("handle Return content"),
-                                    State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state"),
-                                }
+    //                 command = dispatcher_mgmt_rx.recv() => {
+    //                     // handle command channel error
+    //                     let cmd = match command {
+    //                         None => break,
+    //                         Some(v) => v,
+    //                     };
+    //                     // handle command
+    //                     match cmd {
+    //                         DispatcherManagementCommand::RegisterContentConsumer(cmd) => {
+    //                             // TODO: check insert result
+    //                             trace!("AsyncConsumer: {}, tx registered!", cmd.consumer_tag);
+    //                             let consumer = consumers.get_or_new_consumer(&cmd.consumer_tag);
+    //                             consumer.register_tx(cmd.consumer_tx);
+    //                             // forward buffered messages
+    //                             while !consumer.fifo.is_empty() {
+    //                                 trace!("Total buffered messages: {}", consumer.fifo.len());
+    //                                 let msg = consumer.pop().unwrap();
+    //                                 consumer.get_tx().unwrap().send(msg).await.unwrap();
+    //                             }
 
-                            }
-                            Frame::ContentBody(body) => {
-                                match state {
-                                    State::Deliver => {
-                                        buffer.content = Some(body.inner);
+    //                         },
+    //                         DispatcherManagementCommand::UnregisterContentConsumer(cmd) => {
+    //                             // TODO: check remove result
+    //                             consumers.remove_consumer(&cmd.consumer_tag);
 
-                                        let consumer_tag = buffer.deliver.as_ref().unwrap().consumer_tag().clone();
-                                        let consumer_message  = ConsumerMessage {
-                                            deliver: buffer.deliver.take(),
-                                            basic_properties: buffer.basic_properties.take(),
-                                            content: buffer.content.take(),
-                                        };
-                                        let consumer = consumers.get_or_new_consumer(&consumer_tag);
-                                        match consumer.get_tx() {
-                                            Some(consumer_tx) => {
-                                                if let Err(_) = consumer_tx.send(consumer_message).await {
-                                                    debug!("Failed to dispatch message to consumer {}", consumer_tag);
-                                                }
-                                            },
-                                            None => {
-                                                debug!("Can't find consumer '{}', buffering message", consumer_tag);
-                                                consumer.push(consumer_message);
-                                                // FIXME: try to yield for registering consumer
-                                                //      not sure if it is necessary
-                                                yield_now().await;
-                                            },
-                                        };
-                                    }
-                                    State::GetOk => {
-                                        if let Err(err) = sync_responder.take().expect("Get responder must be registered").send(body.into_frame()).await {
-                                            debug!("Failed to dispatch GetOk ContentBody frame, cause: {}", err);
-                                        }
-                                    },
-                                    State::Return => todo!("handle Return content"),
-                                    State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state"),
-                                }
+    //                         },
+    //                         DispatcherManagementCommand::RegisterGetContentResponder(cmd) => {
+    //                             get_responder.replace(cmd.tx);
+    //                         }
+    //                         DispatcherManagementCommand::RegisterOneshotResponder(cmd) => {
+    //                             oneshot_responders.insert(cmd.method_header, cmd.responder);
+    //                             cmd.acker.send(()).unwrap();
+    //                         }
+    //                         DispatcherManagementCommand::RegisterChannelCallback(cmd) => {
 
-                            }
-                            _ => unreachable!("Not acceptable frame for dispatcher: {:?}", frame),
-                        }
-                    }
-                    else => {
-                        break;
-                    }
+    //                         }
+    //                     }
+    //                 }
+    //                 message = dispatcher_rx.recv() => {
+    //                     // handle message channel error
+    //                     let frame = match message {
+    //                         None => break,
+    //                         Some(v) => v,
+    //                     };
+    //                     // handle frames
+    //                     match frame {
+    //                         Frame::Return(_, method) => {
+    //                             state = State::Return;
+    //                             debug!("returned : {}, {}", method.reply_code, method.reply_text.deref());
+    //                         }
+    //                         Frame::GetEmpty(_, get_empty) => {
+    //                             state = State::GetEmpty;
+    //                             if let Err(err) = get_responder.take().expect("Get responder must be registered").send(get_empty.into_frame()).await {
+    //                                 debug!("Failed to dispatch GetEmpty frame, cause: {}", err);
+    //                             }
+    //                         }
+    //                         Frame::GetOk(_, get_ok) => {
+    //                             state = State::GetOk;
+    //                             if let Err(err) = get_responder.as_ref().expect("Get responder must be registered").send(get_ok.into_frame()).await {
+    //                                 debug!("Failed to dispatch GetOk frame, cause: {}", err);
+    //                             }
+    //                         }
+    //                         Frame::Deliver(_, deliver) => {
 
-                }
-            }
-            trace!("Exit dispatcher of channel {}", channel_id);
-        });
-    }
+    //                             state = State::Deliver;
+    //                             message_buffer.deliver = Some(deliver);
+    //                         }
+    //                         Frame::ContentHeader(header) => {
+    //                             match state {
+    //                                 State::Deliver => message_buffer.basic_properties = Some(header.basic_properties),
+    //                                 State::GetOk => {
+    //                                     if let Err(err) = get_responder.as_ref().expect("Get responder must be registered").send(header.into_frame()).await {
+    //                                         debug!("Failed to dispatch GetOk ContentHeader frame, cause: {}", err);
+    //                                     }
+    //                                 },
+    //                                 State::Return => todo!("handle Return content"),
+    //                                 State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state"),
+    //                             }
+
+    //                         }
+    //                         Frame::ContentBody(body) => {
+    //                             match state {
+    //                                 State::Deliver => {
+    //                                     message_buffer.content = Some(body.inner);
+
+    //                                     let consumer_tag = message_buffer.deliver.as_ref().unwrap().consumer_tag().clone();
+    //                                     let consumer_message  = ConsumerMessage {
+    //                                         deliver: message_buffer.deliver.take(),
+    //                                         basic_properties: message_buffer.basic_properties.take(),
+    //                                         content: message_buffer.content.take(),
+    //                                     };
+    //                                     let consumer = consumers.get_or_new_consumer(&consumer_tag);
+    //                                     match consumer.get_tx() {
+    //                                         Some(consumer_tx) => {
+    //                                             if let Err(_) = consumer_tx.send(consumer_message).await {
+    //                                                 debug!("Failed to dispatch message to consumer {}", consumer_tag);
+    //                                             }
+    //                                         },
+    //                                         None => {
+    //                                             debug!("Can't find consumer '{}', buffering message", consumer_tag);
+    //                                             consumer.push(consumer_message);
+    //                                             // FIXME: try to yield for registering consumer
+    //                                             //      not sure if it is necessary
+    //                                             yield_now().await;
+    //                                         },
+    //                                     };
+    //                                 }
+    //                                 State::GetOk => {
+    //                                     if let Err(err) = get_responder.take().expect("Get responder must be registered").send(body.into_frame()).await {
+    //                                         debug!("Failed to dispatch GetOk ContentBody frame, cause: {}", err);
+    //                                     }
+    //                                 },
+    //                                 State::Return => todo!("handle Return content"),
+    //                                 State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state"),
+    //                             }
+
+
+    //                         }
+    //                         // Close channel response from server
+    //                         Frame::CloseChannelOk(method_header, close_channel_ok) => {
+    //                             oneshot_responders.remove(method_header)
+    //                             .expect("CloseChannelOk responder must be registered")
+    //                             .send(close_channel_ok.into_frame()).unwrap();
+
+    //                             channel.set_open_state(false);
+    //                             break;
+    //                         }
+    //                         // TODO:
+    //                         | Frame::FlowOk(method_header, _)
+    //                         | Frame::RequestOk(method_header, _) // deprecated
+    //                         | Frame::DeclareOk(method_header, _)
+    //                         | Frame::DeleteOk(method_header, _)
+    //                         | Frame::BindOk(method_header, _)
+    //                         | Frame::UnbindOk(method_header, _)
+    //                         | Frame::DeclareQueueOk(method_header, _)
+    //                         | Frame::BindQueueOk(method_header, _)
+    //                         | Frame::PurgeQueueOk(method_header, _)
+    //                         | Frame::DeleteQueueOk(method_header, _)
+    //                         | Frame::UnbindQueueOk(method_header, _)
+    //                         | Frame::QosOk(method_header, _)
+    //                         | Frame::ConsumeOk(method_header, _)
+    //                         | Frame::CancelOk(method_header, _)
+    //                         | Frame::RecoverOk(method_header, _)
+    //                         | Frame::SelectOk(method_header, _)
+    //                         | Frame::SelectTxOk(method_header, _)
+    //                         | Frame::CommitOk(method_header, _)
+    //                         | Frame::RollbackOk(method_header, _) => {
+    //                             // handle synchronous response
+    //                             match oneshot_responders.remove(method_header)
+    //                             {
+    //                                 Some(responder) => {
+    //                                     if let Err(response) = responder.send(frame) {
+    //                                         debug!(
+    //                                             "Failed to forward response frame {} to channel {}",
+    //                                             response, channel_id
+    //                                         );
+    //                                     }
+    //                                 }
+    //                                 None => debug!(
+    //                                     "No responder to forward frame {} to channel {}",
+    //                                     frame, channel_id
+    //                                 ),
+    //                             }
+
+    //                         }
+    //                         //////////////////////////////////////////////////////////
+    //                         // Method frames of asynchronous request
+
+    //                         // Server request to close channel
+    //                         Frame::CloseChannel(method_header, close_channel) => {
+    //                             channel.set_open_state(false);
+    //                             // first, respond to server that we have received the request
+    //                             channel.shared.outgoing_tx
+    //                             .send((channel_id, CloseChannelOk::default().into_frame()))
+    //                             .await.unwrap();
+    //                             break;
+    //                         }
+    //                         // TODO
+    //                         | Frame::Flow(_method_header, _)
+    //                         | Frame::Cancel(_method_header, _)
+    //                         | Frame::Ack(_method_header, _) // confirmed mode
+    //                         | Frame::Nack(_method_header, _) => {
+    //                             todo!("handle asynchronous request")
+    //                         }
+    //                         _ => unreachable!("Not acceptable frame for dispatcher: {:?}", frame),
+    //                     }
+    //                 }
+    //                 else => {
+    //                     break;
+    //                 }
+
+    //             }
+    //         }
+    //         trace!("Exit dispatcher of channel {}", channel_id);
+    //     });
+    // }
+
+    // async fn handle_frame(&mut self, frame: Frame) -> Result<()> {
+    //     match frame {
+    //         unexpected => unreachable!("unexpected frames {}", unexpected),
+    //     }
+    // }
 
     pub async fn basic_qos(&mut self, args: BasicQosArguments) -> Result<()> {
         let qos = Qos {
@@ -520,8 +538,8 @@ impl Channel {
         });
         self.shared
             .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::RegisterConsumer(
-                RegisterConsumer {
+            .send(DispatcherManagementCommand::RegisterContentConsumer(
+                RegisterContentConsumer {
                     consumer_tag,
                     consumer_tx,
                 },
@@ -609,10 +627,12 @@ impl Channel {
         };
 
         let (tx, mut rx) = mpsc::channel(3);
-        let command = RegisterGetResponder { tx };
+        let command = RegisterGetContentResponder { tx };
         self.shared
             .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::RegisterGetResponder(command))
+            .send(DispatcherManagementCommand::RegisterGetContentResponder(
+                command,
+            ))
             .await?;
 
         self.shared

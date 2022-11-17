@@ -1,21 +1,20 @@
 mod channel_id_repo;
 mod channel_manager;
-mod connection_manager;
 mod error;
 mod reader_handler;
 mod split_connection;
 mod writer_handler;
 
-use std::collections::HashMap;
+
 
 pub(crate) use error::*;
 pub(crate) use reader_handler::*;
 pub(crate) use split_connection::*;
 pub(crate) use writer_handler::*;
-
+pub(crate) use channel_manager::*;
 /////////////////////////////////////////////////////////////////////////////
 use crate::{
-    api::callbacks::{ChannelCallback, ConnectionCallback},
+    api::{callbacks::{ChannelCallback, ConnectionCallback}, channel::Channel},
     frame::{Frame, MethodHeader},
 };
 use amqp_serde::types::AmqpChannelId;
@@ -25,12 +24,7 @@ pub type OutgoingMessage = (AmqpChannelId, Frame);
 
 pub(crate) type IncomingMessage = Frame;
 
-pub(crate) struct ChannelResource {
-    /// responder to acknowledge synchronous request
-    pub responders: HashMap<&'static MethodHeader, oneshot::Sender<IncomingMessage>>,
-    /// connection's default channel does not have dispatcher
-    pub dispatcher: Option<Sender<IncomingMessage>>,
-}
+
 pub(crate) struct RegisterChannelResource {
     /// If None, `net` handler will allocate a channel id for client
     pub channel_id: Option<AmqpChannelId>,
@@ -49,9 +43,7 @@ pub(crate) struct RegisterResponder {
 pub(crate) struct RegisterConnectionCallback {
     pub callback: Box<dyn ConnectionCallback + Send + 'static>,
 }
-pub(crate) struct RegisterChannelCallback {
-    pub callback: Box<dyn ChannelCallback + Send + 'static>,
-}
+
 pub(crate) enum ConnManagementCommand {
     RegisterChannelResource(RegisterChannelResource),
     RegisterResponder(RegisterResponder),

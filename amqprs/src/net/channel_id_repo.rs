@@ -2,7 +2,7 @@ use amqp_serde::types::{AmqpChannelId, ShortUint};
 
 use crate::frame::CONN_DEFAULT_CHANNEL;
 
-pub(super) struct ChannelIdRepository {
+pub(crate) struct ChannelIdRepository {
     channel_max: ShortUint,
     watermark: AmqpChannelId,
     /// If value is None, then it is not reserved

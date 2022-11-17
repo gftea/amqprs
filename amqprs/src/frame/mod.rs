@@ -102,7 +102,7 @@ impl_frame! {
             21: FlowOk,
             40: CloseChannel,
             41: CloseChannelOk;
-    // == Access ==
+    // == Access == Deprecated: https://www.rabbitmq.com/spec-differences.html
     30 =>   10: Request,
             11: RequestOk;
     // == Exchange ==

@@ -24,14 +24,14 @@ impl ConnectionCallback for DefaultConnectionCallback {
 /////////////////////////////////////////////////////////////////////////////
 #[async_trait]
 pub trait ChannelCallback {
-    async fn close(&self, channel: &Channel, close: CloseChannel) -> Result<()>;
+    async fn close(&mut self, channel: &Channel, close: CloseChannel) -> Result<()>;
 }
 
 pub struct DefaultChannelCallback;
 
 #[async_trait]
 impl ChannelCallback for DefaultChannelCallback {
-    async fn close(&self, _channel: &Channel, close: CloseChannel) -> Result<()> {
+    async fn close(&mut self, _channel: &Channel, close: CloseChannel) -> Result<()> {
         error!("{}", close);
         Ok(())
     }
