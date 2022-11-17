@@ -5,25 +5,24 @@ mod reader_handler;
 mod split_connection;
 mod writer_handler;
 
-
-
+pub(crate) use channel_manager::*;
 pub(crate) use error::*;
 pub(crate) use reader_handler::*;
 pub(crate) use split_connection::*;
 pub(crate) use writer_handler::*;
-pub(crate) use channel_manager::*;
 /////////////////////////////////////////////////////////////////////////////
 use crate::{
-    api::{callbacks::{ChannelCallback, ConnectionCallback}, channel::Channel},
+    api::{
+        callbacks::{ConnectionCallback},
+    },
     frame::{Frame, MethodHeader},
 };
 use amqp_serde::types::AmqpChannelId;
-use tokio::sync::{mpsc::Sender, oneshot};
+use tokio::sync::{oneshot};
 
 pub type OutgoingMessage = (AmqpChannelId, Frame);
 
 pub(crate) type IncomingMessage = Frame;
-
 
 pub(crate) struct RegisterChannelResource {
     /// If None, `net` handler will allocate a channel id for client

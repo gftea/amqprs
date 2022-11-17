@@ -8,7 +8,7 @@ use tracing::{debug, error, info};
 use crate::{
     api::{callbacks::ConnectionCallback, connection::Connection},
     frame::{
-        Close, CloseChannel, CloseChannelOk, CloseOk, Frame, MethodHeader, CONN_DEFAULT_CHANNEL,
+        Close, CloseOk, Frame, MethodHeader, CONN_DEFAULT_CHANNEL,
     },
 };
 
@@ -115,8 +115,7 @@ impl ReaderHandler {
     /// If NOK, user should stop consuming frame
     /// TODO: implement as Iterator, then user do not need to care about the error
     async fn handle_frame(&mut self, channel_id: AmqpChannelId, frame: Frame) -> Result<(), Error> {
-
-        // handle only connection level frame, 
+        // handle only connection level frame,
         // channel level frames are forwarded to corresponding channel dispatcher
         match frame {
             // TODO: Handle heartbeat
@@ -130,7 +129,12 @@ impl ReaderHandler {
                 let responder = self
                     .channel_manager
                     .remove_responder(&channel_id, method_header)
-                    .ok_or_else(|| Error::ImplementationError(format!("no responder found for OpenChannelOk of channel {}", channel_id)))?;
+                    .ok_or_else(|| {
+                        Error::ImplementationError(format!(
+                            "no responder found for OpenChannelOk of channel {}",
+                            channel_id
+                        ))
+                    })?;
 
                 responder
                     .send(open_channel_ok.into_frame())

@@ -1,26 +1,27 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    ops::Deref,
-};
+
 
 use tokio::{
-    sync::{mpsc, oneshot},
-    task::yield_now,
+    sync::{mpsc},
 };
-use tracing::{debug, trace};
+use tracing::{trace};
 
 use crate::{
-    api::{callbacks::ChannelCallback, consumer::AsyncConsumer, error::Error, channel::{ConsumerMessage, CONSUMER_MESSAGE_BUFFER_SIZE, DispatcherManagementCommand, RegisterContentConsumer}},
+    api::{
+        channel::{
+            ConsumerMessage, DispatcherManagementCommand, RegisterContentConsumer,
+            CONSUMER_MESSAGE_BUFFER_SIZE,
+        },
+        consumer::AsyncConsumer,
+        error::Error,
+    },
     frame::{
-        Ack, BasicProperties, Cancel, CancelOk, CloseChannelOk, Consume, ConsumeOk, ContentBody,
-        ContentHeader, ContentHeaderCommon, Deliver, Frame, Get, GetOk, MethodHeader, Nack,
+        Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody,
+        ContentHeader, ContentHeaderCommon, Frame, Get, GetOk, Nack,
         Publish, Qos, QosOk, Recover, RecoverOk, Reject,
     },
-    net::IncomingMessage,
 };
 
-use super::{Channel, Result, ServerSpecificArguments, RegisterGetContentResponder};
-
+use super::{Channel, RegisterGetContentResponder, Result, ServerSpecificArguments};
 
 #[derive(Debug, Clone)]
 pub struct BasicQosArguments {
@@ -169,7 +170,6 @@ impl BasicPublishArguments {
     }
 }
 
-
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
     // /// Dispatcher for content related frames
@@ -205,7 +205,6 @@ impl Channel {
     //             &'static MethodHeader,
     //             oneshot::Sender<IncomingMessage>,
     //         > = HashMap::new();
-
 
     //         // initial state
     //         let mut state = State::Initial;
@@ -331,7 +330,6 @@ impl Channel {
     //                                 State::Return => todo!("handle Return content"),
     //                                 State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state"),
     //                             }
-
 
     //                         }
     //                         // Close channel response from server

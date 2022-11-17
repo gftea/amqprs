@@ -1,6 +1,9 @@
-use tracing::{Level, subscriber::{DefaultGuard, SetGlobalDefaultError}};
+use tracing::{
+    subscriber::{SetGlobalDefaultError},
+    Level,
+};
 
-pub fn setup_logging(level: Level)  -> Result<(), SetGlobalDefaultError> {
+pub fn setup_logging(level: Level) -> Result<(), SetGlobalDefaultError> {
     // construct a subscriber that prints formatted traces to stdout
     let subscriber = tracing_subscriber::fmt().with_max_level(level).finish();
 

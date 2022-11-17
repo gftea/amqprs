@@ -1,8 +1,6 @@
 use std::fmt;
 
-use amqp_serde::types::{
-    FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp,
-};
+use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
 use serde::{de::Visitor, Deserialize, Serialize};
 
 use crate::api::channel::ServerSpecificArguments;
@@ -231,7 +229,7 @@ impl BasicProperties {
     }
 
     pub fn timestamp(&self) -> Option<u64> {
-        self.timestamp      
+        self.timestamp
     }
 
     pub fn message_type(&self) -> Option<&String> {

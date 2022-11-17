@@ -19,7 +19,7 @@ use tokio::{
 use crate::{
     api::error::Error,
     frame::{CloseChannel, CloseChannelOk, Deliver, Flow, FlowOk, Frame, MethodHeader},
-    net::{ConnManagementCommand, IncomingMessage, OutgoingMessage, RegisterResponder},
+    net::{ConnManagementCommand, IncomingMessage, OutgoingMessage},
     BasicProperties,
 };
 use tracing::{debug, error, trace};
@@ -120,11 +120,6 @@ impl ConsumerBuffersPool {
     }
 }
 
-// pub struct Acker {
-//     tx: mpsc::Sender<OutgoingMessage>,
-//     channel_id: AmqpChannelId,
-// }
-
 /// Represent an AMQP Channel.
 ///
 /// To create a AMQP channel, use [`Connection::channel` method][`channel`]
@@ -136,7 +131,7 @@ pub struct Channel {
 }
 
 #[derive(Debug)]
-pub(in crate::api) struct SharedChannelInner {
+pub(crate) struct SharedChannelInner {
     is_open: AtomicBool,
 
     channel_id: AmqpChannelId,
@@ -384,7 +379,7 @@ impl Channel {
                             // Method frames of asynchronous request
 
                             // Server request to close channel
-                            Frame::CloseChannel(method_header, close_channel) => {
+                            Frame::CloseChannel(_method_header, close_channel) => {
                                 channel.set_open_state(false);
                                 // first, respond to server that we have received the request
                                 channel.shared.outgoing_tx

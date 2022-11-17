@@ -4,7 +4,6 @@ use amqp_serde::types::{AmqpChannelId, ShortUint};
 use tokio::sync::{mpsc::Sender, oneshot};
 
 use crate::{
-    api::{callbacks::ChannelCallback, channel::Channel},
     frame::MethodHeader,
 };
 
@@ -92,7 +91,6 @@ impl ChannelManager {
         self.resource.remove(channel_id)
     }
 
-      
     pub fn get_dispatcher(&self, channel_id: &AmqpChannelId) -> Option<&Sender<IncomingMessage>> {
         self.resource.get(channel_id)?.dispatcher.as_ref()
     }
@@ -119,6 +117,4 @@ impl ChannelManager {
             .responders
             .remove(method_header)
     }
-
-
 }
