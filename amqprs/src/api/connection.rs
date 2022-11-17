@@ -1,8 +1,6 @@
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
 };
 
 use amqp_serde::types::{AmqpChannelId, ShortUint};
@@ -24,7 +22,10 @@ use crate::{
     net::RegisterResponder,
 };
 
-use super::{callbacks::ConnectionCallback, channel::Channel};
+use super::{
+    callbacks::ConnectionCallback,
+    channel::{Channel, ChannelDispatcher},
+};
 use super::{channel::SharedChannelInner, error::Error};
 type Result<T> = std::result::Result<T, Error>;
 
@@ -281,18 +282,18 @@ impl Connection {
             Frame::OpenChannelOk,
             Error::ChannelOpenError
         )?;
-        let shared = Arc::new(SharedChannelInner::new(
+
+        // create channel instance
+        let channel = Channel::new(
             AtomicBool::new(true),
             channel_id,
             self.shared.outgoing_tx.clone(),
             self.shared.conn_mgmt_tx.clone(),
             dispatcher_mgmt_tx,
-        ));
-        let channel = Channel::new(shared);
+        );
 
-        channel
-            .spawn_dispatcher(dispatcher_rx, dispatcher_mgmt_rx)
-            .await;
+        let dispatcher = ChannelDispatcher::new(channel.clone(), dispatcher_rx, dispatcher_mgmt_rx);
+        dispatcher.spawn().await;
 
         Ok(channel)
     }
