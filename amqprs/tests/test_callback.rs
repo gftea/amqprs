@@ -39,7 +39,7 @@ async fn test_connection_callback() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[should_panic = "InternalChannelError(\"channel closed\")"]
 async fn test_channel_callback() {
-    let _guard = common::setup_logging(Level::TRACE);
+    let _guard = common::setup_logging(Level::DEBUG);
 
     // open a connection to RabbitMQ server
     let connection = Connection::open("localhost:5672").await.unwrap();
