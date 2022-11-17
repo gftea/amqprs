@@ -43,7 +43,7 @@ impl fmt::Display for Error {
             Error::ChannelUseError(msg) => write!(f, "AMQP channel close error: {msg}"),
             Error::ChannelCloseError(msg) => write!(f, "AMQP channel usage error: {msg}"),
             Error::InternalChannelError(msg) => {
-                write!(f, "Internal communication channel error: {msg}")
+                write!(f, "internal communication channel error: {msg}")
             }
             Error::Other(msg) => write!(f, "Other error: {msg}"),
         }

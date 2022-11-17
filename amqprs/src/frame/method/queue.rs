@@ -23,13 +23,27 @@ mod bit_flag {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct DeclareQueue {
-    pub ticket: ShortUint,
-    pub queue: AmqpQueueName,
-    pub bits: Octect,
-    pub arguments: FieldTable,
+    ticket: ShortUint,
+    queue: AmqpQueueName,
+    bits: Octect,
+    arguments: FieldTable,
 }
 
 impl DeclareQueue {
+    pub fn new(
+        ticket: ShortUint,
+        queue: AmqpQueueName,
+        bits: Octect,
+        arguments: FieldTable,
+    ) -> Self {
+        Self {
+            ticket,
+            queue,
+            bits,
+            arguments,
+        }
+    }
+
     /// set passive to `true`
     pub fn set_passive(&mut self, value: bool) {
         if value {
@@ -70,19 +84,65 @@ impl DeclareQueue {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeclareQueueOk {
-    pub queue: AmqpQueueName,
-    pub message_count: AmqpMessageCount,
-    pub consumer_count: LongUint,
+    queue: AmqpQueueName,
+    message_count: AmqpMessageCount,
+    consumer_count: LongUint,
+}
+
+impl DeclareQueueOk {
+    pub fn new(
+        queue: AmqpQueueName,
+        message_count: AmqpMessageCount,
+        consumer_count: LongUint,
+    ) -> Self {
+        Self {
+            queue,
+            message_count,
+            consumer_count,
+        }
+    }
+
+    pub fn queue(&self) -> &String {
+        &self.queue
+    }
+
+    pub fn message_count(&self) -> u32 {
+        self.message_count
+    }
+
+    pub fn consumer_count(&self) -> u32 {
+        self.consumer_count
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct BindQueue {
-    pub ticket: ShortUint,
-    pub queue: AmqpQueueName,
-    pub exchange: AmqpExchangeName,
-    pub routing_key: ShortStr,
-    pub nowait: Boolean,
-    pub arguments: FieldTable,
+    ticket: ShortUint,
+    queue: AmqpQueueName,
+    exchange: AmqpExchangeName,
+    routing_key: ShortStr,
+    nowait: Boolean,
+    arguments: FieldTable,
+}
+
+impl BindQueue {
+    pub fn new(
+        ticket: ShortUint,
+        queue: AmqpQueueName,
+        exchange: AmqpExchangeName,
+        routing_key: ShortStr,
+        nowait: Boolean,
+        arguments: FieldTable,
+    ) -> Self {
+        Self {
+            ticket,
+            queue,
+            exchange,
+            routing_key,
+            nowait,
+            arguments,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -90,11 +150,29 @@ pub struct BindQueueOk;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct UnbindQueue {
-    pub ticket: ShortUint,
-    pub queue: AmqpQueueName,
-    pub exchange: AmqpExchangeName,
-    pub routing_key: ShortStr,
-    pub arguments: FieldTable,
+    ticket: ShortUint,
+    queue: AmqpQueueName,
+    exchange: AmqpExchangeName,
+    routing_key: ShortStr,
+    arguments: FieldTable,
+}
+
+impl UnbindQueue {
+    pub fn new(
+        ticket: ShortUint,
+        queue: AmqpQueueName,
+        exchange: AmqpExchangeName,
+        routing_key: ShortStr,
+        arguments: FieldTable,
+    ) -> Self {
+        Self {
+            ticket,
+            queue,
+            exchange,
+            routing_key,
+            arguments,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -102,11 +180,20 @@ pub struct UnbindQueueOk;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct DeleteQueue {
-    pub ticket: ShortUint,
-    pub queue: AmqpQueueName,
-    pub bits: Octect,
+    ticket: ShortUint,
+    queue: AmqpQueueName,
+    bits: Octect,
 }
+
 impl DeleteQueue {
+    pub fn new(ticket: ShortUint, queue: AmqpQueueName, bits: Octect) -> Self {
+        Self {
+            ticket,
+            queue,
+            bits,
+        }
+    }
+
     pub fn set_if_unused(&mut self, value: bool) {
         if value {
             self.bits |= bit_flag::delete::IF_UNUSED;
@@ -130,16 +217,40 @@ impl DeleteQueue {
     }
 }
 #[derive(Debug, Serialize, Deserialize)]
-pub struct DeleteQueueOk;
+pub struct DeleteQueueOk {
+    message_count: AmqpMessageCount,
+}
+
+impl DeleteQueueOk {
+    pub fn message_count(&self) -> u32 {
+        self.message_count
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct PurgeQueue {
-    pub ticket: ShortUint,
-    pub queue: AmqpQueueName,
-    pub nowait: Boolean,
+    ticket: ShortUint,
+    queue: AmqpQueueName,
+    nowait: Boolean,
+}
+
+impl PurgeQueue {
+    pub fn new(ticket: ShortUint, queue: AmqpQueueName, nowait: Boolean) -> Self {
+        Self {
+            ticket,
+            queue,
+            nowait,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PurgeQueueOk {
-    pub message_count: AmqpMessageCount,
+    message_count: AmqpMessageCount,
+}
+
+impl PurgeQueueOk {
+    pub fn message_count(&self) -> u32 {
+        self.message_count
+    }
 }

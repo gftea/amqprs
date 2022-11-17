@@ -19,14 +19,30 @@ mod bit_flag {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Declare {
-    pub ticket: ShortUint,
-    pub exchange: AmqpExchangeName,
-    pub typ: ShortStr,
-    pub bits: Octect,
-    pub arguments: FieldTable,
+    ticket: ShortUint,
+    exchange: AmqpExchangeName,
+    typ: ShortStr,
+    bits: Octect,
+    arguments: FieldTable,
 }
 
 impl Declare {
+    pub fn new(
+        ticket: ShortUint,
+        exchange: AmqpExchangeName,
+        typ: ShortStr,
+        bits: Octect,
+        arguments: FieldTable,
+    ) -> Self {
+        Self {
+            ticket,
+            exchange,
+            typ,
+            bits,
+            arguments,
+        }
+    }
+
     pub fn set_passive(&mut self, value: bool) {
         if value {
             self.bits |= bit_flag::declare::PASSIVE;
@@ -72,11 +88,19 @@ pub struct DeclareOk;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Delete {
-    pub ticket: ShortUint,
-    pub exchange: AmqpExchangeName,
-    pub bits: Octect,
+    ticket: ShortUint,
+    exchange: AmqpExchangeName,
+    bits: Octect,
 }
 impl Delete {
+    pub fn new(ticket: ShortUint, exchange: AmqpExchangeName, bits: Octect) -> Self {
+        Self {
+            ticket,
+            exchange,
+            bits,
+        }
+    }
+
     pub fn set_if_unused(&mut self, value: bool) {
         if value {
             self.bits |= bit_flag::delete::IF_UNUSED;
@@ -98,12 +122,32 @@ pub struct DeleteOk;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Bind {
-    pub ticket: ShortUint,
-    pub destination: AmqpExchangeName,
-    pub source: AmqpExchangeName,
-    pub routing_key: ShortStr,
-    pub nowait: Boolean,
-    pub arguments: FieldTable,
+    ticket: ShortUint,
+    destination: AmqpExchangeName,
+    source: AmqpExchangeName,
+    routing_key: ShortStr,
+    nowait: Boolean,
+    arguments: FieldTable,
+}
+
+impl Bind {
+    pub fn new(
+        ticket: ShortUint,
+        destination: AmqpExchangeName,
+        source: AmqpExchangeName,
+        routing_key: ShortStr,
+        nowait: Boolean,
+        arguments: FieldTable,
+    ) -> Self {
+        Self {
+            ticket,
+            destination,
+            source,
+            routing_key,
+            nowait,
+            arguments,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -111,12 +155,32 @@ pub struct BindOk;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Unbind {
-    pub ticket: ShortUint,
-    pub destination: AmqpExchangeName,
-    pub source: AmqpExchangeName,
-    pub routing_key: ShortStr,
-    pub nowait: Boolean,
-    pub arguments: FieldTable,
+    ticket: ShortUint,
+    destination: AmqpExchangeName,
+    source: AmqpExchangeName,
+    routing_key: ShortStr,
+    nowait: Boolean,
+    arguments: FieldTable,
+}
+
+impl Unbind {
+    pub fn new(
+        ticket: ShortUint,
+        destination: AmqpExchangeName,
+        source: AmqpExchangeName,
+        routing_key: ShortStr,
+        nowait: Boolean,
+        arguments: FieldTable,
+    ) -> Self {
+        Self {
+            ticket,
+            destination,
+            source,
+            routing_key,
+            nowait,
+            arguments,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

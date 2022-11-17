@@ -79,7 +79,7 @@ impl ReaderHandler {
             .await?;
 
         if let Some(ref mut callback) = self.callback {
-            callback.close(&self.amqp_connection, close).await.unwrap();
+            callback.close(&self.amqp_connection, close).await;
             // self.callback.replace(callback);
         }
 

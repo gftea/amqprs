@@ -44,6 +44,8 @@ pub struct Connection {
 #[derive(Debug)]
 struct SharedConnectionInner {
     capabilities: Option<ServerCapabilities>,
+    // FIXME: what is identity of a connection?
+    // conn_id: String
     channel_max: ShortUint,
     is_open: AtomicBool,
     outgoing_tx: mpsc::Sender<OutgoingMessage>,
@@ -52,10 +54,10 @@ struct SharedConnectionInner {
 
 //  TODO: move below constants gto be part of static configuration of connection
 const DISPATCHER_MESSAGE_BUFFER_SIZE: usize = 256;
-const DISPATCHER_COMMAND_BUFFER_SIZE: usize = 128;
+const DISPATCHER_COMMAND_BUFFER_SIZE: usize = 64;
 
 const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 256;
-const CONN_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 128;
+const CONN_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 64;
 /// AMQP Connection API
 ///
 impl Connection {
@@ -259,6 +261,7 @@ impl Connection {
         let (dispatcher_mgmt_tx, dispatcher_mgmt_rx) =
             mpsc::channel(DISPATCHER_COMMAND_BUFFER_SIZE);
 
+        // acquire the channel id to be used to open channel
         let channel_id = self
             .register_channel_resource(None, ChannelResource::new(Some(dispatcher_tx)))
             .await
@@ -266,9 +269,11 @@ impl Connection {
                 Error::ChannelOpenError("Failed to register channel resource".to_string())
             })?;
 
+        // register responder, use the acquired channel id
         let responder_rx = self
             .register_responder(channel_id, OpenChannelOk::header())
             .await?;
+
         synchronous_request!(
             self.shared.outgoing_tx,
             (channel_id, OpenChannel::default().into_frame()),
@@ -295,6 +300,8 @@ impl Connection {
     /// close and consume the AMQ connection
     pub async fn close(self) -> Result<()> {
         self.set_open_state(false);
+
+        // connection's close method , should use default channel id
         let responder_rx = self
             .register_responder(CONN_DEFAULT_CHANNEL, CloseOk::header())
             .await?;

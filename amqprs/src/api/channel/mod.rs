@@ -388,7 +388,7 @@ impl Channel {
 
                                 // callback
                                 if let Some(mut cb) = callback {
-                                    cb.close(channel, close_channel).await.unwrap();
+                                    cb.close(channel, close_channel).await;
                                 }
                                 break;
                             }
@@ -448,19 +448,6 @@ impl Channel {
         acker_rx.await?;
         Ok(responder_rx)
     }
-
-    ///
-    pub async fn flow(&mut self, active: bool) -> Result<()> {
-        let responder_rx = self.register_responder(FlowOk::header()).await?;
-        synchronous_request!(
-            self.shared.outgoing_tx,
-            (self.shared.channel_id, Flow { active }.into_frame()),
-            responder_rx,
-            Frame::FlowOk,
-            Error::ChannelUseError
-        )?;
-        Ok(())
-    }
     pub fn is_connection_closed(&self) -> bool {
         self.shared.conn_mgmt_tx.is_closed()
     }
@@ -474,23 +461,37 @@ impl Channel {
     pub fn get_open_state(&self) -> bool {
         self.shared.is_open.load(Ordering::Relaxed)
     }
+
+    /// asks the peer to pause or restart the flow of content data
+    /// `true` means the peer will start sending or continue to send content frames; `false` means it will not.
+    pub async fn flow(&mut self, active: bool) -> Result<bool> {
+        let responder_rx = self.register_responder(FlowOk::header()).await?;
+        let flow_ok = synchronous_request!(
+            self.shared.outgoing_tx,
+            (self.shared.channel_id, Flow { active }.into_frame()),
+            responder_rx,
+            Frame::FlowOk,
+            Error::ChannelUseError
+        )?;
+        Ok(flow_ok.active)
+    }
+
     /// User must close the channel to avoid channel leak
     pub async fn close(self) -> Result<()> {
         self.set_open_state(false);
 
-        if self.is_connection_closed() {
-            return Ok(());
+        // if connection has been closed, no need to close channel
+        if !self.is_connection_closed() {
+            let responder_rx = self.register_responder(CloseChannelOk::header()).await?;
+
+            synchronous_request!(
+                self.shared.outgoing_tx,
+                (self.shared.channel_id, CloseChannel::default().into_frame()),
+                responder_rx,
+                Frame::CloseChannelOk,
+                Error::ChannelCloseError
+            )?;
         }
-
-        let responder_rx = self.register_responder(CloseChannelOk::header()).await?;
-
-        synchronous_request!(
-            self.shared.outgoing_tx,
-            (self.shared.channel_id, CloseChannel::default().into_frame()),
-            responder_rx,
-            Frame::CloseChannelOk,
-            Error::ChannelCloseError
-        )?;
 
         Ok(())
     }

@@ -25,22 +25,47 @@ mod bit_flag {
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Qos {
-    pub prefetch_size: LongUint,
-    pub prefetch_count: ShortUint,
-    pub global: Boolean,
+    prefetch_size: LongUint,
+    prefetch_count: ShortUint,
+    global: Boolean,
+}
+
+impl Qos {
+    pub fn new(prefetch_size: LongUint, prefetch_count: ShortUint, global: Boolean) -> Self {
+        Self {
+            prefetch_size,
+            prefetch_count,
+            global,
+        }
+    }
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QosOk;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Consume {
-    pub ticket: ShortUint,
-    pub queue: AmqpQueueName,
-    pub consumer_tag: ShortStr,
-    pub bits: Octect,
-    pub arguments: FieldTable,
+    ticket: ShortUint,
+    queue: AmqpQueueName,
+    consumer_tag: ShortStr,
+    bits: Octect,
+    arguments: FieldTable,
 }
 impl Consume {
+    pub fn new(
+        ticket: ShortUint,
+        queue: AmqpQueueName,
+        consumer_tag: ShortStr,
+        arguments: FieldTable,
+    ) -> Self {
+        Self {
+            ticket,
+            queue,
+            consumer_tag,
+            bits: 0,
+            arguments,
+        }
+    }
+
     pub fn set_no_local(&mut self, value: bool) {
         if value {
             self.bits |= bit_flag::consume::NO_LOCAL;
@@ -82,6 +107,15 @@ pub struct Cancel {
     pub no_wait: Boolean,
 }
 
+impl Cancel {
+    pub fn new(consumer_tag: ShortStr, no_wait: Boolean) -> Self {
+        Self {
+            consumer_tag,
+            no_wait,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CancelOk {
     pub consumer_tag: ShortStr,
@@ -89,12 +123,21 @@ pub struct CancelOk {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Publish {
-    pub ticket: ShortUint,
-    pub exchange: AmqpExchangeName,
-    pub routing_key: ShortStr,
-    pub bits: Octect,
+    ticket: ShortUint,
+    exchange: AmqpExchangeName,
+    routing_key: ShortStr,
+    bits: Octect,
 }
 impl Publish {
+    pub fn new(ticket: ShortUint, exchange: AmqpExchangeName, routing_key: ShortStr) -> Self {
+        Self {
+            ticket,
+            exchange,
+            routing_key,
+            bits: 0,
+        }
+    }
+
     pub fn set_mandatory(&mut self, value: bool) {
         if value {
             self.bits |= bit_flag::publish::MANDATORY;
@@ -156,6 +199,16 @@ pub struct Get {
     pub no_ack: Boolean,
 }
 
+impl Get {
+    pub fn new(ticket: ShortUint, queue: AmqpQueueName, no_ack: Boolean) -> Self {
+        Self {
+            ticket,
+            queue,
+            no_ack,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetOk {
     delivery_tag: LongLongUint,
@@ -194,14 +247,32 @@ pub struct GetEmpty {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Ack {
-    pub delivery_tag: LongLongUint,
-    pub mutiple: Boolean,
+    delivery_tag: LongLongUint,
+    mutiple: Boolean,
+}
+
+impl Ack {
+    pub fn new(delivery_tag: LongLongUint, mutiple: Boolean) -> Self {
+        Self {
+            delivery_tag,
+            mutiple,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Reject {
-    pub delivery_tag: LongLongUint,
-    pub requeue: Boolean,
+    delivery_tag: LongLongUint,
+    requeue: Boolean,
+}
+
+impl Reject {
+    pub fn new(delivery_tag: LongLongUint, requeue: Boolean) -> Self {
+        Self {
+            delivery_tag,
+            requeue,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -211,7 +282,13 @@ pub struct RecoverAsync {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Recover {
-    pub requeue: Boolean,
+    requeue: Boolean,
+}
+
+impl Recover {
+    pub fn new(requeue: Boolean) -> Self {
+        Self { requeue }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -219,10 +296,17 @@ pub struct RecoverOk;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Nack {
-    pub delivery_tag: LongLongUint,
-    pub bits: Octect,
+    delivery_tag: LongLongUint,
+    bits: Octect,
 }
 impl Nack {
+    pub fn new(delivery_tag: LongLongUint) -> Self {
+        Self {
+            delivery_tag,
+            bits: 0,
+        }
+    }
+
     pub fn set_multiple(&mut self, value: bool) {
         if value {
             self.bits |= bit_flag::nack::MULTIPLE;

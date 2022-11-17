@@ -116,13 +116,13 @@ impl ExchangeUnbindArguments {
 /// API for Exchange methods
 impl Channel {
     pub async fn exchange_declare(&self, args: ExchangeDeclareArguments) -> Result<()> {
-        let mut declare = Declare {
-            ticket: 0,
-            exchange: args.name.try_into().unwrap(),
-            typ: args.typ.try_into().unwrap(),
-            bits: 0,
-            arguments: args.arguments.into_field_table(),
-        };
+        let mut declare = Declare::new(
+            0,
+            args.name.try_into().unwrap(),
+            args.typ.try_into().unwrap(),
+            0,
+            args.arguments.into_field_table(),
+        );
 
         declare.set_passive(args.passive);
         declare.set_durable(args.durable);
@@ -151,11 +151,7 @@ impl Channel {
     }
 
     pub async fn exchange_delete(&self, args: ExchangeDeleteArguments) -> Result<()> {
-        let mut delete = Delete {
-            ticket: 0,
-            exchange: args.name.try_into().unwrap(),
-            bits: 0,
-        };
+        let mut delete = Delete::new(0, args.name.try_into().unwrap(), 0);
         delete.set_if_unused(args.if_unused);
         delete.set_no_wait(args.no_wait);
         if args.no_wait {
@@ -179,14 +175,14 @@ impl Channel {
     }
 
     pub async fn exchange_bind(&self, args: ExchangeBindArguments) -> Result<()> {
-        let bind = Bind {
-            ticket: 0,
-            destination: args.destination.try_into().unwrap(),
-            source: args.source.try_into().unwrap(),
-            routing_key: args.routing_key.try_into().unwrap(),
-            nowait: args.no_wait,
-            arguments: args.arguments.into_field_table(),
-        };
+        let bind = Bind::new(
+            0,
+            args.destination.try_into().unwrap(),
+            args.source.try_into().unwrap(),
+            args.routing_key.try_into().unwrap(),
+            args.no_wait,
+            args.arguments.into_field_table(),
+        );
         if args.no_wait {
             self.shared
                 .outgoing_tx
@@ -208,14 +204,14 @@ impl Channel {
     }
 
     pub async fn exchange_unbind(&self, args: ExchangeUnbindArguments) -> Result<()> {
-        let unbind = Unbind {
-            ticket: 0,
-            destination: args.destination.try_into().unwrap(),
-            source: args.source.try_into().unwrap(),
-            routing_key: args.routing_key.try_into().unwrap(),
-            nowait: args.no_wait,
-            arguments: args.arguments.into_field_table(),
-        };
+        let unbind = Unbind::new(
+            0,
+            args.destination.try_into().unwrap(),
+            args.source.try_into().unwrap(),
+            args.routing_key.try_into().unwrap(),
+            args.no_wait,
+            args.arguments.into_field_table(),
+        );
         if args.no_wait {
             self.shared
                 .outgoing_tx

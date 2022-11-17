@@ -16,6 +16,7 @@ pub trait AsyncConsumer {
         basic_properties: BasicProperties,
         content: Vec<u8>,
     );
+    async fn cancel(&mut self, channel: &Channel);
 }
 
 pub struct DefaultConsumer {
@@ -38,7 +39,7 @@ impl AsyncConsumer for DefaultConsumer {
         content: Vec<u8>,
     ) {
         info!(">>>>> Consumer '{}' Start <<<<<", deliver.consumer_tag());
-        info!("{:?}", deliver,);
+        info!("{:?}", deliver);
         info!("{:?}", basic_properties,);
         info!("{}", from_utf8(&content).unwrap());
         info!(">>>>> Consumer '{}' End <<<<<", deliver.consumer_tag());
@@ -50,4 +51,6 @@ impl AsyncConsumer for DefaultConsumer {
             channel.basic_ack(args).await.unwrap();
         }
     }
+
+    async fn cancel(&mut self, channel: &Channel) {}
 }

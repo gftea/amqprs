@@ -1,9 +1,5 @@
-
-
-use tokio::{
-    sync::{mpsc},
-};
-use tracing::{trace};
+use tokio::sync::mpsc;
+use tracing::trace;
 
 use crate::{
     api::{
@@ -15,13 +11,16 @@ use crate::{
         error::Error,
     },
     frame::{
-        Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody,
-        ContentHeader, ContentHeaderCommon, Frame, Get, GetOk, Nack,
-        Publish, Qos, QosOk, Recover, RecoverOk, Reject,
+        Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody, ContentHeader,
+        ContentHeaderCommon, Frame, Get, GetOk, Nack, Publish, Qos, QosOk, Recover, RecoverOk,
+        Reject,
     },
 };
 
-use super::{Channel, RegisterGetContentResponder, Result, ServerSpecificArguments};
+use super::{
+    Channel, RegisterGetContentResponder, Result, ServerSpecificArguments,
+    UnregisterContentConsumer,
+};
 
 #[derive(Debug, Clone)]
 pub struct BasicQosArguments {
@@ -418,11 +417,7 @@ impl Channel {
     // }
 
     pub async fn basic_qos(&mut self, args: BasicQosArguments) -> Result<()> {
-        let qos = Qos {
-            prefetch_size: args.prefetch_size,
-            prefetch_count: args.prefetch_count,
-            global: args.global,
-        };
+        let qos = Qos::new(args.prefetch_size, args.prefetch_count, args.global);
         let responder_rx = self.register_responder(QosOk::header()).await?;
 
         let _method = synchronous_request!(
@@ -456,13 +451,12 @@ impl Channel {
             arguments,
         } = args;
 
-        let mut consume = Consume {
-            ticket: 0,
-            queue: queue.try_into().unwrap(),
-            consumer_tag: consumer_tag.clone().try_into().unwrap(),
-            bits: 0,
-            arguments: arguments.into_field_table(),
-        };
+        let mut consume = Consume::new(
+            0,
+            queue.try_into().unwrap(),
+            consumer_tag.clone().try_into().unwrap(),
+            arguments.into_field_table(),
+        );
         consume.set_no_local(no_local);
         consume.set_no_ack(no_ack);
         consume.set_exclusive(exclusive);
@@ -534,6 +528,8 @@ impl Channel {
                 }
             }
         });
+
+        // register consumer to dispatcher
         self.shared
             .dispatcher_mgmt_tx
             .send(DispatcherManagementCommand::RegisterContentConsumer(
@@ -548,10 +544,7 @@ impl Channel {
     }
 
     pub async fn basic_ack(&self, args: BasicAckArguments) -> Result<()> {
-        let ack = Ack {
-            delivery_tag: args.delivery_tag,
-            mutiple: args.multiple,
-        };
+        let ack = Ack::new(args.delivery_tag, args.multiple);
         self.shared
             .outgoing_tx
             .send((self.shared.channel_id, ack.into_frame()))
@@ -560,10 +553,7 @@ impl Channel {
     }
 
     pub async fn basic_nack(&self, args: BasicNackArguments) -> Result<()> {
-        let mut nack = Nack {
-            delivery_tag: args.delivery_tag,
-            bits: 0,
-        };
+        let mut nack = Nack::new(args.delivery_tag);
         nack.set_multiple(args.multiple);
         nack.set_requeue(args.requeue);
         self.shared
@@ -574,10 +564,7 @@ impl Channel {
     }
 
     pub async fn basic_reject(&self, args: BasicRejectArguments) -> Result<()> {
-        let reject = Reject {
-            delivery_tag: args.delivery_tag,
-            requeue: args.requeue,
-        };
+        let reject = Reject::new(args.delivery_tag, args.requeue);
         self.shared
             .outgoing_tx
             .send((self.shared.channel_id, reject.into_frame()))
@@ -590,10 +577,9 @@ impl Channel {
             consumer_tag,
             no_wait,
         } = args;
-        let cancel = Cancel {
-            consumer_tag: consumer_tag.clone().try_into().unwrap(),
-            no_wait,
-        };
+
+        let cancel = Cancel::new(consumer_tag.clone().try_into().unwrap(), no_wait);
+
         let consumer_tag = if args.no_wait {
             self.shared
                 .outgoing_tx
@@ -603,26 +589,27 @@ impl Channel {
         } else {
             let responder_rx = self.register_responder(CancelOk::header()).await?;
 
-            let method = synchronous_request!(
+            let cancel_ok = synchronous_request!(
                 self.shared.outgoing_tx,
                 (self.shared.channel_id, cancel.into_frame()),
                 responder_rx,
                 Frame::CancelOk,
                 Error::ChannelUseError
             )?;
-            method.consumer_tag.into()
+            cancel_ok.consumer_tag.into()
         };
-        // FIXME: haven't unregister consumer in dispatcher
-        //  because there can be buffered messages to be handled
-        Ok(consumer_tag)
+
+        let consumer_tag2 = consumer_tag.clone();
+        let cmd = UnregisterContentConsumer { consumer_tag };
+        self.shared
+            .dispatcher_mgmt_tx
+            .send(DispatcherManagementCommand::UnregisterContentConsumer(cmd))
+            .await?;
+        Ok(consumer_tag2)
     }
 
     pub async fn basic_get(&mut self, args: BasicGetArguments) -> Result<Option<GetMessage>> {
-        let get = Get {
-            ticket: 0,
-            queue: args.queue.try_into().unwrap(),
-            no_ack: args.no_ack,
-        };
+        let get = Get::new(0, args.queue.try_into().unwrap(), args.no_ack);
 
         let (tx, mut rx) = mpsc::channel(3);
         let command = RegisterGetContentResponder { tx };
@@ -667,7 +654,7 @@ impl Channel {
 
     /// RabbitMQ does not support `requeue = false`. User should always pass `true`.
     pub async fn basic_recover(&mut self, requeue: bool) -> Result<()> {
-        let recover = Recover { requeue };
+        let recover = Recover::new(requeue);
 
         let responder_rx = self.register_responder(RecoverOk::header()).await?;
 
@@ -688,12 +675,11 @@ impl Channel {
         content: Vec<u8>,
         args: BasicPublishArguments,
     ) -> Result<()> {
-        let mut publish = Publish {
-            ticket: 0,
-            exchange: args.exchange.try_into().unwrap(),
-            routing_key: args.routing_key.try_into().unwrap(),
-            bits: 0,
-        };
+        let mut publish = Publish::new(
+            0,
+            args.exchange.try_into().unwrap(),
+            args.routing_key.try_into().unwrap(),
+        );
         publish.set_mandatory(args.mandatory);
         publish.set_immediate(args.immediate);
 
