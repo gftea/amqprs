@@ -1,9 +1,13 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
+use std::{
+    cell::RefCell,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+    },
+
 };
 
-use amqp_serde::types::{AmqpChannelId, ShortUint};
+use amqp_serde::types::{AmqpChannelId, FieldValue, ShortUint};
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::{debug, error, trace};
 
@@ -22,21 +26,36 @@ use crate::{
     net::RegisterResponder,
 };
 
+use super::error::Error;
 use super::{
     callbacks::ConnectionCallback,
     channel::{Channel, ChannelDispatcher},
 };
-use super::{error::Error};
+
 type Result<T> = std::result::Result<T, Error>;
 
 /////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////
-pub struct ClientCapabilities {}
 
 #[derive(Debug, Clone)]
-pub struct ServerCapabilities {}
-
+struct ServerCapabilities {
+    consumer_cancel_notify: bool,
+    publisher_confirms: bool,
+    consumer_priorities: bool,
+    authentication_failure_close: bool,
+    per_consumer_qos: bool,
+    connection_blocked: bool,
+    exchange_exchange_bindings: bool,
+    basic_nack: bool,
+    direct_reply_to: bool,
+}
+#[derive(Debug, Clone)]
+struct ServerProperties {
+    capabilities: ServerCapabilities,
+    cluster_name: String,
+    version: String,
+}
 #[derive(Debug, Clone)]
 pub struct Connection {
     shared: Arc<SharedConnectionInner>,
@@ -44,9 +63,8 @@ pub struct Connection {
 
 #[derive(Debug)]
 struct SharedConnectionInner {
-    capabilities: Option<ServerCapabilities>,
-    // FIXME: what is identity of a connection?
-    // conn_id: String
+    server_properties: Option<ServerProperties>,
+    connection_name: String,
     channel_max: ShortUint,
     is_open: AtomicBool,
     outgoing_tx: mpsc::Sender<OutgoingMessage>,
@@ -79,9 +97,14 @@ impl Connection {
         )?;
 
         // C: 'StartOk'
-        let start_ok = StartOk::default().into_frame();
+        let connection_name = generate_name(uri);
+        let mut start_ok = StartOk::default();
+        start_ok.client_properties_mut().insert(
+            "connection_name".try_into().unwrap(),
+            FieldValue::S(connection_name.clone().try_into().unwrap()),
+        );
         connection
-            .write_frame(CONN_DEFAULT_CHANNEL, start_ok)
+            .write_frame(CONN_DEFAULT_CHANNEL, start_ok.into_frame())
             .await?;
 
         // S: 'Tune'
@@ -92,8 +115,8 @@ impl Connection {
             Error::ConnectionOpenError("tune".to_string())
         )?;
         // C: TuneOk
-        let  tune_ok = TuneOk::new(tune.channel_max(),tune.frame_max(), tune.heartbeat() );
-        
+        let tune_ok = TuneOk::new(tune.channel_max(), tune.frame_max(), tune.heartbeat());
+
         let channel_max = tune.channel_max();
         let _heartbeat = tune.heartbeat();
         connection
@@ -117,7 +140,8 @@ impl Connection {
         let (conn_mgmt_tx, conn_mgmt_rx) = mpsc::channel(CONN_MANAGEMENT_COMMAND_BUFFER_SIZE);
 
         let shared = Arc::new(SharedConnectionInner {
-            capabilities: None,
+            server_properties: None,
+            connection_name,
             channel_max,
             is_open: AtomicBool::new(true),
             outgoing_tx,
@@ -140,6 +164,11 @@ impl Connection {
             })?;
 
         Ok(new_amq_conn)
+    }
+
+    /// connection name
+    pub fn name(&self) -> &str {
+        &self.shared.connection_name
     }
 
     async fn register_responder(
@@ -180,7 +209,8 @@ impl Connection {
     pub(crate) fn set_open_state(&self, is_open: bool) {
         self.shared.is_open.store(is_open, Ordering::Relaxed);
     }
-    pub fn get_open_state(&self) -> bool {
+
+    pub fn is_open(&self) -> bool {
         self.shared.is_open.load(Ordering::Relaxed)
     }
 
@@ -338,17 +368,68 @@ impl Drop for Connection {
     }
 }
 
+/// It is uncommon to have many connections for one client
+/// We only need a simple algorithm to generate large enough number of unique names.
+/// To avoid using any external crate
+
+fn generate_name(domain: &str) -> String {
+    const CHAR_SET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    // at least have `usize::MAX` unique names
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    thread_local! {
+        static HEAD: RefCell<usize> = RefCell::new(0);
+        static TAIL: RefCell<usize> = RefCell::new(0);
+    }
+
+    let max_len = CHAR_SET.len();
+
+    let tail = TAIL.with(|tail| {
+        let current_tail = tail.borrow().to_owned();
+        if current_tail + 1 == max_len {
+            *tail.borrow_mut() = 0;
+        } else {
+            *tail.borrow_mut() += 1;
+        }
+
+        current_tail
+    });
+
+    let head = HEAD.with(|head| {
+        let current_head = head.borrow().to_owned();
+        if tail + 1 == max_len {
+            // move HEAD index one step forward when and only when TAIL index restarts
+            if current_head + 1 == max_len {
+                *head.borrow_mut() = 0;
+            } else {
+                *head.borrow_mut() += 1;
+            }
+        }
+        current_head
+    });
+
+    format!(
+        "{}{}_{}@{}",
+        char::from(CHAR_SET[head]),
+        char::from(CHAR_SET[tail]),
+        COUNTER.fetch_add(1, Ordering::Relaxed),
+        domain
+    )
+}
+
+/////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
-    use super::Connection;
+    use std::{collections::HashSet, thread};
+
+    use super::{generate_name, Connection};
     use tokio::time;
-    use tracing::{Level, subscriber::SetGlobalDefaultError};
+    use tracing::{subscriber::SetGlobalDefaultError, Level};
 
     #[tokio::test]
     async fn test_channel_open_close() {
-        setup_logging(Level::DEBUG);
+        setup_logging(Level::TRACE);
         {
-
             // test close on drop
             let connection = Connection::open("localhost:5672").await.unwrap();
 
@@ -362,7 +443,7 @@ mod tests {
         time::sleep(time::Duration::from_millis(100)).await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
     async fn test_multi_conn_open_close() {
         setup_logging(Level::DEBUG);
 
@@ -404,12 +485,24 @@ mod tests {
         time::sleep(time::Duration::from_millis(100)).await;
     }
 
-    pub fn setup_logging(level: Level) -> Result<(), SetGlobalDefaultError> {
+    fn setup_logging(level: Level) -> Result<(), SetGlobalDefaultError> {
         // construct a subscriber that prints formatted traces to stdout
         let subscriber = tracing_subscriber::fmt().with_max_level(level).finish();
-    
+
         // use that subscriber to process traces emitted after this point
         tracing::subscriber::set_global_default(subscriber)
     }
-    
+
+    #[test]
+    fn test_name_generation() {
+        let n = 100;
+        let mut jh = Vec::with_capacity(n);
+        let mut res = HashSet::with_capacity(n);
+        for _ in 0..n {
+            jh.push(thread::spawn(|| generate_name("testdomain")));
+        }
+        for h in jh {
+            assert_eq!(true, res.insert(h.join().unwrap()));
+        }
+    }
 }

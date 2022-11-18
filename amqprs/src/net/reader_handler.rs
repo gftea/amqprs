@@ -217,7 +217,7 @@ impl ReaderHandler {
                                 error!("Failed to handle frame, cause: {} ", err);
                                 break;
                             }
-                            if !self.amqp_connection.get_open_state() {
+                            if !self.amqp_connection.is_open() {
                                 info!("Client has requested to shutdown connection or shutdown requested by server!");
                                 break;
                             }

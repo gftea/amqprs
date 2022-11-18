@@ -164,7 +164,7 @@ impl Channel {
     pub(crate) fn set_open_state(&self, is_open: bool) {
         self.shared.is_open.store(is_open, Ordering::Relaxed);
     }
-    pub fn get_open_state(&self) -> bool {
+    pub fn is_open(&self) -> bool {
         self.shared.is_open.load(Ordering::Relaxed)
     }
 

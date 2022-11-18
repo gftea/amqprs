@@ -22,6 +22,6 @@ amqp_serde = { path = "../amqp_serde" }
 # tokio-stream = "0.1"
 async-trait = "0.1"
 tracing = "0.1"
-
+# rand = "0.8"
 [dev-dependencies]
 tracing-subscriber = "0.3"

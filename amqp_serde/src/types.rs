@@ -1,14 +1,19 @@
 ///! AMQP 0-9-1 types for RabbitMQ
 ///! https://github.com/rabbitmq/rabbitmq-codegen/blob/main/amqp-rabbitmq-0.9.1.json
-
-use std::{collections::HashMap, num::TryFromIntError, ops::Deref, fmt};
+use std::{
+    any::{Any, TypeId},
+    collections::HashMap,
+    fmt::{self, Debug},
+    num::TryFromIntError,
+    ops::{Deref, DerefMut},
+};
 
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
-pub type Bit = u8;           // No Rust type to represent single bit, but bits are packed in octect
+pub type Bit = u8; // No Rust type to represent single bit, but bits are packed in octect
 pub type Octect = u8;
-pub type Boolean = bool;        // 0 = FALSE, else TRUE
+pub type Boolean = bool; // 0 = FALSE, else TRUE
 pub type ShortShortUint = u8;
 pub type ShortShortInt = i8;
 pub type ShortUint = u16;
@@ -21,6 +26,7 @@ pub type TimeStamp = u64;
 pub type Float = f32;
 pub type Double = f64;
 
+/////////////////////////////////////////////////////////////////////////////
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ShortStr(u8, String);
 impl fmt::Display for ShortStr {
@@ -62,6 +68,7 @@ impl TryFrom<&str> for ShortStr {
     }
 }
 
+/////////////////////////////////////////////////////////////////////////////
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct LongStr(u32, String);
 impl fmt::Display for LongStr {
@@ -103,11 +110,12 @@ impl From<LongStr> for String {
     }
 }
 
-
+/////////////////////////////////////////////////////////////////////////////
 /// Specification of the decimal value format in RabbitMQ?
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct DecimalValue(Octect, LongUint);
 
+/////////////////////////////////////////////////////////////////////////////
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct ByteArray(LongUint, Vec<u8>);
 impl TryFrom<Vec<u8>> for ByteArray {
@@ -123,6 +131,8 @@ impl From<ByteArray> for Vec<u8> {
         arr.1
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////
 // Follow Rabbit definitions below
 // Ref: // https://www.rabbitmq.com/amqp-0-9-1-errata.html#section_3
 //----------------------------------------------------------------------------
@@ -154,12 +164,12 @@ pub enum FieldValue {
     b(ShortShortInt),
     B(ShortShortUint),
     // U(ShortInt),     // not exist in RabbitMQ
-    s(ShortInt),        // used in RabbitMQ equivalent to 'U' in 0-9-1 spec
+    s(ShortInt), // used in RabbitMQ equivalent to 'U' in 0-9-1 spec
     u(ShortUint),
     I(LongInt),
     i(LongUint),
     // L(LongLongInt),  // not exist in RabbitMQ
-    l(LongLongInt),     // RabbitMQ is signed, 0-9-1 spec is unsigned
+    l(LongLongInt), // RabbitMQ is signed, 0-9-1 spec is unsigned
     f(Float),
     d(Double),
     D(DecimalValue),
@@ -169,11 +179,76 @@ pub enum FieldValue {
     T(TimeStamp),
     F(FieldTable),
     V,
-    x(ByteArray),       // RabbitMQ only
+    x(ByteArray), // RabbitMQ only
 }
 pub type FieldName = ShortStr;
-pub type FieldTable = HashMap<FieldName, FieldValue>;
 
+pub type FieldTable = HashMap<FieldName, FieldValue>;
+// #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+// pub struct FieldTable(HashMap<FieldName, FieldValue>);
+// impl Default for FieldTable {
+//     fn default() -> Self {
+//         Self(HashMap::new())
+//     }
+// }
+
+// impl Deref for FieldTable {
+//     type Target = HashMap<FieldName, FieldValue>;
+
+//     fn deref(&self) -> &Self::Target {
+//         &self.0
+//     }
+// }
+
+// impl FieldTable {
+//     pub fn new() -> Self {
+//         Self(HashMap::new())
+//     }
+    
+//     pub fn insert<V>(&mut self, k: String, v: V) 
+//     where
+//         V: Any,
+//     {
+//         let k: FieldName = k.try_into().unwrap();
+//         let v = &v as &dyn Any;
+
+//         if v.is::<bool>() {
+//             let v = v.downcast_ref::<bool>().unwrap();
+//             let old = self.0.insert(k, FieldValue::t(v.clone()));
+//         } else if v.is::<i8>() {
+//             let v = v.downcast_ref::<i8>().unwrap();
+//             let old = self.0.insert(k, FieldValue::b(v.clone()));
+//         } else if v.is::<u8>() {
+//             let v = v.downcast_ref::<u8>().unwrap();
+//             let old = self.0.insert(k, FieldValue::B(v.clone()));
+//         } else if v.is::<i16>() {
+//             let v = v.downcast_ref::<bool>().unwrap();
+//             let old = self.0.insert(k, FieldValue::t(v.clone()));
+//         } else if v.is::<u16>() {
+//         } else if v.is::<i32>() {
+//         } else if v.is::<u32>() {
+//         } else if v.is::<i64>() {
+//         } else if v.is::<f32>() {
+//         } else if v.is::<f64>() {
+//         } else if v.is::<DecimalValue>() {
+//         } else if v.is::<String>() {
+//             // RabbitMQ does not have "short string" type in field value,
+//             let v = v.downcast_ref::<String>().unwrap();
+//             let old = self
+//                 .0
+//                 .insert(k, FieldValue::S(v.clone().try_into().unwrap()));
+//         } else if v.is::<FieldArray>() {
+//         } else if v.is::<u64>() { // RabbitMQ do not have "Unsigned 64-bit" field value, so `u64` can be uniquely mapped to TimeStamp
+//         } else if v.is::<Self>() {
+//         } else if v.is::<()>() {
+//         } else if v.is::<ByteArray>() {
+//         } else {
+//             panic!("unsupported value type {:?} ", v);
+//         }
+        
+//     }
+// }
+/////////////////////////////////////////////////////////////////////////////
 /// RabbitMQ use LongUint as length value
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct FieldArray(LongUint, Vec<FieldValue>);
@@ -216,3 +291,13 @@ pub type AmqpSecurityToken = LongStr;
 pub type AmqpTable = FieldTable;
 pub type AmqpTimeStamp = TimeStamp;
 
+/////////////////////////////////////////////////////////////////////////////
+mod tests {
+    use super::FieldTable;
+    #[test]
+    fn test() {
+        let mut table = FieldTable::new();
+        // table.insert("hello".to_string(), "world".to_string());
+        println!("{:?}", table);
+    }
+}
