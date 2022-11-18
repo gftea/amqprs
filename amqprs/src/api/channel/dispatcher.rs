@@ -183,7 +183,7 @@ impl ChannelDispatcher {
                         match frame {
                             Frame::Return(_, method) => {
                                 self.state = State::Return;
-                                debug!("returned : {}, {}", method.reply_code, method.reply_text.deref());
+                                debug!("returned : {}, {}", method.reply_code(), method.reply_text());
                             }
                             Frame::GetEmpty(_, get_empty) => {
                                 self.state = State::GetEmpty;

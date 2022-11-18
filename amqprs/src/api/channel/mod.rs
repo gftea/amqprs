@@ -174,12 +174,12 @@ impl Channel {
         let responder_rx = self.register_responder(FlowOk::header()).await?;
         let flow_ok = synchronous_request!(
             self.shared.outgoing_tx,
-            (self.shared.channel_id, Flow { active }.into_frame()),
+            (self.shared.channel_id, Flow::new(active).into_frame()),
             responder_rx,
             Frame::FlowOk,
             Error::ChannelUseError
         )?;
-        Ok(flow_ok.active)
+        Ok(flow_ok.active())
     }
 
     /// User must close the channel to avoid channel leak

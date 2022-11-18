@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, ops::Deref};
 
 use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
 use serde::{de::Visitor, Deserialize, Serialize};
@@ -54,7 +54,41 @@ pub struct BasicProperties {
     app_id: Option<ShortStr>,
     cluster_id: Option<ShortStr>,
 }
-
+impl fmt::Display for BasicProperties {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!(
+            "Basic properties:
+            content_type = {},
+            content_encoding = {},
+            headers = {:?},
+            delivery_mode = {},
+            priority = {},
+            correlation_id = {},
+            reply_to = {},
+            expiration = {},
+            message_id = {},
+            timestamp = {},
+            message_type = {},
+            user_id = {},
+            app_id = {},
+            cluster_id = {}",
+            self.content_type.as_ref().map_or_else(||"", |v| v.deref()),
+            self.content_encoding.as_ref().map_or_else(||"", |v| v.deref()),
+            self.headers,
+            self.delivery_mode.map_or_else(||"".to_string(), |v| v.to_string()),
+            self.priority.map_or_else(||"".to_string(), |v| v.to_string()),
+            self.correlation_id.as_ref().map_or_else(||"", |v| v.deref()),
+            self.reply_to.as_ref().map_or_else(||"", |v| v.deref()),
+            self.expiration.as_ref().map_or_else(||"", |v| v.deref()),
+            self.message_id.as_ref().map_or_else(||"", |v| v.deref()),
+            self.timestamp.map_or_else(||"".to_string(), |v| v.to_string()),
+            self.message_type.as_ref().map_or_else(||"", |v| v.deref()),
+            self.user_id.as_ref().map_or_else(||"", |v| v.deref()),
+            self.app_id.as_ref().map_or_else(||"", |v| v.deref()),
+            self.cluster_id.as_ref().map_or_else(||"", |v| v.deref()),
+        ))
+    }
+}
 impl BasicProperties {
     pub fn new(
         content_type: Option<String>,
@@ -200,9 +234,9 @@ impl BasicProperties {
         self.content_encoding.as_deref()
     }
 
-    // pub fn headers(&self) -> Option<&HashMap<String, FieldValue>> {
-    //     self.headers.as_deref()
-    // }
+    pub fn headers(&self) -> Option<&FieldTable> {
+        self.headers.as_ref()
+    }
 
     pub fn delivery_mode(&self) -> Option<u8> {
         self.delivery_mode

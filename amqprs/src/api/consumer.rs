@@ -39,8 +39,8 @@ impl AsyncConsumer for DefaultConsumer {
         content: Vec<u8>,
     ) {
         info!(">>>>> Consumer '{}' Start <<<<<", deliver.consumer_tag());
-        info!("{:?}", deliver);
-        info!("{:?}", basic_properties,);
+        info!("{}", deliver);
+        info!("{}", basic_properties,);
         info!("{}", from_utf8(&content).unwrap());
         info!(">>>>> Consumer '{}' End <<<<<", deliver.consumer_tag());
 

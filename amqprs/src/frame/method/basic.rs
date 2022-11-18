@@ -1,3 +1,5 @@
+use std::fmt;
+
 use amqp_serde::types::{
     AmqpExchangeName, AmqpMessageCount, AmqpQueueName, Boolean, FieldTable, LongLongUint, LongUint,
     Octect, ShortStr, ShortUint,
@@ -156,10 +158,38 @@ impl Publish {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Return {
-    pub reply_code: ShortUint,
-    pub reply_text: ShortStr,
-    pub exchange: AmqpExchangeName,
-    pub routing_key: ShortStr,
+    reply_code: ShortUint,
+    reply_text: ShortStr,
+    exchange: AmqpExchangeName,
+    routing_key: ShortStr,
+}
+impl fmt::Display for Return {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!(
+            "Return published message due to '{}: {}', (exchange = {}, routing_key = {})",
+            self.reply_code(),
+            self.reply_text(),
+            self.exchange(),
+            self.routing_key()
+        ))
+    }
+}
+impl Return {
+    pub fn reply_code(&self) -> u16 {
+        self.reply_code
+    }
+
+    pub fn reply_text(&self) -> &String {
+        &self.reply_text
+    }
+
+    pub fn exchange(&self) -> &String {
+        &self.exchange
+    }
+
+    pub fn routing_key(&self) -> &String {
+        &self.routing_key
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -170,6 +200,24 @@ pub struct Deliver {
     exchange: AmqpExchangeName,
     routing_key: ShortStr,
 }
+impl fmt::Display for Deliver {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!(
+            "Deliver: 
+            consumer_tag = {},
+            delivery_tag = {},
+            redelivered = {},
+            exchange = {},
+            routing_key = {}",
+            self.consumer_tag,
+            self.delivery_tag,
+            self.redelivered,
+            self.exchange,
+            self.routing_key
+        ))
+    }
+}
+
 
 impl Deliver {
     pub fn consumer_tag(&self) -> &String {
@@ -258,6 +306,14 @@ impl Ack {
             mutiple,
         }
     }
+
+    pub fn delivery_tag(&self) -> u64 {
+        self.delivery_tag
+    }
+
+    pub fn mutiple(&self) -> bool {
+        self.mutiple
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -272,6 +328,14 @@ impl Reject {
             delivery_tag,
             requeue,
         }
+    }
+
+    pub fn delivery_tag(&self) -> u64 {
+        self.delivery_tag
+    }
+
+    pub fn requeue(&self) -> bool {
+        self.requeue
     }
 }
 
@@ -320,5 +384,9 @@ impl Nack {
         } else {
             self.bits &= !bit_flag::nack::REQUEUE;
         }
+    }
+
+    pub fn delivery_tag(&self) -> u64 {
+        self.delivery_tag
     }
 }

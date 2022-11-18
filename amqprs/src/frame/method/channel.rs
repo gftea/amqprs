@@ -66,12 +66,28 @@ pub struct CloseChannelOk;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Flow {
-    pub active: Boolean,
+    active: Boolean,
+}
+
+impl Flow {
+    pub fn new(active: Boolean) -> Self { Self { active } }
+
+    pub fn active(&self) -> bool {
+        self.active
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct FlowOk {
-    pub active: Boolean,
+    active: Boolean,
+}
+
+impl FlowOk {
+    pub fn new(active: Boolean) -> Self { Self { active } }
+
+    pub fn active(&self) -> bool {
+        self.active
+    }
 }
 
 #[cfg(test)]

@@ -219,6 +219,12 @@ pub struct Blocked {
     reason: ShortStr,
 }
 
+impl Blocked {
+    pub fn reason(&self) -> &String {
+        &self.reason
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Unblocked;
 

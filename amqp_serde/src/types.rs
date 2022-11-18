@@ -1,7 +1,7 @@
 ///! AMQP 0-9-1 types for RabbitMQ
 ///! https://github.com/rabbitmq/rabbitmq-codegen/blob/main/amqp-rabbitmq-0.9.1.json
 
-use std::{collections::HashMap, num::TryFromIntError, ops::Deref};
+use std::{collections::HashMap, num::TryFromIntError, ops::Deref, fmt};
 
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
@@ -23,7 +23,11 @@ pub type Double = f64;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ShortStr(u8, String);
-
+impl fmt::Display for ShortStr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.deref())
+    }
+}
 impl Default for ShortStr {
     fn default() -> Self {
         Self(0, "".to_string())
@@ -60,7 +64,11 @@ impl TryFrom<&str> for ShortStr {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct LongStr(u32, String);
-
+impl fmt::Display for LongStr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.deref())
+    }
+}
 impl Default for LongStr {
     fn default() -> Self {
         Self(0, "".to_string())
