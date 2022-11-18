@@ -103,8 +103,8 @@ impl_frame! {
             40: CloseChannel,
             41: CloseChannelOk;
     // == Access == Deprecated: https://www.rabbitmq.com/spec-differences.html
-    30 =>   10: Request,
-            11: RequestOk;
+    // 30 =>   10: Request,
+    //         11: RequestOk;
     // == Exchange ==
     40 =>   10: Declare,
             11: DeclareOk,
@@ -148,12 +148,12 @@ impl_frame! {
     85 =>   10: Select,
             11: SelectOk;
     // == Transaction ==
-    90 =>   10: SelectTx,
-            11: SelectTxOk,
-            20: Commit,
-            21: CommitOk,
-            30: Rollback,
-            31: RollbackOk
+    90 =>   10: TxSelect,
+            11: TxSelectOk,
+            20: TxCommit,
+            21: TxCommitOk,
+            30: TxRollback,
+            31: TxRollbackOk
 }
 
 //////////////////////////////////////////////////////////////////////

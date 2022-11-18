@@ -287,6 +287,8 @@ pub(crate) use dispatcher::*;
 mod basic;
 mod exchange;
 mod queue;
+mod confim;
+mod tx;
 
 pub use basic::*;
 pub use exchange::*;

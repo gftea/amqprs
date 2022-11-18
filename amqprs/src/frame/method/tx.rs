@@ -1,14 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SelectTx;
+pub struct TxSelect;
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SelectTxOk;
+pub struct TxSelectOk;
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Commit;
+pub struct TxCommit;
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CommitOk;
+pub struct TxCommitOk;
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Rollback;
+pub struct TxRollback;
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RollbackOk;
+pub struct TxRollbackOk;

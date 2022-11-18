@@ -92,13 +92,10 @@ impl Connection {
             Error::ConnectionOpenError("tune".to_string())
         )?;
         // C: TuneOk
-        let mut tune_ok = TuneOk::default();
-        tune_ok.channel_max = tune.channel_max;
-        tune_ok.frame_max = tune.frame_max;
-        tune_ok.heartbeat = tune.heartbeat;
-
-        let channel_max = tune_ok.channel_max;
-        let _heartbeat = tune_ok.channel_max;
+        let  tune_ok = TuneOk::new(tune.channel_max(),tune.frame_max(), tune.heartbeat() );
+        
+        let channel_max = tune.channel_max();
+        let _heartbeat = tune.heartbeat();
         connection
             .write_frame(CONN_DEFAULT_CHANNEL, tune_ok.into_frame())
             .await?;

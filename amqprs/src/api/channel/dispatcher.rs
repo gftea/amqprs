@@ -264,7 +264,7 @@ impl ChannelDispatcher {
                             }
                             // TODO:
                             | Frame::FlowOk(method_header, _)
-                            | Frame::RequestOk(method_header, _) // deprecated
+                            // | Frame::RequestOk(method_header, _) // Deprecated
                             | Frame::DeclareOk(method_header, _)
                             | Frame::DeleteOk(method_header, _)
                             | Frame::BindOk(method_header, _)
@@ -279,9 +279,9 @@ impl ChannelDispatcher {
                             | Frame::CancelOk(method_header, _)
                             | Frame::RecoverOk(method_header, _)
                             | Frame::SelectOk(method_header, _)
-                            | Frame::SelectTxOk(method_header, _)
-                            | Frame::CommitOk(method_header, _)
-                            | Frame::RollbackOk(method_header, _) => {
+                            | Frame::TxSelectOk(method_header, _)
+                            | Frame::TxCommitOk(method_header, _)
+                            | Frame::TxRollbackOk(method_header, _) => {
                                 // handle synchronous response
                                 match self.responders.remove(method_header)
                                 {

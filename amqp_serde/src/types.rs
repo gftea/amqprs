@@ -1,11 +1,14 @@
+///! AMQP 0-9-1 types for RabbitMQ
+///! https://github.com/rabbitmq/rabbitmq-codegen/blob/main/amqp-rabbitmq-0.9.1.json
+
 use std::{collections::HashMap, num::TryFromIntError, ops::Deref};
 
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
-pub type Bit = u8; //TODO: continuous bits packed in octect
+pub type Bit = u8;           // No Rust type to represent single bit, but bits are packed in octect
 pub type Octect = u8;
-pub type Boolean = bool; // 0 = FALSE, else TRUE
+pub type Boolean = bool;        // 0 = FALSE, else TRUE
 pub type ShortShortUint = u8;
 pub type ShortShortInt = i8;
 pub type ShortUint = u16;
@@ -64,6 +67,13 @@ impl Default for LongStr {
     }
 }
 
+impl Deref for LongStr {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.1
+    }
+}
 impl TryFrom<String> for LongStr {
     type Error = TryFromIntError;
 
@@ -85,6 +95,26 @@ impl From<LongStr> for String {
     }
 }
 
+
+/// Specification of the decimal value format in RabbitMQ?
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct DecimalValue(Octect, LongUint);
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct ByteArray(LongUint, Vec<u8>);
+impl TryFrom<Vec<u8>> for ByteArray {
+    type Error = TryFromIntError;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        let len = LongUint::try_from(bytes.len())?;
+        Ok(Self(len, bytes))
+    }
+}
+impl From<ByteArray> for Vec<u8> {
+    fn from(arr: ByteArray) -> Self {
+        arr.1
+    }
+}
 // Follow Rabbit definitions below
 // Ref: // https://www.rabbitmq.com/amqp-0-9-1-errata.html#section_3
 //----------------------------------------------------------------------------
@@ -109,27 +139,6 @@ impl From<LongStr> for String {
 //   F     F       F            Nested Table
 //   V     V       V            Void
 //                 x            Byte array         (D)
-
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-//long-uint * 10^(-scale)
-pub struct DecimalValue(Octect, LongUint);
-
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct ByteArray(LongUint, Vec<u8>);
-impl TryFrom<Vec<u8>> for ByteArray {
-    type Error = TryFromIntError;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        let len = LongUint::try_from(bytes.len())?;
-        Ok(Self(len, bytes))
-    }
-}
-impl From<ByteArray> for Vec<u8> {
-    fn from(arr: ByteArray) -> Self {
-        arr.1
-    }
-}
-
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 #[allow(non_camel_case_types)]
 pub enum FieldValue {
@@ -137,12 +146,12 @@ pub enum FieldValue {
     b(ShortShortInt),
     B(ShortShortUint),
     // U(ShortInt),     // not exist in RabbitMQ
-    s(ShortInt), // used in RabbitMQ equivalent to 'U' in 0-9-1 spec
+    s(ShortInt),        // used in RabbitMQ equivalent to 'U' in 0-9-1 spec
     u(ShortUint),
     I(LongInt),
     i(LongUint),
     // L(LongLongInt),  // not exist in RabbitMQ
-    l(LongLongInt), // RabbitMQ is signed, 0-9-1 spec is unsigned
+    l(LongLongInt),     // RabbitMQ is signed, 0-9-1 spec is unsigned
     f(Float),
     d(Double),
     D(DecimalValue),
@@ -152,12 +161,12 @@ pub enum FieldValue {
     T(TimeStamp),
     F(FieldTable),
     V,
-    x(ByteArray), // RabbitMQ only
+    x(ByteArray),       // RabbitMQ only
 }
 pub type FieldName = ShortStr;
 pub type FieldTable = HashMap<FieldName, FieldValue>;
 
-// RabbitMQ use LongUint
+/// RabbitMQ use LongUint as length value
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct FieldArray(LongUint, Vec<FieldValue>);
 impl TryFrom<Vec<FieldValue>> for FieldArray {
@@ -176,15 +185,26 @@ impl From<FieldArray> for Vec<FieldValue> {
 
 /////////////////////////////////////////////////////////////////////////////
 // AMQP domains
-pub type AmqpPeerProperties = FieldTable;
-pub type AmqpSecurityToken = LongStr;
-pub type AmqpPath = ShortStr;
-pub type AmqpReplyCode = ShortUint;
-pub type AmqpReplyText = ShortStr;
-pub type AmqpChannelId = ShortUint;
-pub type AmqpExchangeName = ShortStr;
-pub type AmqpQueueName = ShortStr;
-pub type AmqpMessageCount = LongUint;
+pub type AmqpChannelId = ShortUint; // Define it as type used as `channel id` in AMQP frame instead of `longstr` in amqp-rabbitmq-0.9.1.json which is only used for `open-ok`
+pub type AmqpClassId = ShortUint;
+pub type AmqpMethodId = ShortUint;
+
 pub type AmqpConsumerTag = ShortStr;
 pub type AmqpDeliveryTag = LongLongUint;
+pub type AmqpDestination = ShortStr;
 pub type AmqpDuration = LongLongUint;
+pub type AmqpExchangeName = ShortStr;
+pub type AmqpMessageCount = LongUint;
+pub type AmqpOffset = LongUint;
+pub type AmqpPath = ShortStr;
+pub type AmqpPeerProperties = FieldTable;
+pub type AmqpQueueName = ShortStr;
+pub type AmqpReference = LongStr;
+pub type AmqpRejectCode = ShortUint;
+pub type AmqpRejectText = ShortStr;
+pub type AmqpReplyCode = ShortUint;
+pub type AmqpReplyText = ShortStr;
+pub type AmqpSecurityToken = LongStr;
+pub type AmqpTable = FieldTable;
+pub type AmqpTimeStamp = TimeStamp;
+

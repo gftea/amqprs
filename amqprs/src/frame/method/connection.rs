@@ -6,19 +6,73 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Start {
-    pub version_major: Octect,
-    pub version_minor: Octect,
-    pub server_properties: AmqpPeerProperties,
-    pub mechanisms: LongStr,
-    pub locales: LongStr,
+    version_major: Octect,
+    version_minor: Octect,
+    server_properties: AmqpPeerProperties,
+    mechanisms: LongStr,
+    locales: LongStr,
+}
+
+impl Start {
+    pub fn version_major(&self) -> u8 {
+        self.version_major
+    }
+
+    pub fn version_minor(&self) -> u8 {
+        self.version_minor
+    }
+
+    pub fn server_properties(&self) -> &AmqpPeerProperties {
+        &self.server_properties
+    }
+
+    pub fn mechanisms(&self) -> &String {
+        &self.mechanisms
+    }
+
+    pub fn locales(&self) -> &String {
+        &self.locales
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StartOk {
-    pub client_properties: AmqpPeerProperties,
-    pub machanisms: ShortStr,
-    pub response: LongStr,
-    pub locale: ShortStr,
+    client_properties: AmqpPeerProperties,
+    machanisms: ShortStr,
+    response: LongStr,
+    locale: ShortStr,
+}
+
+impl StartOk {
+    pub fn new(
+        client_properties: AmqpPeerProperties,
+        machanisms: ShortStr,
+        response: LongStr,
+        locale: ShortStr,
+    ) -> Self {
+        Self {
+            client_properties,
+            machanisms,
+            response,
+            locale,
+        }
+    }
+
+    pub fn client_properties_mut(&mut self) -> &mut AmqpPeerProperties {
+        &mut self.client_properties
+    }
+
+    pub fn machanisms_mut(&mut self) -> &mut ShortStr {
+        &mut self.machanisms
+    }
+
+    pub fn response_mut(&mut self) -> &mut LongStr {
+        &mut self.response
+    }
+
+    pub fn locale_mut(&mut self) -> &mut ShortStr {
+        &mut self.locale
+    }
 }
 
 impl Default for StartOk {
@@ -34,25 +88,50 @@ impl Default for StartOk {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Tune {
-    pub channel_max: ShortUint,
-    pub frame_max: LongUint,
-    pub heartbeat: ShortUint,
+    channel_max: ShortUint,
+    frame_max: LongUint,
+    heartbeat: ShortUint,
 }
+
+impl Tune {
+    pub fn channel_max(&self) -> u16 {
+        self.channel_max
+    }
+
+    pub fn frame_max(&self) -> u32 {
+        self.frame_max
+    }
+
+    pub fn heartbeat(&self) -> u16 {
+        self.heartbeat
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct TuneOk {
     // RabbitMQ doesn't put a limit on channel-max, and treats any number in tune-ok as valid.
     // It does put a limit on frame-max, and checks that the value sent in tune-ok
     // is less than or equal.
-    pub channel_max: ShortUint,
-    pub frame_max: LongUint,
-    pub heartbeat: ShortUint,
+    channel_max: ShortUint,
+    frame_max: LongUint,
+    heartbeat: ShortUint,
+}
+
+impl TuneOk {
+    pub fn new(channel_max: ShortUint, frame_max: LongUint, heartbeat: ShortUint) -> Self {
+        Self {
+            channel_max,
+            frame_max,
+            heartbeat,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Open {
-    pub virtual_host: ShortStr,
-    pub capabilities: ShortStr,
-    pub insist: Bit,
+    virtual_host: ShortStr,
+    capabilities: ShortStr,
+    insist: Bit,
 }
 
 impl Default for Open {
@@ -120,18 +199,24 @@ pub struct CloseOk;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Secure {
-    pub challenge: LongStr,
+    challenge: LongStr,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct SecureOk {
-    pub response: LongStr,
+    response: LongStr,
+}
+
+impl SecureOk {
+    pub fn new(response: LongStr) -> Self {
+        Self { response }
+    }
 }
 
 // below from https://www.rabbitmq.com/resources/specs/amqp0-9-1.extended.xml
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Blocked {
-    pub reason: ShortStr,
+    reason: ShortStr,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -139,8 +224,8 @@ pub struct Unblocked;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateSecret {
-    pub new_secret: LongStr,
-    pub reason: ShortStr,
+    new_secret: LongStr,
+    reason: ShortStr,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]

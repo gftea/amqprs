@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-// deprecated: https://www.rabbitmq.com/spec-differences.html
-#[derive(Debug, Serialize, Deserialize)]
+/// Deprecated: https://www.rabbitmq.com/spec-differences.html
+
+#[allow(dead_code)]
 pub struct Request;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct RequestOk;

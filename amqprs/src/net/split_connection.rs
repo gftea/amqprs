@@ -188,6 +188,7 @@ mod test {
 
     use super::SplitConnection;
     use crate::frame::*;
+    use amqp_serde::types::FieldTable;
     use tokio::sync::mpsc;
 
     #[tokio::test]
@@ -221,10 +222,11 @@ mod test {
         let _start = rx_resp.recv().await.unwrap();
 
         // C: 'StartOk'
-        let mut start_ok = StartOk::default();
         let auth_machanism = 2;
         match auth_machanism {
             1 => {
+                let start_ok = StartOk::default();
+
                 // default: PLAIN
                 tx_req
                     .send((CONN_DEFAULT_CHANNEL, start_ok.into_frame()))
@@ -232,21 +234,26 @@ mod test {
                     .unwrap();
             }
             2 => {
-                start_ok.machanisms = "AMQPLAIN".try_into().unwrap();
+                let mut start_ok = StartOk::default();
+
+                *start_ok.machanisms_mut() = "AMQPLAIN".try_into().unwrap();
                 let user = "user";
                 let password = "bitnami";
                 let s = format!(
                     "\x05LOGIN\x53\x00\x00\x00\x04{user}\x08PASSWORD\x53\x00\x00\x00\x07{password}"
                 );
-                start_ok.response = s.try_into().unwrap();
+
+                *start_ok.response_mut() = s.try_into().unwrap();
                 tx_req
                     .send((CONN_DEFAULT_CHANNEL, start_ok.into_frame()))
                     .await
                     .unwrap();
             }
             3 => {
-                start_ok.machanisms = "RABBIT-CR-DEMO".try_into().unwrap();
-                start_ok.response = "user".try_into().unwrap();
+                let mut start_ok = StartOk::default();
+
+                *start_ok.machanisms_mut() = "RABBIT-CR-DEMO".try_into().unwrap();
+                *start_ok.response_mut() = "user".try_into().unwrap();
                 tx_req
                     .send((CONN_DEFAULT_CHANNEL, start_ok.into_frame()))
                     .await
@@ -256,9 +263,7 @@ mod test {
                 rx_resp.recv().await.unwrap();
 
                 // C: SecureOk
-                let secure_ok = SecureOk {
-                    response: "My password is bitnami".try_into().unwrap(),
-                };
+                let secure_ok = SecureOk::new("My password is bitnami".try_into().unwrap());
                 tx_req
                     .send((CONN_DEFAULT_CHANNEL, secure_ok.into_frame()))
                     .await
@@ -275,11 +280,7 @@ mod test {
         };
 
         // C: TuneOk
-        let mut tune_ok = TuneOk::default();
-
-        tune_ok.channel_max = tune.channel_max;
-        tune_ok.frame_max = tune.frame_max;
-        tune_ok.heartbeat = tune.heartbeat;
+        let tune_ok = TuneOk::new(tune.channel_max(), tune.frame_max(), tune.heartbeat());
 
         tx_req
             .send((CONN_DEFAULT_CHANNEL, tune_ok.into_frame()))
