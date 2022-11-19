@@ -103,6 +103,7 @@ impl Connection {
         // TODO: protocol header negotiation ?
         connection.write(&ProtocolHeader::default()).await?;
 
+        // TODO: saving server propertities
         // S: 'Start'
         let (_, frame) = connection.read_frame().await?;
         let start = get_expected_method!(
@@ -121,6 +122,8 @@ impl Connection {
         let resopnse = format!("\0{}\0{}", args.username, args.password)
             .try_into()
             .unwrap();
+        // TODO: support different machanisms: PLAIN, AMQPLAIN, SSL
+        //      handle locale
         let start_ok = StartOk::new(
             client_props,
             "PLAIN".try_into().unwrap(),
@@ -132,6 +135,7 @@ impl Connection {
             .write_frame(CONN_DEFAULT_CHANNEL, start_ok.into_frame())
             .await?;
 
+        // TODO: tune for channel_max, frame_max, heartbeat between client and server
         // S: 'Tune'
         let (_, frame) = connection.read_frame().await?;
         let tune = get_expected_method!(
@@ -477,7 +481,7 @@ mod tests {
         let mut handles = vec![];
 
         for _ in 0..10 {
-            let handle = tokio::spawn(async  {
+            let handle = tokio::spawn(async {
                 let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
                 time::sleep(time::Duration::from_millis(200)).await;
