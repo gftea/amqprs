@@ -1,7 +1,7 @@
 use amqprs::api::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
     channel::ExchangeDeclareArguments,
-    connection::Connection,
+    connection::{Connection, OpenConnectionArguments},
 };
 use tokio::time;
 use tracing::Level;
@@ -13,7 +13,9 @@ async fn test_connection_callback() {
     let _guard = common::setup_logging(Level::TRACE);
 
     // open a connection to RabbitMQ server
-    let connection = Connection::open("localhost:5672").await.unwrap();
+    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+
+    let connection = Connection::open(&args).await.unwrap();
 
     connection
         .register_callback(DefaultConnectionCallback)
@@ -42,7 +44,9 @@ async fn test_channel_callback() {
     let _guard = common::setup_logging(Level::DEBUG);
 
     // open a connection to RabbitMQ server
-    let connection = Connection::open("localhost:5672").await.unwrap();
+    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+
+    let connection = Connection::open(&args).await.unwrap();
 
     // open a channel on the connection
     let channel = connection.open_channel().await.unwrap();

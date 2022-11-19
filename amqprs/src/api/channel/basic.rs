@@ -472,7 +472,7 @@ mod tests {
     use crate::{
         api::{
             channel::{QueueBindArguments, QueueDeclareArguments},
-            connection::Connection,
+            connection::{Connection, OpenConnectionArguments},
             consumer::DefaultConsumer,
         },
         frame::BasicProperties,
@@ -483,7 +483,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
     async fn test_basic_consume_auto_ack() {
         {
-            let client = Connection::open("localhost:5672").await.unwrap();
+            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+            let client = Connection::open(&args).await.unwrap();
 
             let mut channel = client.open_channel().await.unwrap();
             channel
@@ -513,7 +514,9 @@ mod tests {
     #[tokio::test]
     async fn test_basic_consume_manual_ack() {
         {
-            let client = Connection::open("localhost:5672").await.unwrap();
+            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+
+            let client = Connection::open(&args).await.unwrap();
 
             let mut channel = client.open_channel().await.unwrap();
             channel
@@ -542,7 +545,9 @@ mod tests {
     #[tokio::test]
     async fn test_basic_publish() {
         {
-            let client = Connection::open("localhost:5672").await.unwrap();
+            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+
+            let client = Connection::open(&args).await.unwrap();
 
             let channel = client.open_channel().await.unwrap();
 

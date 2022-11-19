@@ -239,6 +239,11 @@ mod test {
                 *start_ok.machanisms_mut() = "AMQPLAIN".try_into().unwrap();
                 let user = "user";
                 let password = "bitnami";
+               // format: (ShortStr, u8, LongStr)
+               // struct AmpPlainMachanism {
+               //     username: (ShortStr, u8, LongStr),
+               //     password: (ShortStr, u8, LongStr),
+               // }
                 let s = format!(
                     "\x05LOGIN\x53\x00\x00\x00\x04{user}\x08PASSWORD\x53\x00\x00\x00\x07{password}"
                 );

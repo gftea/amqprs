@@ -3,7 +3,7 @@ use amqprs::{
         channel::{
             BasicConsumeArguments, BasicPublishArguments, QueueBindArguments, QueueDeclareArguments,
         },
-        connection::Connection,
+        connection::{Connection, OpenConnectionArguments},
         consumer::DefaultConsumer,
     },
     BasicProperties,
@@ -22,7 +22,9 @@ async fn main() {
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
     // open a connection to RabbitMQ server
-    let connection = Connection::open("localhost:5672").await.unwrap();
+    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+
+    let connection = Connection::open(&args).await.unwrap();
 
     // open a channel on the connection
     let mut channel = connection.open_channel().await.unwrap();

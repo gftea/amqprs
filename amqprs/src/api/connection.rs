@@ -4,10 +4,9 @@ use std::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
-
 };
 
-use amqp_serde::types::{AmqpChannelId, FieldValue, ShortUint};
+use amqp_serde::types::{AmqpChannelId, AmqpPeerProperties, FieldValue, ShortUint};
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::{debug, error, trace};
 
@@ -77,32 +76,58 @@ const DISPATCHER_COMMAND_BUFFER_SIZE: usize = 64;
 
 const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 256;
 const CONN_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 64;
+
+pub struct OpenConnectionArguments {
+    pub uri: String,
+    pub username: String,
+    pub password: String,
+}
+
+impl OpenConnectionArguments {
+    pub fn new(uri: &str, username: &str, password: &str) -> Self {
+        Self {
+            uri: uri.to_owned(),
+            username: username.to_owned(),
+            password: password.to_owned(),
+        }
+    }
+}
+
 /// AMQP Connection API
-///
 impl Connection {
     /// Open a AMQP connection
-    pub async fn open(uri: &str) -> Result<Self> {
+    pub async fn open(args: &OpenConnectionArguments) -> Result<Self> {
         // TODO: uri parsing
-        let mut connection = SplitConnection::open(uri).await?;
+        let mut connection = SplitConnection::open(&args.uri).await?;
 
         // TODO: protocol header negotiation ?
         connection.write(&ProtocolHeader::default()).await?;
 
         // S: 'Start'
         let (_, frame) = connection.read_frame().await?;
-        get_expected_method!(
+        let start = get_expected_method!(
             frame,
             Frame::Start,
             Error::ConnectionOpenError("start".to_string())
         )?;
 
         // C: 'StartOk'
-        let connection_name = generate_name(uri);
-        let mut start_ok = StartOk::default();
-        start_ok.client_properties_mut().insert(
+        let connection_name = generate_name(&args.uri);
+        let mut client_props = AmqpPeerProperties::new();
+        client_props.insert(
             "connection_name".try_into().unwrap(),
             FieldValue::S(connection_name.clone().try_into().unwrap()),
         );
+        let resopnse = format!("\0{}\0{}", args.username, args.password)
+            .try_into()
+            .unwrap();
+        let start_ok = StartOk::new(
+            client_props,
+            "PLAIN".try_into().unwrap(),
+            resopnse,
+            start.mechanisms().clone().try_into().unwrap(),
+        );
+
         connection
             .write_frame(CONN_DEFAULT_CHANNEL, start_ok.into_frame())
             .await?;
@@ -422,7 +447,7 @@ fn generate_name(domain: &str) -> String {
 mod tests {
     use std::{collections::HashSet, thread};
 
-    use super::{generate_name, Connection};
+    use super::{generate_name, Connection, OpenConnectionArguments};
     use tokio::time;
     use tracing::{subscriber::SetGlobalDefaultError, Level};
 
@@ -431,7 +456,9 @@ mod tests {
         setup_logging(Level::TRACE);
         {
             // test close on drop
-            let connection = Connection::open("localhost:5672").await.unwrap();
+            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+
+            let connection = Connection::open(&args).await.unwrap();
 
             {
                 // test close on drop
@@ -448,10 +475,13 @@ mod tests {
         setup_logging(Level::DEBUG);
 
         let mut handles = vec![];
+
         for _ in 0..10 {
-            let handle = tokio::spawn(async move {
+            let handle = tokio::spawn(async  {
+                let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+
                 time::sleep(time::Duration::from_millis(200)).await;
-                let connection = Connection::open("localhost:5672").await.unwrap();
+                let connection = Connection::open(&args).await.unwrap();
                 time::sleep(time::Duration::from_millis(200)).await;
                 connection.close().await.unwrap();
             });
@@ -466,7 +496,9 @@ mod tests {
     async fn test_multi_channel_open_close() {
         setup_logging(Level::DEBUG);
         {
-            let connection = Connection::open("localhost:5672").await.unwrap();
+            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+
+            let connection = Connection::open(&args).await.unwrap();
             let mut handles = vec![];
 
             for _ in 0..10 {

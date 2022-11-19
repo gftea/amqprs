@@ -236,11 +236,13 @@ impl Channel {
 #[cfg(test)]
 mod tests {
     use super::{ExchangeDeclareArguments, ExchangeDeleteArguments};
-    use crate::api::connection::Connection;
+    use crate::api::connection::{Connection, OpenConnectionArguments};
 
     #[tokio::test]
     async fn test_exchange_declare() {
-        let client = Connection::open("localhost:5672").await.unwrap();
+        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+
+        let client = Connection::open(&args).await.unwrap();
 
         let channel = client.open_channel().await.unwrap();
         let mut args = ExchangeDeclareArguments::new("amq.direct", "direct");
@@ -251,7 +253,9 @@ mod tests {
     #[tokio::test]
     #[should_panic = "InternalChannelError(\"channel closed\")"]
     async fn test_exchange_delete() {
-        let client = Connection::open("localhost:5672").await.unwrap();
+        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+
+        let client = Connection::open(&args).await.unwrap();
 
         let channel = client.open_channel().await.unwrap();
         let args = ExchangeDeleteArguments::new("amq.direct");

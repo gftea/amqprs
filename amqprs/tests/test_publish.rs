@@ -1,7 +1,7 @@
 use amqprs::{
     api::{
         channel::{BasicPublishArguments, ExchangeDeclareArguments},
-        connection::Connection,
+        connection::{Connection, OpenConnectionArguments},
     },
     BasicProperties,
 };
@@ -14,7 +14,9 @@ async fn test_publish() {
     let _guard = common::setup_logging(Level::DEBUG);
 
     // open a connection to RabbitMQ server
-    let connection = Connection::open("localhost:5672").await.unwrap();
+    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+
+    let connection = Connection::open(&args).await.unwrap();
 
     // open a channel on the connection
     let channel = connection.open_channel().await.unwrap();

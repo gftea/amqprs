@@ -26,7 +26,8 @@ async fn main() {
 
     //////////////////////////////////////////////////////////////////////////////
     // open a connection to RabbitMQ server
-    let connection = Connection::open("localhost:5672").await.unwrap();
+    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+    let connection = Connection::open(&args).await.unwrap();
 
     // open a channel on the connection
     let mut channel = connection.open_channel().await.unwrap();
