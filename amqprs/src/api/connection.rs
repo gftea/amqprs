@@ -77,11 +77,13 @@ const DISPATCHER_COMMAND_BUFFER_SIZE: usize = 64;
 const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 256;
 const CONN_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 64;
 
+#[non_exhaustive]
 pub struct OpenConnectionArguments {
     pub uri: String,
     pub username: String,
     pub password: String,
 }
+
 
 impl OpenConnectionArguments {
     pub fn new(uri: &str, username: &str, password: &str) -> Self {

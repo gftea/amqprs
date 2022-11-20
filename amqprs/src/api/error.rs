@@ -4,6 +4,7 @@ use std::fmt;
 use tokio::sync::{mpsc::error::SendError, oneshot::error::RecvError};
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
     ConnectionOpenError(String),
     ConnectionCloseError(String),
