@@ -127,12 +127,7 @@ impl ReaderHandler {
                 let responder = self
                     .channel_manager
                     .remove_responder(&channel_id, method_header)
-                    .ok_or_else(|| {
-                        Error::ImplementationError(format!(
-                            "no responder found for OpenChannelOk of channel {}",
-                            channel_id
-                        ))
-                    })?;
+                    .expect("responder should be registered before receiving response");
 
                 responder
                     .send(open_channel_ok.into_frame())

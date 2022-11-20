@@ -31,8 +31,6 @@ pub enum Error {
     Syntax,
     Incomplete,
     ExpectedLength,
-    ExpectedBoolean,
-    ExpectedString,
 }
 
 impl ser::Error for Error {
@@ -53,11 +51,8 @@ impl fmt::Display for Error {
             Error::Message(msg) => write!(f, "{}", msg),
             Error::Eof => f.write_str("unexpected end of input"),
             Error::Syntax => f.write_str("unexpected syntax"),
-            Error::Incomplete => f.write_str("incomplete deserializaton, leftover in input"),
-            // Error::ExpectedLength => f.write_str("missing length"),
-            // Error::ExpectedBoolean => f.write_str("not a boolean"),
-            // Error::ExpectedString => f.write_str("not a string"),
-            err => write!(f, "{:?}", err),
+            Error::Incomplete => f.write_str("incomplete deserializaton"),
+            Error::ExpectedLength => f.write_str("expect length value before raw bytes"),
         }
     }
 }

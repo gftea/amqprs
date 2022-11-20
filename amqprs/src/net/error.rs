@@ -9,8 +9,6 @@ pub(crate) enum Error {
     InternalChannelError(String),
     SerdeError(String),
     FramingError(String),
-    ImplementationError(String),
-
     PeerShutdown,
     Interrupted,
 }
@@ -39,14 +37,12 @@ impl<T> From<SendError<T>> for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::NetworkIoError(msg)
-            | Error::InternalChannelError(msg)
-            | Error::SerdeError(msg)
-            | Error::ImplementationError(msg)
-            | Error::FramingError(msg) => write!(f, "Net: {}", msg),
-
-            Error::PeerShutdown => f.write_str("Peer shutdown"),
-            Error::Interrupted => f.write_str("Connection exceptionally interrupted"),
+            Error::NetworkIoError(msg) => write!(f, "network io error: {}", msg),
+            Error::InternalChannelError(msg) => write!(f, "internal communication error: {}", msg),
+            Error::SerdeError(msg) =>  write!(f, "serde error: {}", msg),
+            Error::FramingError(msg) => write!(f, "framing error: {}", msg),
+            Error::PeerShutdown => f.write_str("peer shutdown"),
+            Error::Interrupted => f.write_str("connection interrupted"),
         }
     }
 }

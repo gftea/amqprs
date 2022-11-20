@@ -136,7 +136,7 @@ impl<'de> Deserializer<'de> {
             Some(len) if len <= u32::MAX as usize => {
                 let len = len as usize;
                 if self.input.len() < len {
-                    Err(Error::Eof)
+                    Err(Error::Syntax)
                 } else {
                     Ok(len)
                 }
