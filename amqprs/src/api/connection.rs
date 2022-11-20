@@ -84,7 +84,6 @@ pub struct OpenConnectionArguments {
     pub password: String,
 }
 
-
 impl OpenConnectionArguments {
     pub fn new(uri: &str, username: &str, password: &str) -> Self {
         Self {
@@ -125,12 +124,12 @@ impl Connection {
             .try_into()
             .unwrap();
         // TODO: support different machanisms: PLAIN, AMQPLAIN, SSL
-        //      handle locale
+        // TODO: handle locale selection
         let start_ok = StartOk::new(
             client_props,
             "PLAIN".try_into().unwrap(),
             resopnse,
-            start.mechanisms().clone().try_into().unwrap(),
+            "en_US".try_into().unwrap(),
         );
 
         connection

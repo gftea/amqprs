@@ -84,9 +84,9 @@ impl DeclareQueue {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeclareQueueOk {
-    queue: AmqpQueueName,
-    message_count: AmqpMessageCount,
-    consumer_count: LongUint,
+    pub(crate) queue: AmqpQueueName,
+    pub(crate) message_count: AmqpMessageCount,
+    pub(crate) consumer_count: LongUint,
 }
 
 impl DeclareQueueOk {

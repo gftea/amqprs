@@ -6,11 +6,11 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Start {
-    version_major: Octect,
-    version_minor: Octect,
-    server_properties: AmqpPeerProperties,
-    mechanisms: LongStr,
-    locales: LongStr,
+    pub(crate) version_major: Octect,
+    pub(crate) version_minor: Octect,
+    pub(crate) server_properties: AmqpPeerProperties,
+    pub(crate) mechanisms: LongStr,
+    pub(crate) locales: LongStr,
 }
 
 impl Start {

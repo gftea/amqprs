@@ -146,9 +146,9 @@ impl Channel {
                 Error::ChannelUseError
             )?;
             Ok(Some((
-                delcare_ok.queue().clone(),
-                delcare_ok.message_count(),
-                delcare_ok.consumer_count(),
+                delcare_ok.queue.into(),
+                delcare_ok.message_count,
+                delcare_ok.consumer_count,
             )))
         }
     }

@@ -3,7 +3,7 @@ use std::str::from_utf8;
 use async_trait::async_trait;
 use tracing::info;
 
-use crate::frame::{BasicProperties, Deliver};
+use crate::frame::{BasicProperties, Deliver, Cancel};
 
 use super::channel::{BasicAckArguments, Channel};
 
@@ -16,7 +16,7 @@ pub trait AsyncConsumer {
         basic_properties: BasicProperties,
         content: Vec<u8>,
     );
-    async fn cancel(&mut self, channel: &Channel);
+    async fn cancel(&mut self, channel: &Channel,  cancel: Cancel);
 }
 
 pub struct DefaultConsumer {
@@ -52,5 +52,7 @@ impl AsyncConsumer for DefaultConsumer {
         }
     }
 
-    async fn cancel(&mut self, _channel: &Channel) {}
+    async fn cancel(&mut self, _channel: &Channel, cancel: Cancel) {
+        info!("receive cancel for consumer: {}", cancel.consumer_tag());
+    }
 }

@@ -6,18 +6,17 @@ use std::{
     ops::Deref,
 };
 
-
 use tokio::{
     sync::{mpsc, oneshot},
     task::yield_now,
 };
 
 use crate::{
-    api::{callbacks::ChannelCallback},
+    api::callbacks::ChannelCallback,
     frame::{CloseChannelOk, Frame, MethodHeader},
-    net::{IncomingMessage, ConnManagementCommand},
+    net::{ConnManagementCommand, IncomingMessage},
 };
-use tracing::{debug, trace, error};
+use tracing::{debug, error, trace};
 
 use super::{Channel, ConsumerMessage, DispatcherManagementCommand};
 
@@ -103,28 +102,12 @@ impl ChannelDispatcher {
     }
     pub(in crate::api) async fn spawn(mut self) {
         tokio::spawn(async move {
-            // internal state
-
-            // let channel_id = self.channel.channel_id();
-            // // buffer pool for all consumers
-            // let mut consumers = ConsumerBuffersPool::new();
-            // // single message buffer
+            // single message aggregation buffer
             let mut message_buffer = ConsumerMessage {
                 deliver: None,
                 basic_properties: None,
                 content: None,
             };
-            // // responders for Get content and synchronous response
-            // let mut get_responder = None;
-            // let mut oneshot_responders: HashMap<
-            //     &'static MethodHeader,
-            //     oneshot::Sender<IncomingMessage>,
-            // > = HashMap::new();
-
-            // let mut callback = None;
-
-            // // initial state
-            // let mut state = State::Initial;
 
             trace!(
                 "Dispatcher of channel {} starts!",
@@ -334,7 +317,10 @@ impl ChannelDispatcher {
                 }
             }
             let cmd = ConnManagementCommand::UnregisterChannelResource(self.channel.channel_id());
-            debug!("Request to unregister channel resource {}", self.channel.channel_id());
+            debug!(
+                "Request to unregister channel resource {}",
+                self.channel.channel_id()
+            );
             if let Err(err) = self.channel.shared.conn_mgmt_tx.send(cmd).await {
                 error!("Failed to unregister channel resource, cause: {}", err);
             }

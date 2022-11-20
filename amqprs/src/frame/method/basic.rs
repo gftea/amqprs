@@ -100,13 +100,19 @@ impl Consume {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConsumeOk {
-    pub consumer_tag: ShortStr,
+    pub(crate) consumer_tag: ShortStr,
+}
+
+impl ConsumeOk {
+    pub fn consumer_tag(&self) -> &String {
+        &self.consumer_tag
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Cancel {
-    pub consumer_tag: ShortStr,
-    pub no_wait: Boolean,
+    pub(crate) consumer_tag: ShortStr,
+    no_wait: Boolean,
 }
 
 impl Cancel {
@@ -115,6 +121,14 @@ impl Cancel {
             consumer_tag,
             no_wait,
         }
+    }
+
+    pub fn consumer_tag(&self) -> &String {
+        &self.consumer_tag
+    }
+
+    pub fn no_wait(&self) -> bool {
+        self.no_wait
     }
 }
 
