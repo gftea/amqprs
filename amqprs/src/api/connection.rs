@@ -432,6 +432,7 @@ fn generate_name(domain: &str) -> String {
         current_head
     });
 
+    
     format!(
         "{}{}_{}@{}",
         char::from(CHAR_SET[head]),

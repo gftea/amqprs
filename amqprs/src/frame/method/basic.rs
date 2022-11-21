@@ -137,6 +137,12 @@ pub struct CancelOk {
     pub consumer_tag: ShortStr,
 }
 
+impl CancelOk {
+    pub fn new(consumer_tag: ShortStr) -> Self {
+        Self { consumer_tag }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Publish {
     ticket: ShortUint,
@@ -223,15 +229,10 @@ impl fmt::Display for Deliver {
             redelivered = {},
             exchange = {},
             routing_key = {}",
-            self.consumer_tag,
-            self.delivery_tag,
-            self.redelivered,
-            self.exchange,
-            self.routing_key
+            self.consumer_tag, self.delivery_tag, self.redelivered, self.exchange, self.routing_key
         ))
     }
 }
-
 
 impl Deliver {
     pub fn consumer_tag(&self) -> &String {

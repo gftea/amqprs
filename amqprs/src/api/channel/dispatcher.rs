@@ -9,8 +9,8 @@ use tokio::{
 };
 
 use crate::{
-    api::callbacks::ChannelCallback,
-    frame::{CloseChannelOk, Frame, MethodHeader},
+    api::{callbacks::ChannelCallback, channel::ReturnMessage},
+    frame::{CancelOk, CloseChannelOk, FlowOk, Frame, MethodHeader},
     net::{ConnManagementCommand, IncomingMessage},
 };
 use tracing::{debug, error, trace};
@@ -105,7 +105,10 @@ impl ChannelDispatcher {
                 basic_properties: None,
                 content: None,
             };
-
+            let mut return_buffer = ReturnMessage {
+                ret: None,
+                basic_properties: None,
+            };
             trace!(
                 "Dispatcher of channel {} starts!",
                 self.channel.channel_id()
@@ -161,10 +164,6 @@ impl ChannelDispatcher {
                         };
                         // handle frames
                         match frame {
-                            Frame::Return(_, method) => {
-                                self.state = State::Return;
-                                debug!("returned : {}, {}", method.reply_code(), method.reply_text());
-                            }
                             Frame::GetEmpty(_, get_empty) => {
                                 self.state = State::GetEmpty;
                                 if let Err(err) = self.get_content_responder.take().expect("Get responder must be registered").send(get_empty.into_frame()).await {
@@ -176,6 +175,10 @@ impl ChannelDispatcher {
                                 if let Err(err) = self.get_content_responder.as_ref().expect("Get responder must be registered").send(get_ok.into_frame()).await {
                                     debug!("Failed to dispatch GetOk frame, cause: {}", err);
                                 }
+                            }
+                            Frame::Return(_, ret) => {
+                                self.state = State::Return;
+                                return_buffer.ret = Some(ret);
                             }
                             Frame::Deliver(_, deliver) => {
 
@@ -190,7 +193,8 @@ impl ChannelDispatcher {
                                             debug!("Failed to dispatch GetOk ContentHeader frame, cause: {}", err);
                                         }
                                     },
-                                    State::Return => todo!("handle Return content"),
+                                    State::Return => return_buffer.basic_properties = Some(header.basic_properties),
+
                                     State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state"),
                                 }
 
@@ -227,7 +231,18 @@ impl ChannelDispatcher {
                                             debug!("Failed to dispatch GetOk ContentBody frame, cause: {}", err);
                                         }
                                     },
-                                    State::Return => todo!("handle Return content"),
+                                    State::Return => {
+                                        if let Some(ref mut cb) = self.callback {
+                                            cb.publish_return(
+                                                &self.channel, 
+                                                return_buffer.ret.take().unwrap(),
+                                                return_buffer.basic_properties.take().unwrap(), 
+                                                body.inner
+                                            ).await ;
+                                        } else {
+                                            debug!("Channel {} callback not registered", self.channel.channel_id());
+                                        }
+                                    },
                                     State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state"),
                                 }
 
@@ -284,32 +299,91 @@ impl ChannelDispatcher {
                             // Method frames of asynchronous request
 
                             // Server request to close channel
-                            Frame::CloseChannel(_method_header, close_channel) => {                                
+                            Frame::CloseChannel(_, close_channel) => {
                                 // callback
-                                if let Some(mut cb) = self.callback {
+                                if let Some(ref mut cb) = self.callback {
                                     if let Err(err) = cb.close(&self.channel, close_channel).await {
-                                      debug!("channel close callback error, cause: {}", err);
-                                      // no response 
+                                      debug!("Channel {} close callback error, cause: {}", self.channel.channel_id(), err);
+                                      // no response to server
                                       break;
                                     };
+                                } else {
+                                    debug!("Channel {} callback not registered", self.channel.channel_id());
                                 }
+
+                                // respond to server if no callback registered or callback succeed
                                 self.channel.set_open_state(false);
 
-                                // respond to server that we have received the request
                                 self.channel.shared.outgoing_tx
                                 .send((self.channel.channel_id(), CloseChannelOk::default().into_frame()))
                                 .await.unwrap();
-                               
+
                                 break;
                             }
-                            // TODO
-                            | Frame::Flow(_method_header, _)
-                            | Frame::Cancel(_method_header, _)
-                            | Frame::Ack(_method_header, _) // confirmed mode
-                            | Frame::Nack(_method_header, _) => {
-                                todo!("handle asynchronous request")
+
+                            Frame::Flow(_, flow) => {
+                                // callback
+                                if let Some(ref mut cb) = self.callback {
+                                    match cb.flow(&self.channel, flow).await {
+                                      Err(err) => {
+                                        debug!("Channel {} flow callback error, cause: {}", self.channel.channel_id(), err);
+                                        // no response to server
+                                        break;
+                                      }
+                                      Ok(active) => {
+                                         // respond to server that we have handled the request
+                                         self.channel.shared.outgoing_tx
+                                         .send((self.channel.channel_id(), FlowOk::new(active).into_frame()))
+                                         .await.unwrap();
+                                      }
+                                    };
+                                } else {
+                                    debug!("Channel {} callback not registered", self.channel.channel_id());
+                                }
+
                             }
-                            _ => unreachable!("Not acceptable frame for dispatcher: {:?}", frame),
+                            Frame::Cancel(_, cancel) => {
+                                // callback
+                                if let Some(ref mut cb) = self.callback {
+                                    let consumer_tag = cancel.consumer_tag().clone();
+                                    let no_wait = cancel.no_wait();
+                                    match cb.cancel(&self.channel, cancel).await {
+                                      Err(err) => {
+                                        debug!("Channel {} cancel callback error, cause: {}", self.channel.channel_id(), err);
+                                        // no response to server
+                                        break;
+                                      }
+                                      Ok(_) => {
+                                        self.remove_consumer(&consumer_tag);
+
+                                        // respond to server that we have handled the request
+                                        if !no_wait  {
+                                            self.channel.shared.outgoing_tx
+                                            .send((self.channel.channel_id(), CancelOk::new(consumer_tag.try_into().unwrap()).into_frame()))
+                                            .await.unwrap();
+                                        }
+                                      }
+                                    };
+                                } else {
+                                    debug!("Channel {} callback not registered", self.channel.channel_id());
+                                }
+                            }
+                            // in confirmed mode
+                            Frame::Ack(_, ack) => {
+
+                                if let Some(ref mut cb) = self.callback {
+                                    cb.publish_ack(&self.channel, ack).await;
+                                } else {
+                                    debug!("Channel {} callback not registered", self.channel.channel_id());
+                                }
+                            }
+                            Frame::Nack(_, nack) => {
+                                if let Some(ref mut cb) = self.callback {
+                                    cb.publish_nack(&self.channel, nack).await;
+                                } else {
+                                    debug!("Channel {} callback not registered", self.channel.channel_id());
+                                }                            }
+                            _ => unreachable!("not acceptable frame for dispatcher: {:?}", frame),
                         }
                     }
                     else => {
@@ -324,7 +398,7 @@ impl ChannelDispatcher {
                 self.channel.channel_id()
             );
             if let Err(err) = self.channel.shared.conn_mgmt_tx.send(cmd).await {
-                error!("Failed to unregister channel resource, cause: {}", err);
+                error!("Failed to unregister channel resource, cause: {}. Connection may be already closed.", err);
             }
             debug!("Exit dispatcher of channel {}", self.channel.channel_id());
         });

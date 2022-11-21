@@ -16,7 +16,7 @@ use tokio::{
 use super::callbacks::ChannelCallback;
 use crate::{
     api::{error::Error, Result},
-    frame::{CloseChannel, CloseChannelOk, Deliver, Flow, FlowOk, Frame, MethodHeader},
+    frame::{CloseChannel, CloseChannelOk, Deliver, Flow, FlowOk, Frame, MethodHeader, Return},
     net::{ConnManagementCommand, IncomingMessage, OutgoingMessage},
     BasicProperties,
 };
@@ -30,6 +30,10 @@ pub(crate) struct ConsumerMessage {
     deliver: Option<Deliver>,
     basic_properties: Option<BasicProperties>,
     content: Option<Vec<u8>>,
+}
+pub(crate) struct ReturnMessage {
+    ret: Option<Return>,
+    basic_properties: Option<BasicProperties>,
 }
 
 pub(crate) struct RegisterContentConsumer {

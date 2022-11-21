@@ -48,7 +48,6 @@ impl WriterHandler {
                 }
             }
         }
-        // FIXME: should here send Close method to server?
         debug!("Shutdown WriterHandler!");
     }
 }

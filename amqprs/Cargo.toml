@@ -1,8 +1,10 @@
 [package]
 name = "amqprs"
-version = "0.2.0"
+version = "0.1.0"
 edition = "2021"
-
+license = "MIT"
+description = "AMQP 0-9-1 client implementation for RabbitMQ"
+repository = "https://github.com/gftea/amqprs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]

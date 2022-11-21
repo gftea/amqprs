@@ -108,31 +108,36 @@ impl ReaderHandler {
                 Ok(())
             }
 
-
             // Method frames of asynchronous request
             // Server request to close connection
-            Frame::Close(method_header, close) => {
-                // self.handle_close(channel_id, method_header, close).await
+            Frame::Close(_, close) => {
                 if let Some(ref mut callback) = self.callback {
                     if let Err(err) = callback.close(&self.amqp_connection, close).await {
-                        debug!("connection close callback error, cause: {}", err);
+                        debug!("Connection close callback error, cause: {}", err);
                         return Err(Error::PeerShutdown);
                     }
-                    
                 }
-
+                // respond to server if no callback registered or callback succeed
                 self.amqp_connection.set_open_state(false);
 
-                // respond OK to tell server we have received the message
                 self.outgoing_tx
                     .send((CONN_DEFAULT_CHANNEL, CloseOk::default().into_frame()))
                     .await?;
-        
+
                 Ok(())
             }
-            // TODO:
-            Frame::Blocked(_method_header, _) | Frame::Unblocked(_method_header, _) => {
-                todo!("handle asynchronous request")
+
+            Frame::Blocked(_, blocked) => {
+                if let Some(ref mut callback) = self.callback {
+                    callback.blocked(&self.amqp_connection, blocked).await;
+                }
+                Ok(())
+            }
+            Frame::Unblocked(_, unblocked) => {
+                if let Some(ref mut callback) = self.callback {
+                    callback.unblocked(&self.amqp_connection, unblocked).await;
+                }
+                Ok(())
             }
             _ => {
                 let dispatcher = self.channel_manager.get_dispatcher(&channel_id);
@@ -164,11 +169,11 @@ impl ReaderHandler {
                         Some(v) => v,
                     };
                     match command {
-                        ConnManagementCommand::RegisterChannelResource(cmd) => {                            
+                        ConnManagementCommand::RegisterChannelResource(cmd) => {
                             let id = self.channel_manager.insert_resource(cmd.channel_id, cmd.resource);
                             cmd.acker.send(id).expect("Acknowledge to command RegisterChannelResource should succeed");
                         },
-                        ConnManagementCommand::UnregisterChannelResource(channel_id) => {                            
+                        ConnManagementCommand::UnregisterChannelResource(channel_id) => {
                             self.channel_manager.remove_resource(&channel_id);
                             debug!("Channel {} resource unregistered from connection", channel_id);
                         },
@@ -207,6 +212,12 @@ impl ReaderHandler {
                     break;
                 }
             }
+        }
+
+        // FIXME: should here do Close/CloseOk to gracefully shutdown connection.
+        // Best effort, ignore returned error
+        if self.amqp_connection.is_open() {
+            self.amqp_connection.close().await.ok();
         }
 
         // `self` will drop, so the `self.shutdown_notifier`

@@ -56,7 +56,7 @@ impl ChannelManager {
             Some(id) => {
                 if self.channel_id_repo.reserve(&id) {
                     match self.resource.insert(id, resource) {
-                        Some(_old) => unreachable!("Implementation error"),
+                        Some(_old) => unreachable!("implementation error"),
                         None => id,
                     }
                 } else {
@@ -69,7 +69,7 @@ impl ChannelManager {
                 // allocate id never fail
                 let id = self.channel_id_repo.allocate();
                 match self.resource.insert(id, resource) {
-                    Some(_old) => unreachable!("Implementation error"),
+                    Some(_old) => unreachable!("implementation error"),
                     None => id,
                 }
             }
