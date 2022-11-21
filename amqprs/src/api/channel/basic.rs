@@ -9,6 +9,7 @@ use crate::{
         },
         consumer::AsyncConsumer,
         error::Error,
+        Result
     },
     frame::{
         Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody, ContentHeader,
@@ -18,7 +19,7 @@ use crate::{
 };
 
 use super::{
-    Channel, RegisterGetContentResponder, Result, ServerSpecificArguments,
+    Channel, RegisterGetContentResponder, ServerSpecificArguments,
     UnregisterContentConsumer,
 };
 
@@ -474,6 +475,7 @@ mod tests {
             channel::{QueueBindArguments, QueueDeclareArguments},
             connection::{Connection, OpenConnectionArguments},
             consumer::DefaultConsumer,
+            Result
         },
         frame::BasicProperties,
     };

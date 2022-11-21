@@ -1,9 +1,9 @@
 use crate::{
-    api::error::Error,
+    api::{error::Error, Result},
     frame::{Frame, TxSelect, TxSelectOk, TxCommit, TxCommitOk, TxRollback, TxRollbackOk},
 };
 
-use super::{Channel, Result};
+use super::{Channel};
 
 impl Channel {
     pub async fn tx_select(&self) -> Result<()> {

@@ -11,29 +11,23 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::{debug, error, trace};
 
 use crate::{
-    frame::OpenChannelOk,
+    frame::{
+        Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, OpenChannelOk, ProtocolHeader,
+        StartOk, TuneOk, CONN_DEFAULT_CHANNEL,
+    },
     net::{
         ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage, ReaderHandler,
-        RegisterChannelResource, RegisterConnectionCallback, SplitConnection, WriterHandler,
+        RegisterChannelResource, RegisterConnectionCallback, RegisterResponder, SplitConnection,
+        WriterHandler,
     },
-};
-use crate::{
-    frame::{
-        Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, ProtocolHeader, StartOk, TuneOk,
-        CONN_DEFAULT_CHANNEL,
-    },
-    net::RegisterResponder,
 };
 
-use super::error::Error;
 use super::{
     callbacks::ConnectionCallback,
     channel::{Channel, ChannelDispatcher},
+    error::Error,
+    Result,
 };
-
-type Result<T> = std::result::Result<T, Error>;
-
-/////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////
 

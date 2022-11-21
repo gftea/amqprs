@@ -15,14 +15,13 @@ use tokio::{
 
 use super::callbacks::ChannelCallback;
 use crate::{
-    api::error::Error,
+    api::{error::Error, Result},
     frame::{CloseChannel, CloseChannelOk, Deliver, Flow, FlowOk, Frame, MethodHeader},
     net::{ConnManagementCommand, IncomingMessage, OutgoingMessage},
     BasicProperties,
 };
 use tracing::{error, trace};
 
-type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) const CONSUMER_MESSAGE_BUFFER_SIZE: usize = 32;
 

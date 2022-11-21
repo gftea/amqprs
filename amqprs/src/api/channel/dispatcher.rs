@@ -1,10 +1,7 @@
 //! API implementation of AMQP Channel
 //!
 
-use std::{
-    collections::{HashMap, VecDeque},
-    ops::Deref,
-};
+use std::collections::{HashMap, VecDeque};
 
 use tokio::{
     sync::{mpsc, oneshot},

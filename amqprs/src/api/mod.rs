@@ -1,3 +1,6 @@
+use self::error::Error;
+pub(in crate::api) type Result<T> = std::result::Result<T, Error>;
+
 // macro should appear before module declaration
 #[macro_use]
 mod helpers {

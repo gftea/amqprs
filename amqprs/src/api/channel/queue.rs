@@ -1,13 +1,12 @@
 use amqp_serde::types::AmqpMessageCount;
 
-use super::{Channel, Result, ServerSpecificArguments};
-use crate::frame::{
-    BindQueue, BindQueueOk, DeclareQueueOk, DeleteQueue, DeleteQueueOk, PurgeQueue, PurgeQueueOk,
-    UnbindQueue, UnbindQueueOk,
-};
+use super::{Channel, ServerSpecificArguments};
 use crate::{
-    api::error::Error,
-    frame::{DeclareQueue, Frame},
+    api::{error::Error, Result},
+    frame::{
+        BindQueue, BindQueueOk, DeclareQueue, DeclareQueueOk, DeleteQueue, DeleteQueueOk, Frame,
+        PurgeQueue, PurgeQueueOk, UnbindQueue, UnbindQueueOk,
+    },
 };
 
 #[derive(Debug, Clone)]
