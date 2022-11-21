@@ -284,17 +284,22 @@ impl ChannelDispatcher {
                             // Method frames of asynchronous request
 
                             // Server request to close channel
-                            Frame::CloseChannel(_method_header, close_channel) => {
+                            Frame::CloseChannel(_method_header, close_channel) => {                                
+                                // callback
+                                if let Some(mut cb) = self.callback {
+                                    if let Err(err) = cb.close(&self.channel, close_channel).await {
+                                      debug!("channel close callback error, cause: {}", err);
+                                      // no response 
+                                      break;
+                                    };
+                                }
                                 self.channel.set_open_state(false);
-                                // first, respond to server that we have received the request
+
+                                // respond to server that we have received the request
                                 self.channel.shared.outgoing_tx
                                 .send((self.channel.channel_id(), CloseChannelOk::default().into_frame()))
                                 .await.unwrap();
-
-                                // callback
-                                if let Some(mut cb) = self.callback {
-                                    cb.close(&self.channel, close_channel).await;
-                                }
+                               
                                 break;
                             }
                             // TODO

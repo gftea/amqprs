@@ -61,54 +61,6 @@ impl ReaderHandler {
         }
     }
 
-    async fn handle_close(
-        &mut self,
-        channel_id: AmqpChannelId,
-        _method_header: &'static MethodHeader,
-        close: Close,
-    ) -> Result<(), Error> {
-        assert_eq!(CONN_DEFAULT_CHANNEL, channel_id, "must be from channel 0");
-
-        self.amqp_connection.set_open_state(false);
-
-        // FIXME: we first respond OK to tell server we have received the message
-        self.outgoing_tx
-            .send((CONN_DEFAULT_CHANNEL, CloseOk::default().into_frame()))
-            .await?;
-
-        if let Some(ref mut callback) = self.callback {
-            callback.close(&self.amqp_connection, close).await;
-            // self.callback.replace(callback);
-        }
-
-        Ok(())
-    }
-
-    async fn handle_close_ok(
-        &mut self,
-        channel_id: AmqpChannelId,
-        method_header: &'static MethodHeader,
-        close_ok: CloseOk,
-    ) -> Result<(), Error> {
-        assert_eq!(CONN_DEFAULT_CHANNEL, channel_id, "must be from channel 0");
-
-        self.amqp_connection.set_open_state(false);
-
-        let responder = self
-            .channel_manager
-            .remove_responder(&channel_id, method_header)
-            .ok_or_else(|| {
-                Error::InternalChannelError(format!(
-                    "No responder to forward frame {:?} to channel {}",
-                    close_ok, channel_id
-                ))
-            })?;
-        responder
-            .send(close_ok.into_frame())
-            .map_err(|response| Error::InternalChannelError(response.to_string()))?;
-        Ok(())
-    }
-
     /// If OK, user can continue to handle frame
     /// If NOK, user should stop consuming frame
     /// TODO: implement as Iterator, then user do not need to care about the error
@@ -139,15 +91,44 @@ impl ReaderHandler {
                     })
             }
             Frame::CloseOk(method_header, close_ok) => {
-                self.handle_close_ok(channel_id, method_header, close_ok)
-                    .await
+                self.amqp_connection.set_open_state(false);
+
+                let responder = self
+                    .channel_manager
+                    .remove_responder(&channel_id, method_header)
+                    .ok_or_else(|| {
+                        Error::InternalChannelError(format!(
+                            "No responder to forward frame {:?} to channel {}",
+                            close_ok, channel_id
+                        ))
+                    })?;
+                responder
+                    .send(close_ok.into_frame())
+                    .map_err(|response| Error::InternalChannelError(response.to_string()))?;
+                Ok(())
             }
 
 
             // Method frames of asynchronous request
             // Server request to close connection
             Frame::Close(method_header, close) => {
-                self.handle_close(channel_id, method_header, close).await
+                // self.handle_close(channel_id, method_header, close).await
+                if let Some(ref mut callback) = self.callback {
+                    if let Err(err) = callback.close(&self.amqp_connection, close).await {
+                        debug!("connection close callback error, cause: {}", err);
+                        return Err(Error::PeerShutdown);
+                    }
+                    
+                }
+
+                self.amqp_connection.set_open_state(false);
+
+                // respond OK to tell server we have received the message
+                self.outgoing_tx
+                    .send((CONN_DEFAULT_CHANNEL, CloseOk::default().into_frame()))
+                    .await?;
+        
+                Ok(())
             }
             // TODO:
             Frame::Blocked(_method_header, _) | Frame::Unblocked(_method_header, _) => {
@@ -183,9 +164,7 @@ impl ReaderHandler {
                         Some(v) => v,
                     };
                     match command {
-
-                        ConnManagementCommand::RegisterChannelResource(cmd) => {
-                            
+                        ConnManagementCommand::RegisterChannelResource(cmd) => {                            
                             let id = self.channel_manager.insert_resource(cmd.channel_id, cmd.resource);
                             cmd.acker.send(id).expect("Acknowledge to command RegisterChannelResource should succeed");
                         },
