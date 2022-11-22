@@ -3,7 +3,7 @@ use std::{fmt, ops::Deref};
 use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
 use serde::{de::Visitor, Deserialize, Serialize};
 
-use crate::api::channel::ServerSpecificArguments;
+use crate::api::channel::TableArguments;
 
 use super::Frame;
 
@@ -33,7 +33,7 @@ pub struct ContentHeaderCommon {
     pub body_size: LongLongUint,
 }
 
-#[derive(Debug, Serialize, Default)]
+#[derive(Debug, Serialize, Default, Clone)]
 pub struct BasicProperties {
     // // property flags is included in this type
     // // in order to manage the value according to optional property
@@ -54,46 +54,65 @@ pub struct BasicProperties {
     app_id: Option<ShortStr>,
     cluster_id: Option<ShortStr>,
 }
+
 impl fmt::Display for BasicProperties {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!(
-            "Basic properties:
-            content_type = {},
-            content_encoding = {},
-            headers = {:?},
-            delivery_mode = {},
-            priority = {},
-            correlation_id = {},
-            reply_to = {},
-            expiration = {},
-            message_id = {},
-            timestamp = {},
-            message_type = {},
-            user_id = {},
-            app_id = {},
-            cluster_id = {}",
-            self.content_type.as_ref().map_or_else(||"", |v| v.deref()),
-            self.content_encoding.as_ref().map_or_else(||"", |v| v.deref()),
-            self.headers,
-            self.delivery_mode.map_or_else(||"".to_string(), |v| v.to_string()),
-            self.priority.map_or_else(||"".to_string(), |v| v.to_string()),
-            self.correlation_id.as_ref().map_or_else(||"", |v| v.deref()),
-            self.reply_to.as_ref().map_or_else(||"", |v| v.deref()),
-            self.expiration.as_ref().map_or_else(||"", |v| v.deref()),
-            self.message_id.as_ref().map_or_else(||"", |v| v.deref()),
-            self.timestamp.map_or_else(||"".to_string(), |v| v.to_string()),
-            self.message_type.as_ref().map_or_else(||"", |v| v.deref()),
-            self.user_id.as_ref().map_or_else(||"", |v| v.deref()),
-            self.app_id.as_ref().map_or_else(||"", |v| v.deref()),
-            self.cluster_id.as_ref().map_or_else(||"", |v| v.deref()),
-        ))
+        write!(f, "Basic Propertities: {{ ")?;
+        if let Some(ref v) = self.content_type {
+            write!(f, "content_type = {}, ", v)?;
+        }
+        if let Some(ref v) = self.content_encoding {
+            write!(f, "content_encoding = {}, ", v)?;
+        }
+        if let Some(ref v) = self.headers {
+            write!(f, "headers = {}, ", v)?;
+        }
+        if let Some(ref v) = self.delivery_mode {
+            write!(f, "delivery_mode = {}, ", v)?;
+        }
+        if let Some(ref v) = self.priority {
+            write!(f, "priority = {}, ", v)?;
+        }
+        if let Some(ref v) = self.correlation_id {
+            write!(f, "correlation_id = {}, ", v)?;
+        }
+        if let Some(ref v) = self.reply_to {
+            write!(f, "reply_to = {}, ", v)?;
+        }
+        if let Some(ref v) = self.expiration {
+            write!(f, "expiration = {}, ", v)?;
+        }
+        if let Some(ref v) = self.message_id {
+            write!(f, "message_id = {}, ", v)?;
+        }
+
+        if let Some(ref v) = self.timestamp {
+            write!(f, "timestamp = {}, ", v)?;
+        }
+        if let Some(ref v) = self.message_type {
+            write!(f, "message_type = {}, ", v)?;
+        }
+        if let Some(ref v) = self.user_id {
+            write!(f, "user_id = {}, ", v)?;
+        }
+        if let Some(ref v) = self.app_id {
+            write!(f, "app_id = {}, ", v)?;
+        }
+        if let Some(ref v) = self.cluster_id {
+            write!(f, "cluster_id = {} ", v)?;
+        }
+        
+        write!(f, "}}")?;
+
+        Ok(())
     }
 }
+
 impl BasicProperties {
     pub fn new(
         content_type: Option<String>,
         content_encoding: Option<String>,
-        headers: Option<ServerSpecificArguments>,
+        headers: Option<TableArguments>,
         delivery_mode: Option<u8>,
         priority: Option<u8>,
         correlation_id: Option<String>,

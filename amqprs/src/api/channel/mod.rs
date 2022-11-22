@@ -1,17 +1,13 @@
 //! API implementation of AMQP Channel
 //!
 
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
 };
 
 use amqp_serde::types::{AmqpChannelId, FieldTable, FieldValue};
-use tokio::{
-    sync::{mpsc, oneshot},
-};
+use tokio::sync::{mpsc, oneshot};
 
 use super::callbacks::ChannelCallback;
 use crate::{
@@ -21,7 +17,6 @@ use crate::{
     BasicProperties,
 };
 use tracing::{error, trace};
-
 
 pub(crate) const CONSUMER_MESSAGE_BUFFER_SIZE: usize = 32;
 
@@ -228,14 +223,15 @@ impl Drop for Channel {
     }
 }
 
-/// A set of arguments for the declaration.
+/////////////////////////////////////////////////////////////////////////////
+/// A table map of arguments
 /// The syntax and semantics of these arguments depends on the server implementation.
 #[derive(Debug, Clone)]
-pub struct ServerSpecificArguments {
+pub struct TableArguments {
     table: FieldTable,
 }
 
-impl ServerSpecificArguments {
+impl TableArguments {
     pub fn new() -> Self {
         Self {
             table: FieldTable::new(),
@@ -278,7 +274,7 @@ impl ServerSpecificArguments {
             FieldValue::l(value.try_into().unwrap()),
         );
     }
-    // the field table type should be hidden from API
+    /// the field table type should be hidden from API
     pub(crate) fn into_field_table(self) -> FieldTable {
         self.table
     }
@@ -288,9 +284,9 @@ mod dispatcher;
 pub(crate) use dispatcher::*;
 
 mod basic;
+mod confim;
 mod exchange;
 mod queue;
-mod confim;
 mod tx;
 
 pub use basic::*;

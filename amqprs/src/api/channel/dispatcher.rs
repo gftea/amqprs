@@ -394,11 +394,11 @@ impl ChannelDispatcher {
             }
             let cmd = ConnManagementCommand::UnregisterChannelResource(self.channel.channel_id());
             debug!(
-                "request to unregister channel resource {}",
+                "request to unregister channel resource {}.",
                 self.channel.channel_id()
             );
             if let Err(err) = self.channel.shared.conn_mgmt_tx.send(cmd).await {
-                error!("failed to unregister channel resource, cause: {}. Connection may be already closed.!", err);
+                error!("failed to unregister channel resource, cause: {}. Connection may be already closed!", err);
             }
             debug!("exit dispatcher of channel {}.", self.channel.channel_id());
         });

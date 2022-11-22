@@ -193,11 +193,11 @@ impl ReaderHandler {
                     match res {
                         Ok((channel_id, frame)) => {
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
-                                error!("failed to handle frame, cause: {} !", err);
+                                error!("failed to handle frame, cause: {}!", err);
                                 break;
                             }
                             if !self.amqp_connection.is_open() {
-                                info!("client has requested to shutdown connection or shutdown requested by server!.");
+                                info!("client has requested to shutdown connection or shutdown requested by server.");
                                 break;
                             }
                         },
@@ -222,6 +222,6 @@ impl ReaderHandler {
 
         // `self` will drop, so the `self.shutdown_notifier`
         // all tasks which have `subscribed` to `shutdown_notifier` will be notified
-        debug!("shutdown!.");
+        debug!("shutdown!");
     }
 }

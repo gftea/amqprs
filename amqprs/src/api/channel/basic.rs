@@ -1,5 +1,5 @@
 use tokio::sync::mpsc;
-use tracing::{trace, debug};
+use tracing::{debug, trace};
 
 use crate::{
     api::{
@@ -9,7 +9,7 @@ use crate::{
         },
         consumer::AsyncConsumer,
         error::Error,
-        Result
+        Result,
     },
     frame::{
         Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody, ContentHeader,
@@ -18,10 +18,7 @@ use crate::{
     },
 };
 
-use super::{
-    Channel, RegisterGetContentResponder, ServerSpecificArguments,
-    UnregisterContentConsumer,
-};
+use super::{Channel, RegisterGetContentResponder, TableArguments, UnregisterContentConsumer};
 
 #[derive(Debug, Clone)]
 pub struct BasicQosArguments {
@@ -50,7 +47,7 @@ pub struct BasicConsumeArguments {
     pub no_ack: bool,
     pub exclusive: bool,
     pub no_wait: bool,
-    pub arguments: ServerSpecificArguments,
+    pub arguments: TableArguments,
 }
 
 impl BasicConsumeArguments {
@@ -62,7 +59,7 @@ impl BasicConsumeArguments {
             no_ack: false,
             exclusive: false,
             no_wait: false,
-            arguments: ServerSpecificArguments::new(),
+            arguments: TableArguments::new(),
         }
     }
 }
@@ -97,12 +94,7 @@ impl BasicGetArguments {
     }
 }
 
-#[derive(Debug)]
-pub struct GetMessage {
-    pub get_ok: GetOk,
-    pub basic_properties: BasicProperties,
-    pub content: Vec<u8>,
-}
+pub type GetMessage = (GetOk, BasicProperties, Vec<u8>);
 
 #[derive(Debug, Clone)]
 pub struct BasicAckArguments {
@@ -401,11 +393,7 @@ impl Channel {
             Frame::ContentBody(content) => content.inner,
             _ => unreachable!("expect ContentBody"),
         };
-        Ok(Some(GetMessage {
-            get_ok,
-            basic_properties,
-            content,
-        }))
+        Ok(Some((get_ok, basic_properties, content)))
     }
 
     /// RabbitMQ does not support `requeue = false`. User should always pass `true`.
@@ -475,7 +463,7 @@ mod tests {
             channel::{QueueBindArguments, QueueDeclareArguments},
             connection::{Connection, OpenConnectionArguments},
             consumer::DefaultConsumer,
-            Result
+            Result,
         },
         frame::BasicProperties,
     };

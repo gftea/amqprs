@@ -1,11 +1,10 @@
 ///! AMQP 0-9-1 types for RabbitMQ
 ///! https://github.com/rabbitmq/rabbitmq-codegen/blob/main/amqp-rabbitmq-0.9.1.json
 use std::{
-    any::{Any, TypeId},
     collections::HashMap,
     fmt::{self, Debug},
     num::TryFromIntError,
-    ops::{Deref, DerefMut},
+    ops::Deref,
 };
 
 use serde::{Deserialize, Serialize};
@@ -111,10 +110,17 @@ impl From<LongStr> for String {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-/// Specification of the decimal value format in RabbitMQ?
+/// According to https://www.rabbitmq.com/amqp-0-9-1-errata.html
+/// Decimals encoding: "They are encoded as an octet representing the number of places followed by a long signed integer",
+/// but the grammar contradicts that and says: "decimal-value = scale long-uint".
+/// We treat the decimal value as signed integer.
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct DecimalValue(Octect, LongUint);
-
+pub struct DecimalValue(Octect, LongInt);
+impl fmt::Display for DecimalValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Decimal({}, {})", self.0, self.1)
+    }
+}
 /////////////////////////////////////////////////////////////////////////////
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct ByteArray(LongUint, Vec<u8>);
@@ -131,7 +137,45 @@ impl From<ByteArray> for Vec<u8> {
         arr.1
     }
 }
+impl fmt::Display for ByteArray {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.1)
+    }
+}
+/////////////////////////////////////////////////////////////////////////////
 
+/// RabbitMQ use LongUint as length value
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct FieldArray(LongUint, Vec<FieldValue>);
+impl TryFrom<Vec<FieldValue>> for FieldArray {
+    type Error = TryFromIntError;
+
+    fn try_from(values: Vec<FieldValue>) -> Result<Self, Self::Error> {
+        let len = LongUint::try_from(values.len())?;
+        Ok(Self(len, values))
+    }
+}
+impl From<FieldArray> for Vec<FieldValue> {
+    fn from(arr: FieldArray) -> Self {
+        arr.1
+    }
+}
+
+impl fmt::Display for FieldArray {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[ ")?;
+        let len = self.1.len();
+        for v in self.1.iter().take(len - 1) {
+            write!(f, "{}, ", v)?;
+        }
+        if let Some(v) = self.1.last() {
+            write!(f, "{} ", v)?;
+        }
+
+        write!(f, "]")?;
+        Ok(())
+    }
+}
 /////////////////////////////////////////////////////////////////////////////
 // Follow Rabbit definitions below
 // Ref: // https://www.rabbitmq.com/amqp-0-9-1-errata.html#section_3
@@ -181,9 +225,63 @@ pub enum FieldValue {
     V,
     x(ByteArray), // RabbitMQ only
 }
+impl fmt::Display for FieldValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FieldValue::t(v) => write!(f, "{}", v),
+            FieldValue::b(v) => write!(f, "{}", v),
+            FieldValue::B(v) => write!(f, "{}", v),
+            FieldValue::s(v) => write!(f, "{}", v),
+            FieldValue::u(v) => write!(f, "{}", v),
+            FieldValue::I(v) => write!(f, "{}", v),
+            FieldValue::i(v) => write!(f, "{}", v),
+            FieldValue::l(v) => write!(f, "{}", v),
+            FieldValue::f(v) => write!(f, "{}", v),
+            FieldValue::d(v) => write!(f, "{}", v),
+            FieldValue::D(v) => write!(f, "{}", v),
+            FieldValue::S(v) => write!(f, "{}", v),
+            FieldValue::A(v) => write!(f, "{}", v),
+            FieldValue::T(v) => write!(f, "{}", v),
+            FieldValue::F(v) => write!(f, "{}", v),
+            FieldValue::V => write!(f, "()"),
+            FieldValue::x(v) => write!(f, "{}", v),
+        }
+    }
+}
+
 pub type FieldName = ShortStr;
 
-pub type FieldTable = HashMap<FieldName, FieldValue>;
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Default)]
+pub struct FieldTable(HashMap<FieldName, FieldValue>);
+
+impl FieldTable {
+    pub fn new() -> Self {
+        Self(HashMap::new())
+    }
+    pub fn insert(&mut self, k: FieldName, v: FieldValue) -> Option<FieldValue> {
+        self.0.insert(k, v)
+    }
+
+    pub fn remove(&mut self, k: &FieldName) -> Option<FieldValue> {
+        self.0.remove(k)
+    }
+}
+impl fmt::Display for FieldTable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{ ")?;
+        for (k, v) in self.0.iter().take(self.0.len() - 1) {
+            write!(f, "{}: {}, ", k, v)?;
+        }
+        if let Some((k, v)) = self.0.iter().last() {
+            write!(f, "{}: {} ", k, v)?;
+        }
+
+        write!(f, "}}")?;
+        Ok(())
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////
 // #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 // pub struct FieldTable(HashMap<FieldName, FieldValue>);
 // impl Default for FieldTable {
@@ -204,8 +302,8 @@ pub type FieldTable = HashMap<FieldName, FieldValue>;
 //     pub fn new() -> Self {
 //         Self(HashMap::new())
 //     }
-    
-//     pub fn insert<V>(&mut self, k: String, v: V) 
+
+//     pub fn insert<V>(&mut self, k: String, v: V)
 //     where
 //         V: Any,
 //     {
@@ -245,26 +343,9 @@ pub type FieldTable = HashMap<FieldName, FieldValue>;
 //         } else {
 //             panic!("unsupported value type {:?} ", v);
 //         }
-        
+
 //     }
 // }
-/////////////////////////////////////////////////////////////////////////////
-/// RabbitMQ use LongUint as length value
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct FieldArray(LongUint, Vec<FieldValue>);
-impl TryFrom<Vec<FieldValue>> for FieldArray {
-    type Error = TryFromIntError;
-
-    fn try_from(values: Vec<FieldValue>) -> Result<Self, Self::Error> {
-        let len = LongUint::try_from(values.len())?;
-        Ok(Self(len, values))
-    }
-}
-impl From<FieldArray> for Vec<FieldValue> {
-    fn from(arr: FieldArray) -> Self {
-        arr.1
-    }
-}
 
 /////////////////////////////////////////////////////////////////////////////
 // AMQP domains
@@ -292,12 +373,24 @@ pub type AmqpTable = FieldTable;
 pub type AmqpTimeStamp = TimeStamp;
 
 /////////////////////////////////////////////////////////////////////////////
+#[cfg(test)]
 mod tests {
+    use crate::types::{DecimalValue, FieldArray, FieldValue};
+
     use super::FieldTable;
     #[test]
-    fn test() {
+    fn test_table_display() {
         let mut table = FieldTable::new();
-        // table.insert("hello".to_string(), "world".to_string());
-        println!("{:?}", table);
+        table.insert(
+            "Cash".try_into().unwrap(),
+            FieldValue::D(DecimalValue(3, 123456)),
+        );
+       
+        assert_eq!("{ Cash: Decimal(3, 123456) }", format!("{}", table));
+    }
+    #[test]
+    fn test_field_array() {
+        let field_arr = FieldArray(2, vec![FieldValue::t(true), FieldValue::D(DecimalValue(3, 123456)) ]);
+        assert_eq!("[ true, Decimal(3, 123456) ]", format!("{}", field_arr));
     }
 }

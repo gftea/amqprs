@@ -25,6 +25,11 @@ mod helpers {
     }
 }
 
+pub mod delivery_mode {
+    pub const NON_PERSISTENT: u8 = 1;
+    pub const PERSISTENT: u8 = 2;
+}
+
 /////////////////////////////////////////////////////////////////////////////
 mod utils;
 

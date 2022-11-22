@@ -78,17 +78,22 @@ async fn test_get() {
 
     for _ in 0..num_of_msg {
         // get single message
-        let get_message = channel.basic_get(get_args.clone()).await.unwrap();
-        let msg = match get_message {
-            Some(msg) => {
-                info!("Get a message: {:?}.", msg);
-                msg
+        let delivery_tag = match channel.basic_get(get_args.clone()).await.unwrap() {
+            Some((get_ok, basic_props, content)) => {
+                info!(
+                    "Get results: 
+                    {}
+                    {}
+                    Content: {:?}",
+                    get_ok, basic_props, content
+                );
+                get_ok.delivery_tag()
             }
             None => panic!("expect get a message"),
         };
         channel
             .basic_ack(BasicAckArguments {
-                delivery_tag: msg.get_ok.delivery_tag(),
+                delivery_tag,
                 multiple: false,
             })
             .await

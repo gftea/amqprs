@@ -222,13 +222,7 @@ pub struct Deliver {
 }
 impl fmt::Display for Deliver {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!(
-            "Deliver: 
-            consumer_tag = {},
-            delivery_tag = {},
-            redelivered = {},
-            exchange = {},
-            routing_key = {}",
+        f.write_fmt(format_args!("Deliver: consumer_tag = {}, delivery_tag = {}, redelivered = {}, exchange = {}, routing_key = {}",
             self.consumer_tag, self.delivery_tag, self.redelivered, self.exchange, self.routing_key
         ))
     }
@@ -280,7 +274,13 @@ pub struct GetOk {
     routing_key: ShortStr,
     message_count: AmqpMessageCount,
 }
-
+impl fmt::Display for GetOk {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("GetOk: delivery_tag = {}, redelivered = {}, exchange = {}, routing_key = {}, message_count = {}",
+            self.delivery_tag, self.redelivered, self.exchange, self.routing_key, self.message_count
+        ))
+    }
+}
 impl GetOk {
     pub fn delivery_tag(&self) -> u64 {
         self.delivery_tag

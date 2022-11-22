@@ -1,6 +1,6 @@
 use amqp_serde::types::AmqpMessageCount;
 
-use super::{Channel, ServerSpecificArguments};
+use super::{Channel, TableArguments};
 use crate::{
     api::{error::Error, Result},
     frame::{
@@ -17,7 +17,7 @@ pub struct QueueDeclareArguments {
     pub exclusive: bool,
     pub auto_delete: bool,
     pub no_wait: bool,
-    pub arguments: ServerSpecificArguments,
+    pub arguments: TableArguments,
 }
 
 impl QueueDeclareArguments {
@@ -29,7 +29,7 @@ impl QueueDeclareArguments {
             exclusive: false,
             auto_delete: false,
             no_wait: false,
-            arguments: ServerSpecificArguments::new(),
+            arguments: TableArguments::new(),
         }
     }
 }
@@ -40,7 +40,7 @@ pub struct QueueBindArguments {
     pub exchange: String,
     pub routing_key: String,
     pub no_wait: bool,
-    pub arguments: ServerSpecificArguments,
+    pub arguments: TableArguments,
 }
 
 impl QueueBindArguments {
@@ -50,7 +50,7 @@ impl QueueBindArguments {
             exchange: exchange.to_string(),
             routing_key: routing_key.to_string(),
             no_wait: false,
-            arguments: ServerSpecificArguments::new(),
+            arguments: TableArguments::new(),
         }
     }
 }
@@ -94,7 +94,7 @@ pub struct QueueUnbindArguments {
     pub queue: String,
     pub exchange: String,
     pub routing_key: String,
-    pub arguments: ServerSpecificArguments,
+    pub arguments: TableArguments,
 }
 
 impl QueueUnbindArguments {
@@ -103,7 +103,7 @@ impl QueueUnbindArguments {
             queue: queue.to_string(),
             exchange: exchange.to_string(),
             routing_key: routing_key.to_string(),
-            arguments: ServerSpecificArguments::new(),
+            arguments: TableArguments::new(),
         }
     }
 }

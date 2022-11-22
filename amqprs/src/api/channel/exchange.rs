@@ -3,7 +3,7 @@ use crate::{
     frame::{Bind, BindOk, Declare, DeclareOk, Delete, DeleteOk, Frame, Unbind, UnbindOk},
 };
 
-use super::{Channel, Result, ServerSpecificArguments};
+use super::{Channel, Result, TableArguments};
 
 /// Arguments for [`exchange_declare`]
 ///
@@ -17,7 +17,7 @@ pub struct ExchangeDeclareArguments {
     pub auto_delete: bool,
     pub internal: bool,
     pub no_wait: bool,
-    pub arguments: ServerSpecificArguments,
+    pub arguments: TableArguments,
 }
 
 impl ExchangeDeclareArguments {
@@ -31,7 +31,7 @@ impl ExchangeDeclareArguments {
             auto_delete: false,
             internal: false,
             no_wait: false,
-            arguments: ServerSpecificArguments::new(),
+            arguments: TableArguments::new(),
         }
     }
 }
@@ -69,7 +69,7 @@ pub struct ExchangeBindArguments {
     /// A set of arguments for the binding.
     /// The syntax and semantics of these arguments depends on the exchange class
     /// What is accepted arguments?
-    pub arguments: ServerSpecificArguments,
+    pub arguments: TableArguments,
 }
 
 impl ExchangeBindArguments {
@@ -80,7 +80,7 @@ impl ExchangeBindArguments {
             source: source.to_string(),
             routing_key: routing_key.to_string(),
             no_wait: false,
-            arguments: ServerSpecificArguments::new(),
+            arguments: TableArguments::new(),
         }
     }
 }
@@ -97,7 +97,7 @@ pub struct ExchangeUnbindArguments {
     /// A set of arguments for the Unbinding.
     /// The syntax and semantics of these arguments depends on the exchange class
     /// What is accepted arguments?
-    pub arguments: ServerSpecificArguments,
+    pub arguments: TableArguments,
 }
 
 impl ExchangeUnbindArguments {
@@ -108,7 +108,7 @@ impl ExchangeUnbindArguments {
             source: source.to_string(),
             routing_key: routing_key.to_string(),
             no_wait: false,
-            arguments: ServerSpecificArguments::new(),
+            arguments: TableArguments::new(),
         }
     }
 }

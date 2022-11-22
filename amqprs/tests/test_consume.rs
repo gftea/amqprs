@@ -2,10 +2,11 @@ use amqprs::{
     api::{
         channel::{
             BasicConsumeArguments, BasicPublishArguments, Channel, QueueBindArguments,
-            QueueDeclareArguments,
+            QueueDeclareArguments, TableArguments,
         },
         connection::{Connection, OpenConnectionArguments},
         consumer::DefaultConsumer,
+        delivery_mode,
     },
     BasicProperties,
 };
@@ -87,18 +88,13 @@ async fn test_multi_consumer() {
         time::sleep(time::Duration::from_millis(10)).await;
         drop(connection);
         time::sleep(time::Duration::from_millis(10)).await;
-
     } else {
         // explicitly close
         channel.close().await.unwrap();
         time::sleep(time::Duration::from_millis(10)).await;
         connection.close().await.unwrap();
         time::sleep(time::Duration::from_millis(10)).await;
-
     }
-
-    
-    
 }
 
 async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
@@ -118,10 +114,27 @@ async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
     // set target exchange name
     args.exchange = exchange_name.to_string();
     args.routing_key = "eiffel.a.b.c.d".to_string();
-
+    let mut headers = TableArguments::new();
+    headers.insert_str("myname".to_string(), "amqprs");
+    let basic_props = BasicProperties::new(
+        Some("application/json".to_string()),
+        None,
+        Some(headers),
+        Some(delivery_mode::NON_PERSISTENT),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some("user".to_string()),
+        Some("test".to_string()),
+        None,
+    );
     for _ in 0..10 {
         channel
-            .basic_publish(BasicProperties::default(), content.clone(), args.clone())
+            .basic_publish(basic_props.clone(), content.clone(), args.clone())
             .await
             .unwrap();
     }
