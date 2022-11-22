@@ -10,8 +10,10 @@ pub(crate) struct ChannelIdRepository {
 }
 impl ChannelIdRepository {
     pub fn new(channel_max: ShortUint) -> Self {
+        let len = 1 + (channel_max as usize - 1) / 8;
+
         Self {
-            id_state: vec![0; channel_max as usize],
+            id_state: vec![0; len],
         }
     }
 
@@ -87,7 +89,7 @@ mod tests {
     use super::ChannelIdRepository;
 
     #[test]
-    fn test_id_allocation_and_release() {
+    fn test_id_allocate_and_release() {
         let channel_max = 2047;
         let mut id_repo = ChannelIdRepository::new(channel_max);
 
@@ -130,6 +132,24 @@ mod tests {
         // can allocte to max again
         for _ in 0..channel_max {
             id_repo.allocate();
+        }
+    }
+
+    #[test]
+    fn test_cannot_reserve_occupied_id() {
+        let channel_max = 2047;
+        let mut id_repo = ChannelIdRepository::new(channel_max);
+
+        let mut ids = HashSet::new();
+        // allocate to max
+        for _ in 0..channel_max {
+            let id = id_repo.allocate();
+            // id should be unique
+            assert_eq!(true, ids.insert(id));
+        }
+        // failed to reserve
+        for id in ids {
+            assert_eq!(false, id_repo.reserve(id));         
         }
     }
 }
