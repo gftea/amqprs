@@ -2,69 +2,134 @@ use amqp_serde::types::{AmqpChannelId, ShortUint};
 
 use crate::frame::CONN_DEFAULT_CHANNEL;
 
+const INITIAL_BIT_MASK: u8 = 0b1000_0000;
 pub(crate) struct ChannelIdRepository {
-    channel_max: ShortUint,
-    watermark: AmqpChannelId,
-    /// If value is None, then it is not reserved
-    freepool: Vec<AmqpChannelId>,
-    reservedpool: Vec<AmqpChannelId>,
+    /// Each bit represent two states: 1: occupied, 0: free.
+    /// Real id is calculated by byte postion in Vec + bit postion in byte.
+    id_state: Vec<u8>,
 }
 impl ChannelIdRepository {
     pub fn new(channel_max: ShortUint) -> Self {
         Self {
-            channel_max,
-            watermark: CONN_DEFAULT_CHANNEL, // reserved for connection
-            freepool: vec![],
-            reservedpool: vec![],
+            id_state: vec![0; channel_max as usize],
         }
     }
+
+    fn is_free(&mut self, pos: usize, mask: u8) -> bool {
+        (mask & self.id_state[pos]) == 0
+    }
+
+    fn set_occupied(&mut self, pos: usize, mask: u8) {
+        self.id_state[pos] |= mask;
+    }
+
+    fn set_free(&mut self, pos: usize, mask: u8) {
+        self.id_state[pos] &= !mask;
+    }
+
+    fn get_pos_mask(&self, id: AmqpChannelId) -> (usize, u8) {
+        let pos = (id as usize - 1) / 8;
+        let mask = INITIAL_BIT_MASK >> ((id - 1) % 8);
+        (pos, mask)
+    }
+
     pub fn allocate(&mut self) -> AmqpChannelId {
-        assert!(
-            self.watermark < self.channel_max,
-            "Implementation error in channel allocation"
-        );
-
-        match self.freepool.pop() {
-            Some(v) => v,
-            None => {
-                // it should never overflow because max number of channel should not exceed 65535
-                // and id is always recycled from closed channel
-                self.watermark = self.watermark.checked_add(1).unwrap();
-
-                while self.reservedpool.contains(&self.watermark) {
-                    self.watermark = self.watermark.checked_add(1).unwrap();
-                }
-                self.watermark
+        let pos = self
+            .id_state
+            .iter()
+            .position(|&v| v != 0b1111_1111)
+            .expect("id allocation never fail");
+        for i in 0..8 {
+            let mask = INITIAL_BIT_MASK >> i;
+            if self.is_free(pos, mask) {
+                // mark it as occupied
+                self.set_occupied(pos, mask);
+                // calculate the real id
+                let channel_id = pos as AmqpChannelId * 8 + i + 1;
+                return channel_id;
             }
         }
+        unreachable!("id allocation should always return");
     }
-    pub fn release(&mut self, id: &AmqpChannelId) -> bool {
-        assert_ne!(
-            &CONN_DEFAULT_CHANNEL, id,
-            "Connection's default channel cannot be released"
-        );
-        if let Some(i) = self.reservedpool.iter().position(|v| v == id) {
-            self.reservedpool.swap_remove(i);
-        }
-        if !self.freepool.contains(id) {
-            self.freepool.push(*id);
-            true
-        } else {
+    /// true: OK, false: already released
+    pub fn release(&mut self, id: AmqpChannelId) -> bool {
+        assert_ne!(0, id, "Connection's default channel 0 cannot be released");
+
+        let (pos, mask) = self.get_pos_mask(id);
+        if self.is_free(pos, mask) {
+            // already released
             false
+        } else {
+            self.set_free(pos, mask);
+            true
         }
     }
 
-    pub fn reserve(&mut self, id: &AmqpChannelId) -> bool {
-        if id == &CONN_DEFAULT_CHANNEL {
-            true
-        } else if let Some(i) = self.freepool.iter().position(|v| v == id) {
-            self.freepool.swap_remove(i);
-            true
-        } else if id > &self.watermark && !self.reservedpool.contains(id) {
-            self.reservedpool.push(*id);
-            true
-        } else {
+    /// true: OK, false: already reserved
+    pub fn reserve(&mut self, id: AmqpChannelId) -> bool {
+        assert_ne!(0, id, "Connection's default channel 0 cannot be reserved");
+        let (pos, mask) = self.get_pos_mask(id);
+
+        if !self.is_free(pos, mask) {
+            // already occupied
             false
+        } else {
+            self.set_occupied(pos, mask);
+            true
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::ChannelIdRepository;
+
+    #[test]
+    fn test_id_allocation_and_release() {
+        let channel_max = 2047;
+        let mut id_repo = ChannelIdRepository::new(channel_max);
+
+        let mut ids = HashSet::new();
+        // allocate to max
+        for _ in 0..channel_max {
+            let id = id_repo.allocate();
+            // id should be unique
+            assert_eq!(true, ids.insert(id));
+        }
+        // free all
+        for id in ids {
+            assert_eq!(true, id_repo.release(id));
+        }
+        //can allocte to max again
+        let mut ids = HashSet::new();
+
+        for _ in 0..channel_max {
+            let id = id_repo.allocate();
+            // id should be unique
+            assert_eq!(true, ids.insert(id));
+        }
+    }
+
+    #[test]
+    fn test_id_reserve_and_release() {
+        let channel_max = 2047;
+        let mut id_repo = ChannelIdRepository::new(channel_max);
+
+        let mut ids = vec![];
+        // reserver all id: from '1' to max
+        for i in 1..channel_max + 1 {
+            assert_eq!(true, id_repo.reserve(i));
+            ids.push(i);
+        }
+        // free all
+        for id in ids {
+            assert_eq!(true, id_repo.release(id));
+        }
+        // can allocte to max again
+        for _ in 0..channel_max {
+            id_repo.allocate();
         }
     }
 }

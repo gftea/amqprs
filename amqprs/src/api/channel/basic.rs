@@ -260,7 +260,7 @@ impl Channel {
         // spawn consumer task
         tokio::spawn(async move {
             trace!(
-                "AsyncConsumer task starts for {} on channel {}!",
+                "AsyncConsumer task starts for '{}' on channel {}!",
                 ctag,
                 channel.shared.channel_id
             );

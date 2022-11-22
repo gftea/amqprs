@@ -54,7 +54,8 @@ impl ChannelManager {
         let id = match channel_id {
             // reserve channel id as requested
             Some(id) => {
-                if self.channel_id_repo.reserve(&id) {
+                // connection's default channel 0 is static reserved
+                if id == 0 || self.channel_id_repo.reserve(id) {
                     match self.resource.insert(id, resource) {
                         Some(_old) => unreachable!("implementation error"),
                         None => id,
@@ -82,8 +83,8 @@ impl ChannelManager {
     pub fn remove_resource(&mut self, channel_id: &AmqpChannelId) -> Option<ChannelResource> {
         assert_eq!(
             true,
-            self.channel_id_repo.release(channel_id),
-            "Implementation error"
+            self.channel_id_repo.release(*channel_id),
+            "release a free id, implementation error"
         );
         // remove responder means channel is to be  closed
         self.resource.remove(channel_id)
