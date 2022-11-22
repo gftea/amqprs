@@ -55,7 +55,7 @@ impl ChannelIdRepository {
     }
     /// true: OK, false: already released
     pub fn release(&mut self, id: AmqpChannelId) -> bool {
-        assert_ne!(0, id, "Connection's default channel 0 cannot be released");
+        assert_ne!(0, id, "connection's default channel 0 cannot be released");
 
         let (pos, mask) = self.get_pos_mask(id);
         if self.is_free(pos, mask) {
@@ -69,7 +69,7 @@ impl ChannelIdRepository {
 
     /// true: OK, false: already reserved
     pub fn reserve(&mut self, id: AmqpChannelId) -> bool {
-        assert_ne!(0, id, "Connection's default channel 0 cannot be reserved");
+        assert_ne!(0, id, "connection's default channel 0 cannot be reserved");
         let (pos, mask) = self.get_pos_mask(id);
 
         if !self.is_free(pos, mask) {

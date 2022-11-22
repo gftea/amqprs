@@ -81,7 +81,7 @@ async fn test_get() {
         let get_message = channel.basic_get(get_args.clone()).await.unwrap();
         let msg = match get_message {
             Some(msg) => {
-                info!("Get a message: {:?}", msg);
+                info!("Get a message: {:?}.", msg);
                 msg
             }
             None => panic!("expect get a message"),

@@ -22,15 +22,15 @@ pub struct DefaultConnectionCallback;
 #[async_trait]
 impl ConnectionCallback for DefaultConnectionCallback {
     async fn close(&mut self, _connection: &Connection, close: Close) -> Result<()> {
-        error!("{}", close);
+        error!("{}!", close);
         Ok(())
     }
 
     async fn blocked(&mut self, _connection: &Connection, blocked: Blocked) {
-        info!("connection blocked by server, reason: {}", blocked.reason());
+        info!("connection blocked by server, reason: {}.", blocked.reason());
     }
     async fn unblocked(&mut self, _connection: &Connection, _blocked: Unblocked) {
-        info!("connection unblocked by server");
+        info!("connection unblocked by server.");
     }
 }
 
@@ -57,22 +57,22 @@ pub struct DefaultChannelCallback;
 #[async_trait]
 impl ChannelCallback for DefaultChannelCallback {
     async fn close(&mut self, _channel: &Channel, close: CloseChannel) -> Result<()> {
-        error!("{}", close);
+        error!("{}!", close);
         Ok(())
     }
     async fn cancel(&mut self, _channel: &Channel, cancel: Cancel) -> Result<()> {
-        info!("receive cancel for consumer: {}", cancel.consumer_tag());
+        info!("receive cancel for consumer: {}.", cancel.consumer_tag());
         Ok(())
     }    
     async fn flow(&mut self, channel: &Channel, flow: Flow) -> Result<bool> {
-        info!("channel flow request from server, {}", flow.active());
+        info!("channel flow request from server, {}.", flow.active());
         Ok(true)
     }
     async fn publish_ack(&mut self, channel: &Channel, ack: Ack) {
-        info!("channel publish ack from server, {}", ack.delivery_tag());
+        info!("channel publish ack from server, {}.", ack.delivery_tag());
     }
     async fn publish_nack(&mut self, channel: &Channel, nack: Nack) {
-        info!("channel publish nack from server, {}", nack.delivery_tag());
+        info!("channel publish nack from server, {}.", nack.delivery_tag());
     }
     async fn publish_return(
         &mut self,
@@ -81,10 +81,10 @@ impl ChannelCallback for DefaultChannelCallback {
         basic_properties: BasicProperties,
         content: Vec<u8>,
     ) {
-        info!(">>>>> Publish Return Start <<<<<");
-        info!("{}", ret);
-        info!("{}", basic_properties,);
-        info!("{}", from_utf8(&content).unwrap());
-        info!(">>>>> Publish Return End <<<<<");
+        info!(">>>>> Publish Return Start <<<<<.");
+        info!("{}.", ret);
+        info!("{}.", basic_properties,);
+        info!("{}.", from_utf8(&content).unwrap());
+        info!(">>>>> Publish Return End <<<<<.");
     }
 }

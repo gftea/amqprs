@@ -35,12 +35,12 @@ impl WriterHandler {
                         Some(v) => v,
                     };
                     if let Err(err) = self.stream.write_frame(channel_id, frame).await {
-                        error!("Failed to send frame over network, cause: {}", err);
+                        error!("failed to send frame over network, cause: {}!", err);
                         break;
                     }
                 }
                 _ = self.shutdown.recv() => {
-                    info!("WriterHandler received shutdown notification");
+                    info!("received shutdown notification.");
                     break;
                 }
                 else => {
@@ -48,6 +48,6 @@ impl WriterHandler {
                 }
             }
         }
-        debug!("Shutdown WriterHandler!");
+        debug!("shutdown!");
     }
 }

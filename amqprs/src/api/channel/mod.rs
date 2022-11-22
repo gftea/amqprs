@@ -164,7 +164,7 @@ impl Channel {
     pub fn channel_id(&self) -> AmqpChannelId {
         self.shared.channel_id
     }
-    pub(crate) fn set_open_state(&self, is_open: bool) {
+    pub(crate) fn set_is_open(&self, is_open: bool) {
         self.shared.is_open.store(is_open, Ordering::Relaxed);
     }
     pub fn is_open(&self) -> bool {
@@ -187,7 +187,7 @@ impl Channel {
 
     /// User must close the channel to avoid channel leak
     pub async fn close(self) -> Result<()> {
-        self.set_open_state(false);
+        self.set_is_open(false);
 
         // if connection has been closed, no need to close channel
         if !self.is_connection_closed() {
@@ -213,7 +213,7 @@ impl Drop for Channel {
                 .is_open
                 .compare_exchange(true, false, Ordering::Relaxed, Ordering::Relaxed)
         {
-            trace!("drop and close channel {}", self.channel_id());
+            trace!("drop and close channel {}.", self.channel_id());
 
             let channel = self.clone();
             tokio::spawn(async move {

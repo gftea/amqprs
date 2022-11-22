@@ -74,16 +74,32 @@ const CONN_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 64;
 #[non_exhaustive]
 pub struct OpenConnectionArguments {
     pub uri: String,
+    pub virtual_host: String,
     pub username: String,
     pub password: String,
+    pub connection_name: Option<String>,
+}
+
+impl Default for OpenConnectionArguments {
+    fn default() -> Self {
+        Self {
+            uri: String::from("localhost:5672"),
+            virtual_host: String::from("/"),
+            username: String::from("guest"),
+            password: String::from("guest"),
+            connection_name: None,
+        }
+    }
 }
 
 impl OpenConnectionArguments {
     pub fn new(uri: &str, username: &str, password: &str) -> Self {
         Self {
             uri: uri.to_owned(),
+            virtual_host: String::from("/"),
             username: username.to_owned(),
             password: password.to_owned(),
+            connection_name: None,
         }
     }
 }
@@ -108,7 +124,11 @@ impl Connection {
         )?;
 
         // C: 'StartOk'
-        let connection_name = generate_name(&args.uri);
+
+        let connection_name = match args.connection_name {
+            Some(ref given_name) => given_name.clone(),
+            None => generate_name(&args.uri),
+        };
         let mut client_props = AmqpPeerProperties::new();
         client_props.insert(
             "connection_name".try_into().unwrap(),
@@ -184,13 +204,13 @@ impl Connection {
             .register_channel_resource(Some(CONN_DEFAULT_CHANNEL), ChannelResource::new(None))
             .await
             .ok_or_else(|| {
-                Error::ConnectionOpenError("Failed to register channel resource".to_string())
+                Error::ConnectionOpenError("failed to register channel resource".to_string())
             })?;
 
         Ok(new_amq_conn)
     }
 
-    /// connection name
+    /// get connection name
     pub fn name(&self) -> &str {
         &self.shared.connection_name
     }
@@ -230,7 +250,7 @@ impl Connection {
         Ok(())
     }
 
-    pub(crate) fn set_open_state(&self, is_open: bool) {
+    pub(crate) fn set_is_open(&self, is_open: bool) {
         self.shared.is_open.store(is_open, Ordering::Relaxed);
     }
 
@@ -253,7 +273,7 @@ impl Connection {
         // If no channel id is given, it will be allocated by management task and included in acker response
         // otherwise same id will be received in response
         if let Err(err) = self.shared.conn_mgmt_tx.send(cmd).await {
-            debug!("Failed to register channel resource, cause: {}", err);
+            debug!("failed to register channel resource, cause: {}.", err);
             return None;
         }
 
@@ -261,12 +281,12 @@ impl Connection {
         match acker_rx.await {
             Ok(res) => {
                 if let None = res {
-                    debug!("Failed to register channel resource, error in channel id allocation");
+                    debug!("failed to register channel resource, error in channel id allocation.");
                 }
                 res
             }
             Err(err) => {
-                debug!("Failed to register channel resource, cause: {}", err);
+                debug!("failed to register channel resource, cause: {}.", err);
                 None
             }
         }
@@ -318,7 +338,7 @@ impl Connection {
             .register_channel_resource(None, ChannelResource::new(Some(dispatcher_tx)))
             .await
             .ok_or_else(|| {
-                Error::ChannelOpenError("Failed to register channel resource".to_string())
+                Error::ChannelOpenError("failed to register channel resource".to_string())
             })?;
 
         // register responder, use the acquired channel id
@@ -351,7 +371,7 @@ impl Connection {
 
     /// close and consume the AMQ connection
     pub async fn close(self) -> Result<()> {
-        self.set_open_state(false);
+        self.set_is_open(false);
 
         // connection's close method , should use default channel id
         let responder_rx = self
@@ -378,12 +398,12 @@ impl Drop for Connection {
                 .is_open
                 .compare_exchange(true, false, Ordering::Relaxed, Ordering::Relaxed)
         {
-            trace!("drop and close connection");
+            trace!("drop and close connection.");
             let conn = self.clone();
             tokio::spawn(async move {
                 if let Err(err) = conn.close().await {
                     error!(
-                        "error occurred during close connection when drop, cause: {}",
+                        "error occurred during close connection when drop, cause: {}.",
                         err
                     );
                 }
@@ -432,7 +452,6 @@ fn generate_name(domain: &str) -> String {
         current_head
     });
 
-    
     format!(
         "{}{}_{}@{}",
         char::from(CHAR_SET[head]),

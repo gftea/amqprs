@@ -278,7 +278,7 @@ impl Channel {
                             .await;
                     }
                     None => {
-                        debug!("Exit consumer: {}", ctag);
+                        debug!("exit consumer: {}.", ctag);
                         break;
                     }
                 }
@@ -295,7 +295,7 @@ impl Channel {
                 },
             ))
             .await?;
-        trace!("RegisterConsumer command is sent!");
+        trace!("command 'RegisterConsumer' is sent.");
         Ok(())
     }
 
@@ -381,7 +381,7 @@ impl Channel {
             .send((self.shared.channel_id, get.into_frame()))
             .await?;
         let get_ok = match rx.recv().await.ok_or_else(|| {
-            Error::InternalChannelError("Failed to receive response to Get".to_string())
+            Error::InternalChannelError("failed to receive response to Get".to_string())
         })? {
             Frame::GetEmpty(_, _) => return Ok(None),
             Frame::GetOk(_, get_ok) => get_ok,
@@ -389,14 +389,14 @@ impl Channel {
         };
 
         let basic_properties = match rx.recv().await.ok_or_else(|| {
-            Error::InternalChannelError("Failed to receive Get ContentHeader".to_string())
+            Error::InternalChannelError("failed to receive Get ContentHeader".to_string())
         })? {
             Frame::ContentHeader(header) => header.basic_properties,
             _ => unreachable!("expect ContentHeader"),
         };
 
         let content = match rx.recv().await.ok_or_else(|| {
-            Error::InternalChannelError("Failed to receive Get ContentBody".to_string())
+            Error::InternalChannelError("failed to receive Get ContentBody".to_string())
         })? {
             Frame::ContentBody(content) => content.inner,
             _ => unreachable!("expect ContentBody"),

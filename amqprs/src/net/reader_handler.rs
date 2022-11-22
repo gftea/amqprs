@@ -70,7 +70,7 @@ impl ReaderHandler {
         match frame {
             // TODO: Handle heartbeat
             Frame::HeartBeat(_) => {
-                debug!("heartbeat, to be handled...");
+                debug!("heartbeat, to be handled....");
                 Ok(())
             }
 
@@ -91,7 +91,7 @@ impl ReaderHandler {
                     })
             }
             Frame::CloseOk(method_header, close_ok) => {
-                self.amqp_connection.set_open_state(false);
+                self.amqp_connection.set_is_open(false);
 
                 let responder = self
                     .channel_manager
@@ -113,12 +113,12 @@ impl ReaderHandler {
             Frame::Close(_, close) => {
                 if let Some(ref mut callback) = self.callback {
                     if let Err(err) = callback.close(&self.amqp_connection, close).await {
-                        debug!("Connection close callback error, cause: {}", err);
+                        debug!("connection close callback error, cause: {}.", err);
                         return Err(Error::PeerShutdown);
                     }
                 }
                 // respond to server if no callback registered or callback succeed
-                self.amqp_connection.set_open_state(false);
+                self.amqp_connection.set_is_open(false);
 
                 self.outgoing_tx
                     .send((CONN_DEFAULT_CHANNEL, CloseOk::default().into_frame()))
@@ -171,19 +171,19 @@ impl ReaderHandler {
                     match command {
                         ConnManagementCommand::RegisterChannelResource(cmd) => {
                             let id = self.channel_manager.insert_resource(cmd.channel_id, cmd.resource);
-                            cmd.acker.send(id).expect("Acknowledge to command RegisterChannelResource should succeed");
+                            cmd.acker.send(id).expect("acknowledge to command RegisterChannelResource should succeed");
                         },
                         ConnManagementCommand::UnregisterChannelResource(channel_id) => {
                             self.channel_manager.remove_resource(&channel_id);
-                            debug!("Channel {} resource unregistered from connection", channel_id);
+                            debug!("channel {} resource unregistered from connection.", channel_id);
                         },
                         ConnManagementCommand::RegisterResponder(cmd) => {
                             self.channel_manager.insert_responder(&cmd.channel_id, cmd.method_header, cmd.responder);
-                            cmd.acker.send(()).expect("Acknowledge to command RegisterResponder should succeed");
+                            cmd.acker.send(()).expect("acknowledge to command RegisterResponder should succeed");
                         },
                         ConnManagementCommand::RegisterConnectionCallback(cmd) => {
                             self.callback.replace(cmd.callback);
-                            debug!("Connection callback registered");
+                            debug!("connection callback registered.");
                         },
 
                     }
@@ -193,16 +193,16 @@ impl ReaderHandler {
                     match res {
                         Ok((channel_id, frame)) => {
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
-                                error!("Failed to handle frame, cause: {} ", err);
+                                error!("failed to handle frame, cause: {} !", err);
                                 break;
                             }
                             if !self.amqp_connection.is_open() {
-                                info!("Client has requested to shutdown connection or shutdown requested by server!");
+                                info!("client has requested to shutdown connection or shutdown requested by server!.");
                                 break;
                             }
                         },
                         Err(err) => {
-                            error!("Failed to read frame, cause: {}", err);
+                            error!("failed to read frame, cause: {}!", err);
                             break;
                         },
                     }
@@ -222,6 +222,6 @@ impl ReaderHandler {
 
         // `self` will drop, so the `self.shutdown_notifier`
         // all tasks which have `subscribed` to `shutdown_notifier` will be notified
-        debug!("Shutdown ReaderHandler!");
+        debug!("shutdown!.");
     }
 }
