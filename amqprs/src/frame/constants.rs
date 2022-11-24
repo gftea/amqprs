@@ -3,7 +3,7 @@
 use amqp_serde::types::{Octect, ShortUint};
 
 pub const FRAME_HEADER_SIZE: usize = 7;
-pub const CONN_DEFAULT_CHANNEL: ShortUint = 0;
+pub const DEFAULT_CONN_CHANNEL: ShortUint = 0;
 
 pub const FRAME_METHOD: Octect = 1;
 pub const FRAME_CONTENT_HEADER: Octect = 2;

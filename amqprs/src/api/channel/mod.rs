@@ -238,7 +238,7 @@ impl TableArguments {
         }
     }
 
-    pub fn insert_str(&mut self, key: String, value: &str) {
+    pub fn insert_string(&mut self, key: String, value: String) {
         self.table.insert(
             key.try_into().unwrap(),
             FieldValue::S(value.try_into().unwrap()),

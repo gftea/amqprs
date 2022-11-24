@@ -15,7 +15,7 @@ mod helpers {
         }};
     }
 
-    macro_rules! get_expected_method {
+    macro_rules! unwrap_expected_method {
         ($frame:expr, $variant:path, $err:expr) => {
             match $frame {
                 $variant(_, method) => Ok(method),
@@ -33,6 +33,7 @@ pub mod delivery_mode {
 /////////////////////////////////////////////////////////////////////////////
 mod utils;
 
+pub mod security;
 pub mod callbacks;
 pub mod channel;
 pub mod connection;

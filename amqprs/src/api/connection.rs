@@ -6,14 +6,16 @@ use std::{
     },
 };
 
-use amqp_serde::types::{AmqpChannelId, AmqpPeerProperties, FieldValue, ShortUint};
+use amqp_serde::types::{
+    AmqpChannelId, AmqpPeerProperties, FieldTable, FieldValue, LongStr, ShortUint,
+};
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::{debug, error, trace};
 
 use crate::{
     frame::{
         Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, OpenChannelOk, ProtocolHeader,
-        StartOk, TuneOk, CONN_DEFAULT_CHANNEL,
+        StartOk, TuneOk, DEFAULT_CONN_CHANNEL,
     },
     net::{
         ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage, ReaderHandler,
@@ -26,13 +28,14 @@ use super::{
     callbacks::ConnectionCallback,
     channel::{Channel, ChannelDispatcher},
     error::Error,
+    security::SecurityCredentials,
     Result,
 };
 
 /////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Clone)]
-struct ServerCapabilities {
+pub struct ServerCapabilities {
     consumer_cancel_notify: bool,
     publisher_confirms: bool,
     consumer_priorities: bool,
@@ -43,11 +46,65 @@ struct ServerCapabilities {
     basic_nack: bool,
     direct_reply_to: bool,
 }
+
+impl ServerCapabilities {
+    pub fn consumer_cancel_notify(&self) -> bool {
+        self.consumer_cancel_notify
+    }
+
+    pub fn publisher_confirms(&self) -> bool {
+        self.publisher_confirms
+    }
+
+    pub fn consumer_priorities(&self) -> bool {
+        self.consumer_priorities
+    }
+
+    pub fn authentication_failure_close(&self) -> bool {
+        self.authentication_failure_close
+    }
+
+    pub fn per_consumer_qos(&self) -> bool {
+        self.per_consumer_qos
+    }
+
+    pub fn connection_blocked(&self) -> bool {
+        self.connection_blocked
+    }
+
+    pub fn exchange_exchange_bindings(&self) -> bool {
+        self.exchange_exchange_bindings
+    }
+
+    pub fn basic_nack(&self) -> bool {
+        self.basic_nack
+    }
+
+    pub fn direct_reply_to(&self) -> bool {
+        self.direct_reply_to
+    }
+}
+
+
 #[derive(Debug, Clone)]
-struct ServerProperties {
+pub struct ServerProperties {
     capabilities: ServerCapabilities,
     cluster_name: String,
     version: String,
+}
+
+impl ServerProperties {
+    pub fn capabilities(&self) -> &ServerCapabilities {
+        &self.capabilities
+    }
+
+    pub fn cluster_name(&self) -> &str {
+        self.cluster_name.as_ref()
+    }
+
+    pub fn version(&self) -> &str {
+        self.version.as_ref()
+    }
 }
 #[derive(Debug, Clone)]
 pub struct Connection {
@@ -56,7 +113,7 @@ pub struct Connection {
 
 #[derive(Debug)]
 struct SharedConnectionInner {
-    server_properties: Option<ServerProperties>,
+    server_properties: ServerProperties,
     connection_name: String,
     channel_max: ShortUint,
     is_open: AtomicBool,
@@ -71,13 +128,13 @@ const DISPATCHER_COMMAND_BUFFER_SIZE: usize = 64;
 const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 256;
 const CONN_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 64;
 
+const DEFAULT_LOCALE: &str = "en_US";
 #[non_exhaustive]
 pub struct OpenConnectionArguments {
     pub uri: String,
     pub virtual_host: String,
-    pub username: String,
-    pub password: String,
     pub connection_name: Option<String>,
+    pub credentials: SecurityCredentials,
 }
 
 impl Default for OpenConnectionArguments {
@@ -85,9 +142,8 @@ impl Default for OpenConnectionArguments {
         Self {
             uri: String::from("localhost:5672"),
             virtual_host: String::from("/"),
-            username: String::from("guest"),
-            password: String::from("guest"),
             connection_name: None,
+            credentials: SecurityCredentials::new_plain("guest".to_string(), "guest".to_string()),
         }
     }
 }
@@ -97,9 +153,8 @@ impl OpenConnectionArguments {
         Self {
             uri: uri.to_owned(),
             virtual_host: String::from("/"),
-            username: username.to_owned(),
-            password: password.to_owned(),
             connection_name: None,
+            credentials: SecurityCredentials::new_plain(username.to_string(), password.to_string()),
         }
     }
 }
@@ -111,49 +166,29 @@ impl Connection {
         // TODO: uri parsing
         let mut connection = SplitConnection::open(&args.uri).await?;
 
-        // TODO: protocol header negotiation ?
-        connection.write(&ProtocolHeader::default()).await?;
+        // C:protocol-header
+        Self::negotiate_protocol(&mut connection).await?;
 
-        // TODO: saving server propertities
-        // S: 'Start'
-        let (_, frame) = connection.read_frame().await?;
-        let start = get_expected_method!(
-            frame,
-            Frame::Start,
-            Error::ConnectionOpenError("start".to_string())
-        )?;
-
-        // C: 'StartOk'
-
+        // if no given connection name, generate one
         let connection_name = match args.connection_name {
             Some(ref given_name) => given_name.clone(),
             None => generate_name(&args.uri),
         };
-        let mut client_props = AmqpPeerProperties::new();
-        client_props.insert(
+        // construct client properties
+        let mut client_properties = AmqpPeerProperties::new();
+        client_properties.insert(
             "connection_name".try_into().unwrap(),
             FieldValue::S(connection_name.clone().try_into().unwrap()),
         );
-        let resopnse = format!("\0{}\0{}", args.username, args.password)
-            .try_into()
-            .unwrap();
-        // TODO: support different machanisms: PLAIN, AMQPLAIN, SSL
-        // TODO: handle locale selection
-        let start_ok = StartOk::new(
-            client_props,
-            "PLAIN".try_into().unwrap(),
-            resopnse,
-            "en_US".try_into().unwrap(),
-        );
 
-        connection
-            .write_frame(CONN_DEFAULT_CHANNEL, start_ok.into_frame())
-            .await?;
+        // S:START C:START-OK
+        let server_properties =
+            Self::negotiate_connection(&mut connection, client_properties, args).await?;
 
         // TODO: tune for channel_max, frame_max, heartbeat between client and server
         // S: 'Tune'
         let (_, frame) = connection.read_frame().await?;
-        let tune = get_expected_method!(
+        let tune = unwrap_expected_method!(
             frame,
             Frame::Tune,
             Error::ConnectionOpenError("tune".to_string())
@@ -164,16 +199,16 @@ impl Connection {
         let channel_max = tune.channel_max();
         let _heartbeat = tune.heartbeat();
         connection
-            .write_frame(CONN_DEFAULT_CHANNEL, tune_ok.into_frame())
+            .write_frame(DEFAULT_CONN_CHANNEL, tune_ok.into_frame())
             .await?;
 
         // C: Open
         let open = Open::default().into_frame();
-        connection.write_frame(CONN_DEFAULT_CHANNEL, open).await?;
+        connection.write_frame(DEFAULT_CONN_CHANNEL, open).await?;
 
         // S: OpenOk
         let (_, frame) = connection.read_frame().await?;
-        get_expected_method!(
+        unwrap_expected_method!(
             frame,
             Frame::OpenOk,
             Error::ConnectionOpenError("open".to_string())
@@ -184,7 +219,7 @@ impl Connection {
         let (conn_mgmt_tx, conn_mgmt_rx) = mpsc::channel(CONN_MANAGEMENT_COMMAND_BUFFER_SIZE);
 
         let shared = Arc::new(SharedConnectionInner {
-            server_properties: None,
+            server_properties,
             connection_name,
             channel_max,
             is_open: AtomicBool::new(true),
@@ -201,7 +236,7 @@ impl Connection {
 
         // register channel resource for connection's default channel
         new_amq_conn
-            .register_channel_resource(Some(CONN_DEFAULT_CHANNEL), ChannelResource::new(None))
+            .register_channel_resource(Some(DEFAULT_CONN_CHANNEL), ChannelResource::new(None))
             .await
             .ok_or_else(|| {
                 Error::ConnectionOpenError("failed to register channel resource".to_string())
@@ -210,11 +245,116 @@ impl Connection {
         Ok(new_amq_conn)
     }
 
-    /// get connection name
-    pub fn name(&self) -> &str {
-        &self.shared.connection_name
+    async fn negotiate_protocol(conn: &mut SplitConnection) -> Result<()> {
+        // only support AMQP 0-9-1 at present
+        conn.write(&ProtocolHeader::default()).await?;
+        Ok(())
     }
 
+    async fn negotiate_connection(
+        conn: &mut SplitConnection,
+        client_properties: AmqpPeerProperties,
+        args: &OpenConnectionArguments,
+    ) -> Result<ServerProperties> {
+        // S: 'Start'
+        let (_, frame) = conn.read_frame().await?;
+        let mut start = unwrap_expected_method!(
+            frame,
+            Frame::Start,
+            Error::ConnectionOpenError("start".to_string())
+        )?;
+        // get server supported locales
+        if false == start.locales().split(" ").any(|v| DEFAULT_LOCALE == v) {
+            return Err(Error::ConnectionOpenError(format!(
+                "locale '{}' is not supported by server",
+                DEFAULT_LOCALE
+            )));
+        }
+        // get server supported authentication mechanisms
+        if false
+            == start
+                .mechanisms()
+                .split(" ")
+                .any(|v| args.credentials.get_mechanism_name() == v)
+        {
+            return Err(Error::ConnectionOpenError(format!(
+                "authentication '{}' is not supported by server",
+                args.credentials.get_mechanism_name()
+            )));
+        }
+
+        // get server capabilities
+        let mut caps_table: FieldTable = start
+            .server_properties
+            .remove(&"capabilities".try_into().unwrap())
+            .unwrap_or(FieldValue::F(FieldTable::default()))
+            .try_into()
+            .unwrap();
+        // helper closure to get bool FieldValue
+        let mut unwrap_bool_field = |key: &str| {
+            let value: bool = caps_table
+                .remove(&key.try_into().unwrap())
+                .unwrap_or(FieldValue::t(false))
+                .try_into()
+                .unwrap();
+            value
+        };
+
+        let capabilities = ServerCapabilities {
+            consumer_cancel_notify: unwrap_bool_field("consumer_cancel_notify"),
+            publisher_confirms: unwrap_bool_field("publisher_confirms"),
+            consumer_priorities: unwrap_bool_field("consumer_priorities"),
+            authentication_failure_close: unwrap_bool_field("authentication_failure_close"),
+            per_consumer_qos: unwrap_bool_field("per_consumer_qos"),
+            connection_blocked: unwrap_bool_field("connection.blocked"),
+            exchange_exchange_bindings: unwrap_bool_field("exchange_exchange_bindings"),
+            basic_nack: unwrap_bool_field("basic.nack"),
+            direct_reply_to: unwrap_bool_field("direct_reply_to"),
+        };
+
+        // helper closure to get LongStr FieldValue
+        let mut unwrap_longstr_field = |key: &str| {
+            let value: LongStr = start
+                .server_properties
+                .remove(&key.try_into().unwrap())
+                .unwrap_or(FieldValue::S("unknown".try_into().unwrap()))
+                .try_into()
+                .unwrap();
+            value
+        };
+
+        let server_properties = ServerProperties {
+            capabilities,
+            cluster_name: unwrap_longstr_field("cluster_name").into(),
+            version: unwrap_longstr_field("version").into(),
+        };
+
+        // C: 'StartOk'
+        let resopnse = args.credentials.get_response().try_into().unwrap();
+        // TODO: support different machanisms: PLAIN, AMQPLAIN, SSL
+        // TODO: handle locale selection
+        let start_ok = StartOk::new(
+            client_properties,
+            args.credentials.get_mechanism_name().try_into().unwrap(),
+            resopnse,
+            DEFAULT_LOCALE.try_into().unwrap(),
+        );
+
+        conn.write_frame(DEFAULT_CONN_CHANNEL, start_ok.into_frame())
+            .await?;
+        Ok(server_properties)
+    }
+
+    /// get connection name
+    pub fn connection_name(&self) -> &str {
+        &self.shared.connection_name
+    }
+    pub fn channel_max(&self) -> u16 {
+        self.shared.channel_max
+    }
+    pub fn server_properties(&self) -> &ServerProperties {
+        &self.shared.server_properties
+    }
     async fn register_responder(
         &self,
         channel_id: AmqpChannelId,
@@ -375,13 +515,13 @@ impl Connection {
 
         // connection's close method , should use default channel id
         let responder_rx = self
-            .register_responder(CONN_DEFAULT_CHANNEL, CloseOk::header())
+            .register_responder(DEFAULT_CONN_CHANNEL, CloseOk::header())
             .await?;
 
         let close = Close::default();
         synchronous_request!(
             self.shared.outgoing_tx,
-            (CONN_DEFAULT_CHANNEL, close.into_frame()),
+            (DEFAULT_CONN_CHANNEL, close.into_frame()),
             responder_rx,
             Frame::CloseOk,
             Error::ConnectionCloseError
@@ -468,7 +608,7 @@ mod tests {
 
     use super::{generate_name, Connection, OpenConnectionArguments};
     use tokio::time;
-    use tracing::{subscriber::SetGlobalDefaultError, Level};
+    use tracing::{subscriber::SetGlobalDefaultError, Level, trace};
 
     #[tokio::test]
     async fn test_channel_open_close() {
@@ -478,6 +618,7 @@ mod tests {
             let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
             let connection = Connection::open(&args).await.unwrap();
+            trace!("{:?}", connection);
 
             {
                 // test close on drop

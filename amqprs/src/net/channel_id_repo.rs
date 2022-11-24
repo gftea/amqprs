@@ -1,6 +1,6 @@
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 
-use crate::frame::CONN_DEFAULT_CHANNEL;
+use crate::frame::DEFAULT_CONN_CHANNEL;
 
 const INITIAL_BIT_MASK: u8 = 0b1000_0000;
 pub(crate) struct ChannelIdRepository {

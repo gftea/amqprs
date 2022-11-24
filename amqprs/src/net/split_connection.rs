@@ -188,7 +188,8 @@ mod test {
 
     use super::SplitConnection;
     use crate::frame::*;
-    use amqp_serde::types::FieldTable;
+    use amqp_serde::{types::{FieldTable, ShortStr, LongStr}, to_buffer};
+    use bytes::BytesMut;
     use tokio::sync::mpsc;
 
     #[tokio::test]
@@ -229,28 +230,36 @@ mod test {
 
                 // default: PLAIN
                 tx_req
-                    .send((CONN_DEFAULT_CHANNEL, start_ok.into_frame()))
+                    .send((DEFAULT_CONN_CHANNEL, start_ok.into_frame()))
                     .await
                     .unwrap();
             }
             2 => {
                 let mut start_ok = StartOk::default();
-
+                println!("AMQPLAIN authentication");
                 *start_ok.machanisms_mut() = "AMQPLAIN".try_into().unwrap();
                 let user = "user";
                 let password = "bitnami";
-               // format: (ShortStr, u8, LongStr)
-               // struct AmpPlainMachanism {
-               //     username: (ShortStr, u8, LongStr),
-               //     password: (ShortStr, u8, LongStr),
-               // }
+                
                 let s = format!(
                     "\x05LOGIN\x53\x00\x00\x00\x04{user}\x08PASSWORD\x53\x00\x00\x00\x07{password}"
                 );
+                let mut buf = BytesMut::new();
+                to_buffer(&<&str as TryInto<ShortStr>>::try_into("LOGIN").unwrap(), &mut buf).unwrap();
+                to_buffer(&'S', &mut buf).unwrap();
+                to_buffer(&<&str as TryInto<LongStr>>::try_into(user).unwrap(), &mut buf).unwrap();
 
-                *start_ok.response_mut() = s.try_into().unwrap();
+                to_buffer(&<&str as TryInto<ShortStr>>::try_into("PASSWORD").unwrap(), &mut buf).unwrap();
+                to_buffer(&'S', &mut buf).unwrap();
+                to_buffer(&<&str as TryInto<LongStr>>::try_into(password).unwrap(), &mut buf).unwrap();
+
+                println!("{:#?}", s);
+                let s2 = String::from_utf8(buf.to_vec()).unwrap().try_into().unwrap();
+                println!("{:#?}", s2);
+
+                *start_ok.response_mut() = s2;
                 tx_req
-                    .send((CONN_DEFAULT_CHANNEL, start_ok.into_frame()))
+                    .send((DEFAULT_CONN_CHANNEL, start_ok.into_frame()))
                     .await
                     .unwrap();
             }
@@ -260,7 +269,7 @@ mod test {
                 *start_ok.machanisms_mut() = "RABBIT-CR-DEMO".try_into().unwrap();
                 *start_ok.response_mut() = "user".try_into().unwrap();
                 tx_req
-                    .send((CONN_DEFAULT_CHANNEL, start_ok.into_frame()))
+                    .send((DEFAULT_CONN_CHANNEL, start_ok.into_frame()))
                     .await
                     .unwrap();
 
@@ -270,7 +279,7 @@ mod test {
                 // C: SecureOk
                 let secure_ok = SecureOk::new("My password is bitnami".try_into().unwrap());
                 tx_req
-                    .send((CONN_DEFAULT_CHANNEL, secure_ok.into_frame()))
+                    .send((DEFAULT_CONN_CHANNEL, secure_ok.into_frame()))
                     .await
                     .unwrap();
             }
@@ -288,20 +297,20 @@ mod test {
         let tune_ok = TuneOk::new(tune.channel_max(), tune.frame_max(), tune.heartbeat());
 
         tx_req
-            .send((CONN_DEFAULT_CHANNEL, tune_ok.into_frame()))
+            .send((DEFAULT_CONN_CHANNEL, tune_ok.into_frame()))
             .await
             .unwrap();
 
         // C: Open
         let open = Open::default().into_frame();
-        tx_req.send((CONN_DEFAULT_CHANNEL, open)).await.unwrap();
+        tx_req.send((DEFAULT_CONN_CHANNEL, open)).await.unwrap();
 
         // S: OpenOk
         let _open_ok = rx_resp.recv().await.unwrap();
 
         // C: Close
         tx_req
-            .send((CONN_DEFAULT_CHANNEL, Close::default().into_frame()))
+            .send((DEFAULT_CONN_CHANNEL, Close::default().into_frame()))
             .await
             .unwrap();
 
@@ -315,7 +324,7 @@ mod test {
 
         connection.write(&ProtocolHeader::default()).await.unwrap();
         let (channel_id, _frame) = connection.read_frame().await.unwrap();
-        assert_eq!(CONN_DEFAULT_CHANNEL, channel_id);
+        assert_eq!(DEFAULT_CONN_CHANNEL, channel_id);
 
         connection.close().await.unwrap();
     }
@@ -329,7 +338,7 @@ mod test {
 
         writer.write(&ProtocolHeader::default()).await.unwrap();
         let (channel_id, _frame) = reader.read_frame().await.unwrap();
-        assert_eq!(CONN_DEFAULT_CHANNEL, channel_id);
+        assert_eq!(DEFAULT_CONN_CHANNEL, channel_id);
 
         reader.close().await;
         writer.close().await.unwrap();

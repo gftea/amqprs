@@ -7,7 +7,7 @@ use tracing::{debug, error, info};
 
 use crate::{
     api::{callbacks::ConnectionCallback, connection::Connection},
-    frame::{Close, CloseOk, Frame, MethodHeader, CONN_DEFAULT_CHANNEL},
+    frame::{Close, CloseOk, Frame, MethodHeader, DEFAULT_CONN_CHANNEL},
 };
 
 use super::{
@@ -121,7 +121,7 @@ impl ReaderHandler {
                 self.amqp_connection.set_is_open(false);
 
                 self.outgoing_tx
-                    .send((CONN_DEFAULT_CHANNEL, CloseOk::default().into_frame()))
+                    .send((DEFAULT_CONN_CHANNEL, CloseOk::default().into_frame()))
                     .await?;
 
                 Ok(())

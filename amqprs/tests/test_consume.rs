@@ -115,7 +115,7 @@ async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
     args.exchange = exchange_name.to_string();
     args.routing_key = "eiffel.a.b.c.d".to_string();
     let mut headers = TableArguments::new();
-    headers.insert_str("myname".to_string(), "amqprs");
+    headers.insert_string("myname".to_string(), "amqprs".to_string());
     let basic_props = BasicProperties::new(
         Some("application/json".to_string()),
         None,
