@@ -1,4 +1,4 @@
-use amqprs::api::{
+use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
     channel::ExchangeDeclareArguments,
     connection::{Connection, OpenConnectionArguments},

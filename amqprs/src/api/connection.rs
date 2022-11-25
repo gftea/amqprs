@@ -14,8 +14,8 @@ use tracing::{debug, error, trace};
 
 use crate::{
     frame::{
-        Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, OpenChannelOk, ProtocolHeader,
-        StartOk, TuneOk, DEFAULT_CONN_CHANNEL,
+        Blocked, Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, OpenChannelOk,
+        ProtocolHeader, StartOk, TuneOk, DEFAULT_CONN_CHANNEL, Unblocked,
     },
     net::{
         ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage, ReaderHandler,
@@ -85,7 +85,6 @@ impl ServerCapabilities {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub struct ServerProperties {
     capabilities: ServerCapabilities,
@@ -129,6 +128,8 @@ const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 256;
 const CONN_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 64;
 
 const DEFAULT_LOCALE: &str = "en_US";
+
+/////////////////////////////////////////////////////////////////////////////
 #[non_exhaustive]
 pub struct OpenConnectionArguments {
     pub uri: String,
@@ -158,6 +159,10 @@ impl OpenConnectionArguments {
         }
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////
+
+
 
 /// AMQP Connection API
 impl Connection {
@@ -509,7 +514,29 @@ impl Connection {
         Ok(channel)
     }
 
-    /// close and consume the AMQ connection
+    /// This method indicates that a connection has been blocked
+    /// and does not accept new publishes.
+    pub async fn blocked(&self, reason: String) -> Result<()> {
+        let blocked = Blocked::new(reason.try_into().unwrap());
+
+        self.shared
+            .outgoing_tx
+            .send((DEFAULT_CONN_CHANNEL, blocked.into_frame()))
+            .await?;
+        Ok(())
+    }
+    /// This method indicates that a connection has been unblocked
+    /// and now accepts publishes.
+    pub async fn unblocked(&self) -> Result<()> {
+        let unblocked = Unblocked;
+
+        self.shared
+            .outgoing_tx
+            .send((DEFAULT_CONN_CHANNEL, unblocked.into_frame()))
+            .await?;
+        Ok(())
+    }
+    /// This method indicates that the sender wants to close the connection. 
     pub async fn close(self) -> Result<()> {
         self.set_is_open(false);
 
@@ -608,7 +635,7 @@ mod tests {
 
     use super::{generate_name, Connection, OpenConnectionArguments};
     use tokio::time;
-    use tracing::{subscriber::SetGlobalDefaultError, Level, trace};
+    use tracing::{subscriber::SetGlobalDefaultError, trace, Level};
 
     #[tokio::test]
     async fn test_channel_open_close() {

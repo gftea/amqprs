@@ -3,7 +3,7 @@ use std::{fmt, ops::Deref};
 use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
 use serde::{de::Visitor, Deserialize, Serialize};
 
-use crate::api::channel::TableArguments;
+use crate::api::channel::AmqArgumentTable;
 
 use super::Frame;
 
@@ -112,7 +112,7 @@ impl BasicProperties {
     pub fn new(
         content_type: Option<String>,
         content_encoding: Option<String>,
-        headers: Option<TableArguments>,
+        headers: Option<AmqArgumentTable>,
         delivery_mode: Option<u8>,
         priority: Option<u8>,
         correlation_id: Option<String>,

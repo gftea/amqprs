@@ -18,7 +18,7 @@ use crate::{
     },
 };
 
-use super::{Channel, RegisterGetContentResponder, TableArguments, UnregisterContentConsumer};
+use super::{Channel, RegisterGetContentResponder, AmqArgumentTable, UnregisterContentConsumer};
 
 #[derive(Debug, Clone)]
 pub struct BasicQosArguments {
@@ -47,7 +47,7 @@ pub struct BasicConsumeArguments {
     pub no_ack: bool,
     pub exclusive: bool,
     pub no_wait: bool,
-    pub arguments: TableArguments,
+    pub arguments: AmqArgumentTable,
 }
 
 impl BasicConsumeArguments {
@@ -59,7 +59,7 @@ impl BasicConsumeArguments {
             no_ack: false,
             exclusive: false,
             no_wait: false,
-            arguments: TableArguments::new(),
+            arguments: AmqArgumentTable::new(),
         }
     }
 }

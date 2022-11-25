@@ -167,6 +167,20 @@ impl fmt::Display for Close {
     }
 }
 impl Close {
+    pub fn new(
+        reply_code: ShortUint,
+        reply_text: ShortStr,
+        class_id: ShortUint,
+        method_id: ShortUint,
+    ) -> Self {
+        Self {
+            reply_code,
+            reply_text,
+            class_id,
+            method_id,
+        }
+    }
+
     pub fn reply_code(&self) -> u16 {
         self.reply_code
     }
@@ -220,6 +234,10 @@ pub struct Blocked {
 }
 
 impl Blocked {
+    pub fn new(reason: ShortStr) -> Self {
+        Self { reason }
+    }
+
     pub fn reason(&self) -> &String {
         &self.reason
     }

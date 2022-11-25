@@ -1,6 +1,12 @@
-//! API implementation of AMQP Channel
+//! Implementation of AMQP_0-9-1's Channel class compatible with RabbitMQ.
 //!
-
+//! This module provides [`Channel`] type which contains all methods for communicating 
+//! with RabbitMQ server. 
+//! 
+//! Almost all methods of [`Channel`] accepts arguments, this module contains all argument types for each method.
+//! 
+//! [`Channel`]: struct.Channel.html
+//! 
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -60,11 +66,12 @@ pub(crate) enum DispatcherManagementCommand {
     RegisterChannelCallback(RegisterChannelCallback),
 }
 
-/// Represent an AMQP Channel.
+/// Type representing an AMQP Channel.
 ///
-/// To create a AMQP channel, use [`Connection::channel` method][`channel`]
+/// To create an AMQP channel, use [`Connection::open_channel`]
 ///
-/// [`channel`]: crate::api::connection::Connection::channel
+/// [`Connection::open_channel`]: crate::connection::Connection::open_channel
+/// 
 #[derive(Debug, Clone)]
 pub struct Channel {
     shared: Arc<SharedChannelInner>,
@@ -224,14 +231,14 @@ impl Drop for Channel {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-/// A table map of arguments
-/// The syntax and semantics of these arguments depends on the server implementation.
+/// AMQ argument table is a user-facing type act as adaption layer for AMQP's Field Table type.
+/// The semantics of these arguments depends on the server implementation or user application.
 #[derive(Debug, Clone)]
-pub struct TableArguments {
+pub struct AmqArgumentTable {
     table: FieldTable,
 }
 
-impl TableArguments {
+impl AmqArgumentTable {
     pub fn new() -> Self {
         Self {
             table: FieldTable::new(),

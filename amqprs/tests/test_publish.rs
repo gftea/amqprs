@@ -1,8 +1,6 @@
 use amqprs::{
-    api::{
-        channel::{BasicPublishArguments, ExchangeDeclareArguments},
-        connection::{Connection, OpenConnectionArguments},
-    },
+    channel::{BasicPublishArguments, ExchangeDeclareArguments},
+    connection::{Connection, OpenConnectionArguments},
     BasicProperties,
 };
 use tokio::time;
