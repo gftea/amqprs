@@ -1,3 +1,8 @@
+//! Implementation of AMQP_0-9-1's Connection class compatible with RabbitMQ.
+//! 
+//! # Usage
+//! 
+
 use std::{
     cell::RefCell,
     sync::{

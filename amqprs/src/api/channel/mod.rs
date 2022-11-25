@@ -5,6 +5,8 @@
 //! 
 //! Almost all methods of [`Channel`] accepts arguments, this module contains all argument types for each method.
 //! 
+//! # Usage
+//! 
 //! [`Channel`]: struct.Channel.html
 //! 
 use std::sync::{
