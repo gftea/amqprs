@@ -28,7 +28,9 @@ use async_trait::async_trait;
 use tracing::{error, info};
 
 /////////////////////////////////////////////////////////////////////////////
-/// See [module level][`self`] documentation.
+/// Trait for callback interfaces of `Connection` level message
+/// 
+/// See [module level][`self`] documentation for general guidelines.
 #[async_trait]
 pub trait ConnectionCallback {
     /// Callback to handle `close` connection request from server.
@@ -45,6 +47,9 @@ pub trait ConnectionCallback {
     async fn unblocked(&mut self, connection: &Connection, blocked: Unblocked);
 }
 
+/// Default type that implements `ConnectionCallback`
+///
+/// For demo and debugging purpose only.
 pub struct DefaultConnectionCallback;
 
 #[async_trait]
@@ -63,7 +68,9 @@ impl ConnectionCallback for DefaultConnectionCallback {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-/// See [module level][`self`] documentation.
+///  Trait for callback interfaces of `Channel` level message.
+/// 
+/// See [module level][`self`] documentation for general guidelines.
 #[async_trait]
 pub trait ChannelCallback {
     /// Callback to handle `close` channel request from server.
@@ -112,6 +119,9 @@ pub trait ChannelCallback {
     );
 }
 
+/// Default type that implements `ChannelCallback`.
+/// 
+/// For demo and debugging purpose only.
 pub struct DefaultChannelCallback;
 
 #[async_trait]
