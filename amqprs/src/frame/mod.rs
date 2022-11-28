@@ -13,11 +13,11 @@ mod helpers {
     macro_rules! impl_method_frame {
         ($name:ident, $class_id:literal, $method_id:literal) => {
             impl $name {
-                pub fn header() -> &'static MethodHeader {
+                pub(crate) fn header() -> &'static MethodHeader {
                     static __METHOD_HEADER: MethodHeader = MethodHeader::new($class_id, $method_id);
                     &__METHOD_HEADER
                 }
-                pub fn into_frame(self) -> Frame {
+                pub(crate) fn into_frame(self) -> Frame {
                     Frame::$name(Self::header(), self)
                 }
             }
