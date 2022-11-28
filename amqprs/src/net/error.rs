@@ -9,7 +9,7 @@ pub(crate) enum Error {
     InternalChannelError(String),
     SerdeError(String),
     FramingError(String),
-    PeerShutdown,
+    CloseCallbackError,
     Interrupted,
 }
 
@@ -41,7 +41,7 @@ impl fmt::Display for Error {
             Error::InternalChannelError(msg) => write!(f, "internal communication error: {}", msg),
             Error::SerdeError(msg) =>  write!(f, "serde error: {}", msg),
             Error::FramingError(msg) => write!(f, "framing error: {}", msg),
-            Error::PeerShutdown => f.write_str("peer shutdown"),
+            Error::CloseCallbackError => f.write_str("peer shutdown"),
             Error::Interrupted => f.write_str("connection interrupted"),
         }
     }

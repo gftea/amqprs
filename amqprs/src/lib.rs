@@ -39,14 +39,14 @@
 //! [`Connection`]: connection/struct.Connection.html
 //! [`Channel`]: channel/struct.Channel.html
 //! [`callbacks`]: callbacks/index.html
-
+/////////////////////////////////////////////////////////////////////////////
 mod frame;
 mod net;
 mod api;
 
-// public API
+/// public API and types
 pub use api::*;
 pub use frame::BasicProperties;
-pub use frame::GetOk;
 pub use frame::Deliver;
+pub use frame::GetOk;
 pub use frame::Return;

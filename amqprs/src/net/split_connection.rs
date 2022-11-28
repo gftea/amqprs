@@ -161,7 +161,7 @@ impl BufReader {
             let len = self.stream.read_buf(&mut self.buffer).await?;
             if len == 0 {
                 if self.buffer.is_empty() {
-                    return Err(Error::PeerShutdown);
+                    return Err(Error::CloseCallbackError);
                 } else {
                     return Err(Error::Interrupted);
                 }

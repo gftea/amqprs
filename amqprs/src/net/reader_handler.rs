@@ -114,7 +114,7 @@ impl ReaderHandler {
                 if let Some(ref mut callback) = self.callback {
                     if let Err(err) = callback.close(&self.amqp_connection, close).await {
                         debug!("connection close callback error, cause: {}.", err);
-                        return Err(Error::PeerShutdown);
+                        return Err(Error::CloseCallbackError);
                     }
                 }
                 // respond to server if no callback registered or callback succeed
