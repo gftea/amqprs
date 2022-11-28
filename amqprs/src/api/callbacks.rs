@@ -6,7 +6,7 @@
 //! [`Connection::register_callback`] and [`Channel::register_callback`] respectively.
 //! 
 //! # Examples
-//! See [`DefaultConnectionCallback`] and [`DefaultChannelCallback`] 
+//! See [`DefaultConnectionCallback`] and [`DefaultChannelCallback`] for simple example.
 //! The default callback implementations are only for demo and debugging purposes. 
 //! User is expected to implement its own callbacks.
 //! 
