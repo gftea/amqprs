@@ -3,7 +3,7 @@ use std::str::from_utf8;
 use async_trait::async_trait;
 use tracing::info;
 
-use crate::frame::{BasicProperties, Deliver, Cancel};
+use crate::frame::{BasicProperties, Deliver};
 
 use super::channel::{BasicAckArguments, Channel};
 
@@ -50,6 +50,4 @@ impl AsyncConsumer for DefaultConsumer {
             channel.basic_ack(args).await.unwrap();
         }
     }
-
-
 }

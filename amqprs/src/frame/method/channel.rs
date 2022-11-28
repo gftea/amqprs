@@ -70,7 +70,9 @@ pub struct Flow {
 }
 
 impl Flow {
-    pub fn new(active: Boolean) -> Self { Self { active } }
+    pub fn new(active: Boolean) -> Self {
+        Self { active }
+    }
 
     pub fn active(&self) -> bool {
         self.active
@@ -83,7 +85,9 @@ pub struct FlowOk {
 }
 
 impl FlowOk {
-    pub fn new(active: Boolean) -> Self { Self { active } }
+    pub fn new(active: Boolean) -> Self {
+        Self { active }
+    }
 
     pub fn active(&self) -> bool {
         self.active

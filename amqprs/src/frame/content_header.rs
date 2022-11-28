@@ -1,4 +1,4 @@
-use std::{fmt, ops::Deref};
+use std::{fmt};
 
 use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
 use serde::{de::Visitor, Deserialize, Serialize};
@@ -101,7 +101,7 @@ impl fmt::Display for BasicProperties {
         if let Some(ref v) = self.cluster_id {
             write!(f, "cluster_id = {} ", v)?;
         }
-        
+
         write!(f, "}}")?;
 
         Ok(())

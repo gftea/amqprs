@@ -1,30 +1,30 @@
 //! Implementation of AMQP_0-9-1's Connection class compatible with RabbitMQ.
 //!
-//! It provides [APIs][`Connection`] to manage an AMQP `Connection`. 
-//! 
-//! User should hold the connection object until no longer needs it, and call the [`close`] method 
+//! It provides [APIs][`Connection`] to manage an AMQP `Connection`.
+//!
+//! User should hold the connection object until no longer needs it, and call the [`close`] method
 //! to gracefully shutdown the connection. When connection object is dropped, it will try with best effort
 //! to close the connection, but no guarantee to handle close errors.
-//! 
+//!
 //! # Example
 //! ```rust
 //! use amqprs::connection::{OpenConnectionArguments, Connection};
 //! use amqprs::callbacks;
-//! 
+//!
 //! # #[tokio::main]
 //! # async fn main() {
 //! let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 //! // open a connection with given arguments
 //! let connection = Connection::open(&args).await.unwrap();
-//! 
+//!
 //! // register callback for handling asynchronous message from server for this connection
 //! connection.register_callback(callbacks::DefaultConnectionCallback).await.unwrap();
 //!
 //! // ... use the connection ...
-//! 
+//!
 //! // gracefully shutdown and consume the connection
 //! connection.close().await.unwrap();
-//! 
+//!
 //! # }
 //! ```
 //! [`Connection`]: struct.Connection.html

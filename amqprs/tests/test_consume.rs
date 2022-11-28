@@ -1,7 +1,7 @@
 use amqprs::{
     channel::{
-        BasicConsumeArguments, BasicPublishArguments, Channel, QueueBindArguments,
-        QueueDeclareArguments, AmqArgumentTable,
+        AmqArgumentTable, BasicConsumeArguments, BasicPublishArguments, Channel,
+        QueueBindArguments, QueueDeclareArguments,
     },
     connection::{Connection, OpenConnectionArguments},
     consumer::DefaultConsumer,

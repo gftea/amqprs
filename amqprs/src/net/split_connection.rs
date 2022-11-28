@@ -188,7 +188,10 @@ mod test {
 
     use super::SplitConnection;
     use crate::frame::*;
-    use amqp_serde::{types::{FieldTable, ShortStr, LongStr}, to_buffer};
+    use amqp_serde::{
+        to_buffer,
+        types::{LongStr, ShortStr},
+    };
     use bytes::BytesMut;
     use tokio::sync::mpsc;
 
@@ -240,18 +243,34 @@ mod test {
                 *start_ok.machanisms_mut() = "AMQPLAIN".try_into().unwrap();
                 let user = "user";
                 let password = "bitnami";
-                
+
                 let s = format!(
                     "\x05LOGIN\x53\x00\x00\x00\x04{user}\x08PASSWORD\x53\x00\x00\x00\x07{password}"
                 );
                 let mut buf = BytesMut::new();
-                to_buffer(&<&str as TryInto<ShortStr>>::try_into("LOGIN").unwrap(), &mut buf).unwrap();
+                to_buffer(
+                    &<&str as TryInto<ShortStr>>::try_into("LOGIN").unwrap(),
+                    &mut buf,
+                )
+                .unwrap();
                 to_buffer(&'S', &mut buf).unwrap();
-                to_buffer(&<&str as TryInto<LongStr>>::try_into(user).unwrap(), &mut buf).unwrap();
+                to_buffer(
+                    &<&str as TryInto<LongStr>>::try_into(user).unwrap(),
+                    &mut buf,
+                )
+                .unwrap();
 
-                to_buffer(&<&str as TryInto<ShortStr>>::try_into("PASSWORD").unwrap(), &mut buf).unwrap();
+                to_buffer(
+                    &<&str as TryInto<ShortStr>>::try_into("PASSWORD").unwrap(),
+                    &mut buf,
+                )
+                .unwrap();
                 to_buffer(&'S', &mut buf).unwrap();
-                to_buffer(&<&str as TryInto<LongStr>>::try_into(password).unwrap(), &mut buf).unwrap();
+                to_buffer(
+                    &<&str as TryInto<LongStr>>::try_into(password).unwrap(),
+                    &mut buf,
+                )
+                .unwrap();
 
                 println!("{:#?}", s);
                 let s2 = String::from_utf8(buf.to_vec()).unwrap().try_into().unwrap();

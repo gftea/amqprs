@@ -1,9 +1,9 @@
 use crate::{
     api::{error::Error, Result},
-    frame::{Frame, TxSelect, TxSelectOk, TxCommit, TxCommitOk, TxRollback, TxRollbackOk},
+    frame::{Frame, TxCommit, TxCommitOk, TxRollback, TxRollbackOk, TxSelect, TxSelectOk},
 };
 
-use super::{Channel};
+use super::Channel;
 
 impl Channel {
     pub async fn tx_select(&self) -> Result<()> {
@@ -20,8 +20,7 @@ impl Channel {
         )?;
         Ok(())
     }
-    
-    
+
     pub async fn tx_commit(&self) -> Result<()> {
         let select = TxCommit;
 

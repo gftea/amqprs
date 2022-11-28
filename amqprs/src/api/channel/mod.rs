@@ -1,14 +1,14 @@
 //! Implementation of AMQP_0-9-1's Channel class compatible with RabbitMQ.
 //!
-//! This module provides [`Channel`] type which contains all methods for communicating 
-//! with RabbitMQ server. 
-//! 
+//! This module provides [`Channel`] type which contains all methods for communicating
+//! with RabbitMQ server.
+//!
 //! Almost all methods of [`Channel`] accepts arguments, this module contains all argument types for each method.
-//! 
+//!
 //! # Usage
-//! 
+//!
 //! [`Channel`]: struct.Channel.html
-//! 
+//!
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -73,7 +73,7 @@ pub(crate) enum DispatcherManagementCommand {
 /// To create an AMQP channel, use [`Connection::open_channel`]
 ///
 /// [`Connection::open_channel`]: crate::connection::Connection::open_channel
-/// 
+///
 #[derive(Debug, Clone)]
 pub struct Channel {
     shared: Arc<SharedChannelInner>,

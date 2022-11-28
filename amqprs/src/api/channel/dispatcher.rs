@@ -234,9 +234,9 @@ impl ChannelDispatcher {
                                     State::Return => {
                                         if let Some(ref mut cb) = self.callback {
                                             cb.publish_return(
-                                                &self.channel, 
+                                                &self.channel,
                                                 return_buffer.ret.take().unwrap(),
-                                                return_buffer.basic_properties.take().unwrap(), 
+                                                return_buffer.basic_properties.take().unwrap(),
                                                 body.inner
                                             ).await ;
                                         } else {

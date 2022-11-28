@@ -18,7 +18,7 @@ use crate::{
     },
 };
 
-use super::{Channel, RegisterGetContentResponder, AmqArgumentTable, UnregisterContentConsumer};
+use super::{AmqArgumentTable, Channel, RegisterGetContentResponder, UnregisterContentConsumer};
 
 #[derive(Debug, Clone)]
 pub struct BasicQosArguments {
@@ -463,7 +463,6 @@ mod tests {
             channel::{QueueBindArguments, QueueDeclareArguments},
             connection::{Connection, OpenConnectionArguments},
             consumer::DefaultConsumer,
-            Result,
         },
         frame::BasicProperties,
     };

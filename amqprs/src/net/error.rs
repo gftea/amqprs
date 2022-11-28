@@ -39,7 +39,7 @@ impl fmt::Display for Error {
         match self {
             Error::NetworkIoError(msg) => write!(f, "network io error: {}", msg),
             Error::InternalChannelError(msg) => write!(f, "internal communication error: {}", msg),
-            Error::SerdeError(msg) =>  write!(f, "serde error: {}", msg),
+            Error::SerdeError(msg) => write!(f, "serde error: {}", msg),
             Error::FramingError(msg) => write!(f, "framing error: {}", msg),
             Error::CloseCallbackError => f.write_str("peer shutdown"),
             Error::Interrupted => f.write_str("connection interrupted"),

@@ -1,9 +1,9 @@
 use amqprs::{
-        channel::{
-            BasicConsumeArguments, BasicPublishArguments, QueueBindArguments, QueueDeclareArguments,
-        },
-        connection::{Connection, OpenConnectionArguments},
-        consumer::DefaultConsumer,
+    channel::{
+        BasicConsumeArguments, BasicPublishArguments, QueueBindArguments, QueueDeclareArguments,
+    },
+    connection::{Connection, OpenConnectionArguments},
+    consumer::DefaultConsumer,
     BasicProperties,
 };
 use tokio::time;

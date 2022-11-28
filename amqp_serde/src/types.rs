@@ -10,7 +10,6 @@ use std::{
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
-
 pub type Bit = u8; // No Rust type to represent single bit, but bits are packed in octect
 pub type Octect = u8;
 pub type Boolean = bool; // 0 = FALSE, else TRUE
@@ -233,12 +232,12 @@ impl From<bool> for FieldValue {
     }
 }
 impl TryInto<bool> for FieldValue {
-    type Error =  crate::Error ;
+    type Error = crate::Error;
 
     fn try_into(self) -> Result<bool, Self::Error> {
         match self {
             FieldValue::t(v) => Ok(v),
-            _ => Err( crate::Error::Message("not a bool".to_string()))
+            _ => Err(crate::Error::Message("not a bool".to_string())),
         }
     }
 }
@@ -248,12 +247,12 @@ impl From<FieldTable> for FieldValue {
     }
 }
 impl TryInto<FieldTable> for FieldValue {
-    type Error =  crate::Error ;
+    type Error = crate::Error;
 
     fn try_into(self) -> Result<FieldTable, Self::Error> {
         match self {
             FieldValue::F(v) => Ok(v),
-            _ => Err( crate::Error::Message("not a FieldTable".to_string()))
+            _ => Err(crate::Error::Message("not a FieldTable".to_string())),
         }
     }
 }
@@ -265,12 +264,12 @@ impl From<LongStr> for FieldValue {
 }
 
 impl TryInto<LongStr> for FieldValue {
-    type Error =  crate::Error ;
+    type Error = crate::Error;
 
     fn try_into(self) -> Result<LongStr, Self::Error> {
         match self {
             FieldValue::S(v) => Ok(v),
-            _ => Err( crate::Error::Message("not a LongStr".to_string()))
+            _ => Err(crate::Error::Message("not a LongStr".to_string())),
         }
     }
 }
@@ -304,7 +303,6 @@ pub type FieldName = ShortStr;
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct FieldTable(HashMap<FieldName, FieldValue>);
 
-
 impl FieldTable {
     pub fn new() -> Self {
         Self(HashMap::new())
@@ -313,7 +311,6 @@ impl FieldTable {
         self.0.insert(k, v)
     }
 
-
     pub fn remove(&mut self, k: &FieldName) -> Option<FieldValue> {
         self.0.remove(k)
     }
@@ -321,8 +318,6 @@ impl FieldTable {
     pub fn get(&self, k: &FieldName) -> Option<&FieldValue> {
         self.0.get(k)
     }
-  
-  
 }
 impl fmt::Display for FieldTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

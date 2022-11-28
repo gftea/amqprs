@@ -3,7 +3,7 @@ use crate::{
     frame::{Bind, BindOk, Declare, DeclareOk, Delete, DeleteOk, Frame, Unbind, UnbindOk},
 };
 
-use super::{Channel, Result, AmqArgumentTable};
+use super::{AmqArgumentTable, Channel, Result};
 
 /// Arguments for [`exchange_declare`]
 ///

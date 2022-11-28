@@ -33,9 +33,9 @@ pub mod delivery_mode {
 /////////////////////////////////////////////////////////////////////////////
 mod utils;
 
-pub mod security;
 pub mod callbacks;
 pub mod channel;
 pub mod connection;
 pub mod consumer;
 pub mod error;
+pub mod security;

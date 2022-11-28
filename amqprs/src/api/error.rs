@@ -13,7 +13,7 @@ pub enum Error {
     ChannelCloseError(String),
     ChannelUseError(String),
     NetworkError(String),
-    InternalChannelError(String),    
+    InternalChannelError(String),
     Other(String),
 }
 

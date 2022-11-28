@@ -1,6 +1,6 @@
 use amqp_serde::types::AmqpMessageCount;
 
-use super::{Channel, AmqArgumentTable};
+use super::{AmqArgumentTable, Channel};
 use crate::{
     api::{error::Error, Result},
     frame::{

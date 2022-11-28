@@ -1,6 +1,6 @@
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 
-use crate::frame::DEFAULT_CONN_CHANNEL;
+
 
 const INITIAL_BIT_MASK: u8 = 0b1000_0000;
 pub(crate) struct ChannelIdRepository {
@@ -149,7 +149,7 @@ mod tests {
         }
         // failed to reserve
         for id in ids {
-            assert_eq!(false, id_repo.reserve(id));         
+            assert_eq!(false, id_repo.reserve(id));
         }
     }
 }

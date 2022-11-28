@@ -7,7 +7,7 @@ use tracing::{debug, error, info};
 
 use crate::{
     api::{callbacks::ConnectionCallback, connection::Connection},
-    frame::{Close, CloseOk, Frame, MethodHeader, DEFAULT_CONN_CHANNEL},
+    frame::{CloseOk, Frame, DEFAULT_CONN_CHANNEL},
 };
 
 use super::{
