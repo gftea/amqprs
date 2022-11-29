@@ -20,7 +20,7 @@ async fn test_get() {
     let connection = Connection::open(&args).await.unwrap();
 
     // open a channel on the connection
-    let mut channel = connection.open_channel().await.unwrap();
+    let mut channel = connection.open_channel(None).await.unwrap();
 
     let exchange_name = "amq.topic";
     // declare a queue

@@ -8,6 +8,7 @@
 //!
 //! # Quick Start
 //! ```rust
+//! use amqprs::security::SecurityCredentials;
 //! use amqprs::connection::{OpenConnectionArguments, Connection};
 //! use amqprs::callbacks;
 //!
@@ -23,7 +24,7 @@
 //! connection.register_callback(callbacks::DefaultConnectionCallback).await.unwrap();
 //!
 //! // Open an AMQP channel on this connection.
-//! let channel = connection.open_channel().await.unwrap();
+//! let channel = connection.open_channel(None).await.unwrap();
 //! // Register channel level callbacks.
 //! // In production, user should create its own type and implement trait `ChannelCallback`.
 //! channel.register_callback(callbacks::DefaultChannelCallback).await.unwrap();

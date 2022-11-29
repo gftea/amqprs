@@ -475,7 +475,7 @@ mod tests {
             let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
             let client = Connection::open(&args).await.unwrap();
 
-            let mut channel = client.open_channel().await.unwrap();
+            let mut channel = client.open_channel(None).await.unwrap();
             channel
                 .queue_declare(QueueDeclareArguments::new("amqprs"))
                 .await
@@ -507,7 +507,7 @@ mod tests {
 
             let client = Connection::open(&args).await.unwrap();
 
-            let mut channel = client.open_channel().await.unwrap();
+            let mut channel = client.open_channel(None).await.unwrap();
             channel
                 .queue_declare(QueueDeclareArguments::new("amqprs"))
                 .await
@@ -538,7 +538,7 @@ mod tests {
 
             let client = Connection::open(&args).await.unwrap();
 
-            let channel = client.open_channel().await.unwrap();
+            let channel = client.open_channel(None).await.unwrap();
 
             let mut args = BasicPublishArguments::new();
             args.exchange = "amq.topic".to_string();

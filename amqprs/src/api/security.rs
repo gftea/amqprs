@@ -4,12 +4,14 @@ use amqp_serde::{
 };
 use bytes::BytesMut;
 
+#[derive(Debug, Clone)]
 pub struct SecurityCredentials {
     pub username: String,
     pub password: String,
     mechanism: AuthenticationMechanism,
 }
 
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 enum AuthenticationMechanism {
     PLAIN,
@@ -19,17 +21,17 @@ enum AuthenticationMechanism {
 }
 
 impl SecurityCredentials {
-    pub fn new_plain(username: String, password: String) -> Self {
+    pub fn new_plain(username: &str, password: &str) -> Self {
         Self {
-            username,
-            password,
+            username: username.to_owned(),
+            password: password.to_owned(),
             mechanism: AuthenticationMechanism::PLAIN,
         }
     }
-    pub fn new_amqplain(username: String, password: String) -> Self {
+    pub fn new_amqplain(username: &str, password: &str) -> Self {
         Self {
-            username,
-            password,
+            username: username.to_owned(),
+            password: password.to_owned(),
             mechanism: AuthenticationMechanism::AMQPLAIN,
         }
     }

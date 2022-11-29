@@ -8,6 +8,7 @@
 //!
 //! # Example
 //! ```rust
+//! use amqprs::security::SecurityCredentials;
 //! use amqprs::connection::{OpenConnectionArguments, Connection};
 //! use amqprs::callbacks;
 //!
@@ -65,8 +66,18 @@ use super::{
     Result,
 };
 
-/////////////////////////////////////////////////////////////////////////////
+//  TODO: move below constants gto be part of static configuration of connection
+const DISPATCHER_MESSAGE_BUFFER_SIZE: usize = 256;
+const DISPATCHER_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 64;
+const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 256;
+const CONNECTION_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 64;
 
+const DEFAULT_LOCALE: &str = "en_US";
+
+/////////////////////////////////////////////////////////////////////////////
+/// Capabilities reported by the server when openning an AMQP connection.
+///
+/// It is part of [`ServerProperties`] reported from server.
 #[derive(Debug, Clone)]
 pub struct ServerCapabilities {
     consumer_cancel_notify: bool,
@@ -118,6 +129,7 @@ impl ServerCapabilities {
     }
 }
 
+/// Propertities reported by the server when openning an AMQP connection.
 #[derive(Debug, Clone)]
 pub struct ServerProperties {
     capabilities: ServerCapabilities,
@@ -138,6 +150,12 @@ impl ServerProperties {
         self.version.as_ref()
     }
 }
+
+/// Type represents an AMQP connection.
+///
+/// See details in each method documentation.
+/// See also general usage in [module level][`self`] documentation.
+/// 
 #[derive(Debug, Clone)]
 pub struct Connection {
     shared: Arc<SharedConnectionInner>,
@@ -153,22 +171,45 @@ struct SharedConnectionInner {
     conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
 }
 
-//  TODO: move below constants gto be part of static configuration of connection
-const DISPATCHER_MESSAGE_BUFFER_SIZE: usize = 256;
-const DISPATCHER_COMMAND_BUFFER_SIZE: usize = 64;
-
-const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 256;
-const CONN_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 64;
-
-const DEFAULT_LOCALE: &str = "en_US";
-
 /////////////////////////////////////////////////////////////////////////////
-#[non_exhaustive]
+/// The arguments used by [`Connection::open`].
+/// 
+/// Methods can be chained in order to build the desired argument values, call 
+/// [`finish`] to finish chaining and returns a new argument. 
+///
+/// # Examples:
+/// ```
+/// # use amqprs::security::SecurityCredentials;
+/// # use amqprs::connection::OpenConnectionArguments;
+/// // Update `credentials` field, leaving remaining fields as default value.
+/// let args = OpenConnectionArguments::default()
+///     .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
+///     .finish();
+/// ```
+///
+/// ```
+/// # use amqprs::security::SecurityCredentials;
+/// # use amqprs::connection::OpenConnectionArguments;
+/// // Create arguments, then update the fields.
+/// let mut args = OpenConnectionArguments::new("localhost:5672","user", "bitnami")
+///     .virtual_host("myhost")
+///     .connection_name("myconnection")
+///     .finish();
+/// ```
+///
+/// [`Connection::open`]: struct.Connection.html#method.open
+/// [`finish`]: struct.OpenConnectionArguments.html#method.finish
+
+#[derive(Clone)]
 pub struct OpenConnectionArguments {
-    pub uri: String,
-    pub virtual_host: String,
-    pub connection_name: Option<String>,
-    pub credentials: SecurityCredentials,
+    /// The server URI format "\<ip addr\>\:\<port\>". Default: "localhost:5672".
+    uri: String,
+    /// Default: "/". See [RabbitMQ vhosts](https://www.rabbitmq.com/vhosts.html).
+    virtual_host: String,
+    /// Default: [`None`], auto generate a connection name, otherwise use given connection name.
+    connection_name: Option<String>,
+    /// Default: use SASL/PLAIN authentication. See [RabbitMQ access control](https://www.rabbitmq.com/access-control.html#mechanisms).
+    credentials: SecurityCredentials,
 }
 
 impl Default for OpenConnectionArguments {
@@ -177,27 +218,81 @@ impl Default for OpenConnectionArguments {
             uri: String::from("localhost:5672"),
             virtual_host: String::from("/"),
             connection_name: None,
-            credentials: SecurityCredentials::new_plain("guest".to_string(), "guest".to_string()),
+            credentials: SecurityCredentials::new_plain("guest", "guest"),
         }
     }
 }
 
 impl OpenConnectionArguments {
+    /// Return a new argument with default configuration.
+    /// 
+    /// # Default
+    /// 
+    /// Use virtual host "/", SASL/PLAIN authentication and auto generated connection name.
+    /// 
     pub fn new(uri: &str, username: &str, password: &str) -> Self {
         Self {
             uri: uri.to_owned(),
             virtual_host: String::from("/"),
             connection_name: None,
-            credentials: SecurityCredentials::new_plain(username.to_string(), password.to_string()),
+            credentials: SecurityCredentials::new_plain(username, password),
         }
+    }
+
+    /// Set the URI of the server. Format: "\<ip addr\>\:\<port\>"
+    /// 
+    /// # Default
+    /// 
+    /// "localhost:5672"
+    pub fn uri(&mut self, uri: &str) -> &mut Self {
+        self.uri = uri.to_owned();
+        self
+    }
+
+    /// Set the virtual host. See [RabbitMQ vhosts](https://www.rabbitmq.com/vhosts.html).
+    /// 
+    /// # Default
+    /// 
+    /// "/"
+    pub fn virtual_host(&mut self, virtual_host: &str) -> &mut Self {
+        self.virtual_host = virtual_host.to_owned();
+        self
+    }
+
+    /// Set the connection name.
+    /// 
+    /// # Default
+    /// 
+    /// Name is auto generated.
+    pub fn connection_name(&mut self, connection_name: &str) -> &mut Self {
+        self.connection_name = Some(connection_name.to_owned());
+        self
+    }
+
+    /// Set the user credentials. See [RabbitMQ access control](https://www.rabbitmq.com/access-control.html#mechanisms).
+    /// 
+    /// # Default
+    /// 
+    /// SASL/PLAIN authentication, "guest" as both username and password.
+    pub fn credentials(&mut self, credentials: SecurityCredentials) -> &mut Self {
+        self.credentials = credentials;
+        self
+    }
+
+    /// Finish chaining and returns a new argument according to chained configurations.
+    pub fn finish(&mut self) -> Self {
+        self.clone()
     }
 }
 
 /////////////////////////////////////////////////////////////////////////////
 
-/// AMQP Connection API
 impl Connection {
-    /// Open a AMQP connection
+    /// Open and returns a new AMQP connection.
+    /// 
+    /// # Errors
+    /// 
+    /// Returns [`Err`] if anything goes wrong during openning a AMQP connection.
     pub async fn open(args: &OpenConnectionArguments) -> Result<Self> {
         // TODO: uri parsing
         let mut connection = SplitConnection::open(&args.uri).await?;
@@ -239,7 +334,7 @@ impl Connection {
             .await?;
 
         // C: Open
-        let open = Open::default().into_frame();
+        let open = Open::new(args.virtual_host.clone().try_into().unwrap()).into_frame();
         connection.write_frame(DEFAULT_CONN_CHANNEL, open).await?;
 
         // S: OpenOk
@@ -252,7 +347,7 @@ impl Connection {
 
         // spawn network management tasks and get internal channel' sender half.
         let (outgoing_tx, outgoing_rx) = mpsc::channel(OUTGOING_MESSAGE_BUFFER_SIZE);
-        let (conn_mgmt_tx, conn_mgmt_rx) = mpsc::channel(CONN_MANAGEMENT_COMMAND_BUFFER_SIZE);
+        let (conn_mgmt_tx, conn_mgmt_rx) = mpsc::channel(CONNECTION_MANAGEMENT_COMMAND_BUFFER_SIZE);
 
         let shared = Arc::new(SharedConnectionInner {
             server_properties,
@@ -381,13 +476,17 @@ impl Connection {
         Ok(server_properties)
     }
 
-    /// get connection name
+    /// Get connection name.
     pub fn connection_name(&self) -> &str {
         &self.shared.connection_name
     }
+
+    /// Get the maximum total number of channels of the connection.
     pub fn channel_max(&self) -> u16 {
         self.shared.channel_max
     }
+
+    /// Get the server propertities reported by server.
     pub fn server_properties(&self) -> &ServerProperties {
         &self.shared.server_properties
     }
@@ -412,6 +511,15 @@ impl Connection {
         Ok(responder_rx)
     }
 
+    /// Register callbacks for handling asynchronous message from server for the connection.
+    /// 
+    /// User should always register callbacks. See [`callbacks`] documentation.
+    /// 
+    /// # Errors
+    /// 
+    /// If returns [`Err`], user can try again untill registration succeed.
+    /// 
+    /// [`callbacks`]: ../callbacks/index.html
     pub async fn register_callback<F>(&self, callback: F) -> Result<()>
     where
         F: ConnectionCallback + Send + 'static,
@@ -430,6 +538,7 @@ impl Connection {
         self.shared.is_open.store(is_open, Ordering::Relaxed);
     }
 
+    /// Returns [`true`] if connection is open.
     pub fn is_open(&self) -> bool {
         self.shared.is_open.load(Ordering::Relaxed)
     }
@@ -503,15 +612,19 @@ impl Connection {
         });
     }
 
-    /// open a AMQ channel
-    pub async fn open_channel(&self) -> Result<Channel> {
+    /// Open and return a new AMQP channel.
+    /// 
+    /// # Errors
+    /// 
+    /// If returns [`Err`], it usually due to usage errors and server reject or close the connection.
+    pub async fn open_channel(&self, channel_id: Option<AmqpChannelId>) -> Result<Channel> {
         let (dispatcher_tx, dispatcher_rx) = mpsc::channel(DISPATCHER_MESSAGE_BUFFER_SIZE);
         let (dispatcher_mgmt_tx, dispatcher_mgmt_rx) =
-            mpsc::channel(DISPATCHER_COMMAND_BUFFER_SIZE);
+            mpsc::channel(DISPATCHER_MANAGEMENT_COMMAND_BUFFER_SIZE);
 
         // acquire the channel id to be used to open channel
         let channel_id = self
-            .register_channel_resource(None, ChannelResource::new(Some(dispatcher_tx)))
+            .register_channel_resource(channel_id, ChannelResource::new(Some(dispatcher_tx)))
             .await
             .ok_or_else(|| {
                 Error::ChannelOpenError("failed to register channel resource".to_string())
@@ -545,8 +658,12 @@ impl Connection {
         Ok(channel)
     }
 
-    /// This method indicates that a connection has been blocked
-    /// and does not accept new publishes.
+    /// This method notify server that the connection has been blocked and does not 
+    /// accept new publishes.
+    /// 
+    /// # Errors
+    /// 
+    /// Returns error if fails to send indication to server.
     pub async fn blocked(&self, reason: String) -> Result<()> {
         let blocked = Blocked::new(reason.try_into().unwrap());
 
@@ -556,8 +673,13 @@ impl Connection {
             .await?;
         Ok(())
     }
-    /// This method indicates that a connection has been unblocked
-    /// and now accepts publishes.
+    
+    /// This method notify server that the connection has been unblocked and does not 
+    /// accept new publishes.
+    /// 
+    /// # Errors
+    /// 
+    /// Returns error if fails to send indication to server.    
     pub async fn unblocked(&self) -> Result<()> {
         let unblocked = Unblocked;
 
@@ -567,7 +689,12 @@ impl Connection {
             .await?;
         Ok(())
     }
-    /// This method indicates that the sender wants to close the connection.
+
+    /// Notify server that connection will be closed.
+    /// 
+    /// # Errors
+    /// 
+    /// Returns error if fails to send request to server or receive unexpected response from server. 
     pub async fn close(self) -> Result<()> {
         self.set_is_open(false);
 
@@ -590,6 +717,10 @@ impl Connection {
 }
 
 impl Drop for Connection {
+    /// When drops, try to gracefully shutdown the connection if it is still open.
+    /// It is not guaranteed to succeed in a clean way.
+    /// 
+    /// User is recommended to explicitly close connection. See [module][`self`] documents.
     fn drop(&mut self) {
         if let Ok(true) =
             self.shared
@@ -613,7 +744,6 @@ impl Drop for Connection {
 /// It is uncommon to have many connections for one client
 /// We only need a simple algorithm to generate large enough number of unique names.
 /// To avoid using any external crate
-
 fn generate_name(domain: &str) -> String {
     const CHAR_SET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     // at least have `usize::MAX` unique names
@@ -664,13 +794,15 @@ fn generate_name(domain: &str) -> String {
 mod tests {
     use std::{collections::HashSet, thread};
 
+    
+
     use super::{generate_name, Connection, OpenConnectionArguments};
     use tokio::time;
     use tracing::{subscriber::SetGlobalDefaultError, trace, Level};
 
     #[tokio::test]
     async fn test_channel_open_close() {
-        setup_logging(Level::TRACE);
+        setup_logging(Level::TRACE).ok();
         {
             // test close on drop
             let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
@@ -680,7 +812,7 @@ mod tests {
 
             {
                 // test close on drop
-                let _channel = connection.open_channel().await.unwrap();
+                let _channel = connection.open_channel(None).await.unwrap();
             }
             time::sleep(time::Duration::from_millis(10)).await;
         }
@@ -690,7 +822,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
     async fn test_multi_conn_open_close() {
-        setup_logging(Level::DEBUG);
+        setup_logging(Level::DEBUG).ok();
 
         let mut handles = vec![];
 
@@ -712,7 +844,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multi_channel_open_close() {
-        setup_logging(Level::DEBUG);
+        setup_logging(Level::DEBUG).ok();
         {
             let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
@@ -720,7 +852,7 @@ mod tests {
             let mut handles = vec![];
 
             for _ in 0..10 {
-                let ch = connection.open_channel().await.unwrap();
+                let ch = connection.open_channel(None).await.unwrap();
                 let handle = tokio::spawn(async move {
                     let _ch = ch;
                     time::sleep(time::Duration::from_millis(100)).await;

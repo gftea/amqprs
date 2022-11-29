@@ -1,5 +1,3 @@
-
-
 /// Deprecated: https://www.rabbitmq.com/spec-differences.html
 
 #[allow(dead_code)]

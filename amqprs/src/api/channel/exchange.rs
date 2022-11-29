@@ -236,7 +236,9 @@ impl Channel {
 #[cfg(test)]
 mod tests {
     use super::{ExchangeDeclareArguments, ExchangeDeleteArguments};
-    use crate::api::connection::{Connection, OpenConnectionArguments};
+    use crate::{
+        api::connection::{Connection, OpenConnectionArguments},
+    };
 
     #[tokio::test]
     async fn test_exchange_declare() {
@@ -244,7 +246,7 @@ mod tests {
 
         let client = Connection::open(&args).await.unwrap();
 
-        let channel = client.open_channel().await.unwrap();
+        let channel = client.open_channel(None).await.unwrap();
         let mut args = ExchangeDeclareArguments::new("amq.direct", "direct");
         args.passive = true;
         channel.exchange_declare(args).await.unwrap();
@@ -257,7 +259,7 @@ mod tests {
 
         let client = Connection::open(&args).await.unwrap();
 
-        let channel = client.open_channel().await.unwrap();
+        let channel = client.open_channel(None).await.unwrap();
         let args = ExchangeDeleteArguments::new("amq.direct");
         channel.exchange_delete(args).await.unwrap();
     }

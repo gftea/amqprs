@@ -1,12 +1,17 @@
-//! Traits for asynchronous message callbacks of [`Connection`] and [`Channel`].
+//! Callback interfaces of asynchronous message for [`Connection`] and [`Channel`].
 //!
 //! In AMQP_0-9-1 protocol, some messages (`methods` in AMQP's term) can be initiated by server.
-//! These messages are handled asynchronously. The callback traits provide user the definition of interfaces.
-//! User should define its own callback types and implement the traits [`ConnectionCallback`] and [`ChannelCallback`], then register the callbacks by
-//! [`Connection::register_callback`] and [`Channel::register_callback`] respectively.
+//! These messages are handled asynchronously by client via callbacks. 
+//! 
+//! User should define its own callback types and implement the traits [`ConnectionCallback`] 
+//! and [`ChannelCallback`]. 
+//! 
+//! After open a connection, immediately register the callbacks by [`Connection::register_callback`].
+//! After open a channel,  immediately register the callbacks by [`Channel::register_callback`].
 //!
 //! # Examples
 //! See [`DefaultConnectionCallback`] and [`DefaultChannelCallback`] for simple example.
+//! 
 //! The default callback implementations are only for demo and debugging purposes.
 //! User is expected to implement its own callbacks.
 //!
@@ -28,16 +33,21 @@ use async_trait::async_trait;
 use tracing::{error, info};
 
 /////////////////////////////////////////////////////////////////////////////
-/// Trait for callback interfaces of `Connection` level message
+/// Callback interfaces for asynchronous `Connection` class message.
 ///
 /// See [module level][`self`] documentation for general guidelines.
 #[async_trait]
 pub trait ConnectionCallback {
     /// Callback to handle `close` connection request from server.
     ///
-    /// Returns [`Ok`] to respond to server that the request is received and handled properly.
-    /// If returns [`Err`], no response to server, which means server won't know whether the request
-    /// has been received by client, and might consider the connection isn't shutdown gracefully.
+    /// Returns [`Ok`] to reply server that the request is received and
+    /// handled properly.
+    /// 
+    /// # Errors
+    /// 
+    /// If returns [`Err`], no reply to server, which means server won't know
+    /// whether the request has been received by client, and may consider
+    /// the connection isn't shutdown.
     async fn close(&mut self, connection: &Connection, close: Close) -> Result<()>;
 
     /// Callback to handle connection `blocked` indication from server
@@ -47,7 +57,7 @@ pub trait ConnectionCallback {
     async fn unblocked(&mut self, connection: &Connection, blocked: Unblocked);
 }
 
-/// Default type that implements `ConnectionCallback`
+/// Default type that implements `ConnectionCallback`.
 ///
 /// For demo and debugging purpose only.
 pub struct DefaultConnectionCallback;
@@ -71,25 +81,35 @@ impl ConnectionCallback for DefaultConnectionCallback {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-///  Trait for callback interfaces of `Channel` level message.
+///  Callback interfaces for asynchronous `Channel` class message.
 ///
 /// See [module level][`self`] documentation for general guidelines.
 #[async_trait]
 pub trait ChannelCallback {
     /// Callback to handle `close` channel request from server.
     ///
-    /// Returns [`Ok`] to respond to server that the request is received and handled properly.
-    /// If returns [`Err`], no response to server, which means server won't know whether the request
-    /// has been received by client, and might consider the channel isn't closed.
+    /// Returns [`Ok`] to reply server that the request is received and 
+    /// handled properly.
+    /// 
+    /// # Errors
+    /// 
+    /// If returns [`Err`], no reply to server, which means server won't know
+    /// whether the request has been received by client, and may consider
+    /// the channel isn't closed.
     async fn close(&mut self, channel: &Channel, close: CloseChannel) -> Result<()>;
 
     /// Callback to handle server's request to `cancel` the consumer of current channel.
     ///
-    /// Returns [`Ok`] to respond to server that request has been received and the consumer will be cancelled.
-    /// If returns [`Err`], no response to server and no consumer will be cancelled.  
+    /// Returns [`Ok`] to reply server that request has been received and 
+    /// the consumer will be cancelled.
+    /// 
+    /// # Errors
+    /// 
+    /// If returns [`Err`], no reply to server and no consumer will be cancelled.  
     async fn cancel(&mut self, channel: &Channel, cancel: Cancel) -> Result<()>;
 
-    /// Callback to handle server's `flow` request to pause or restart the flow of sending content data.
+    /// Callback to handle server's `flow` request to pause or restart 
+    /// the flow of sending content data.
     ///
     /// Returns [`true`] to indicate to server that client starts sending data.
     /// Returns [`false`] to indicate to server that client stops sending data.
@@ -97,19 +117,24 @@ pub trait ChannelCallback {
 
     /// Callback to handle `ack` indication from server.
     ///
-    /// Only occurs in `publish confirm` mode, sent by server to acknowledges one or more messages published.
+    /// Only occurs in `publish confirm` mode, sent by server to acknowledges 
+    /// one or more messages published.
     async fn publish_ack(&mut self, channel: &Channel, ack: Ack);
 
     /// Callback to handle `nack` indication from server.
     ///
-    /// Only occurs in `publish confirm` mode, sent by server to inform publisher of unhandled messages.
+    /// Only occurs in `publish confirm` mode, sent by server to inform publisher 
+    /// of unhandled messages.
     async fn publish_nack(&mut self, channel: &Channel, nack: Nack);
 
     /// Callback to handle `return` indication with undeliverable message from server.
     ///
-    /// The input variable [ret][`Return`] contains the reason why the message is returned.
-    /// The input variable [basic_properties][`BasicProperties`] contains the propertities of the returned message.
-    /// The input variable [content][`Vec<u8>`] contains the content of the returned message.
+    /// The [ret][`Return`] contains the reason why the message is returned.
+    /// 
+    /// The [basic_properties][`BasicProperties`] contains the propertities
+    /// of the returned message.
+    /// 
+    /// The [content][`Vec<u8>`] contains the body of the returned message.
     ///
     /// [`Return`]: ../struct.Return.html
     /// [`BasicProperties`]: ../struct.BasicProperties.html

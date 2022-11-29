@@ -23,7 +23,7 @@ async fn test_connection_callback() {
         .unwrap();
 
     // open a channel on the connection
-    let channel = connection.open_channel().await.unwrap();
+    let channel = connection.open_channel(None).await.unwrap();
 
     // expect panic because invalid exchange type will cause server to shutdown connection,
     // the connection callback for `Close` method should be called and all internal channel services are closed
@@ -49,7 +49,7 @@ async fn test_channel_callback() {
     let connection = Connection::open(&args).await.unwrap();
 
     // open a channel on the connection
-    let channel = connection.open_channel().await.unwrap();
+    let channel = connection.open_channel(None).await.unwrap();
     channel
         .register_callback(DefaultChannelCallback)
         .await

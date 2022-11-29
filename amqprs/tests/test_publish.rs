@@ -17,7 +17,7 @@ async fn test_publish() {
     let connection = Connection::open(&args).await.unwrap();
 
     // open a channel on the connection
-    let channel = connection.open_channel().await.unwrap();
+    let channel = connection.open_channel(None).await.unwrap();
 
     let exchange_name = "amq.topic";
     let exchange_type = "topic";

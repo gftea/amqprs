@@ -1,7 +1,5 @@
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 
-
-
 const INITIAL_BIT_MASK: u8 = 0b1000_0000;
 pub(crate) struct ChannelIdRepository {
     /// Each bit represent two states: 1: occupied, 0: free.

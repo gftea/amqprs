@@ -130,8 +130,20 @@ impl TuneOk {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Open {
     virtual_host: ShortStr,
+    /// Deprecated: "capabilities", must be zero
     capabilities: ShortStr,
+    /// Deprecated: "insist", must be zero
     insist: Bit,
+}
+
+impl Open {
+    pub fn new(virtual_host: ShortStr) -> Self {
+        Self {
+            virtual_host,
+            capabilities: ShortStr::default(),
+            insist: 0,
+        }
+    }
 }
 
 impl Default for Open {
@@ -139,13 +151,14 @@ impl Default for Open {
         Self {
             virtual_host: "/".try_into().unwrap(),
             capabilities: ShortStr::default(),
-            insist: false as Bit,
+            insist: 0,
         }
     }
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OpenOk {
-    pub know_hosts: ShortStr,
+    ///  Deprecated: "known-hosts", must be zero
+    know_hosts: ShortStr,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

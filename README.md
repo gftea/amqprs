@@ -30,7 +30,7 @@ async fn main() {
     let connection = Connection::open(&args).await.unwrap();
 
     // open a channel on the connection
-    let mut channel = connection.open_channel().await.unwrap();
+    let mut channel = connection.open_channel(None).await.unwrap();
 
     // declare a queue
     let queue_name = "amqprs";

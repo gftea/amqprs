@@ -1,4 +1,4 @@
-use std::{fmt};
+use std::fmt;
 
 use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
 use serde::{de::Visitor, Deserialize, Serialize};
