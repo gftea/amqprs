@@ -3,18 +3,29 @@ use crate::net;
 use std::fmt;
 use tokio::sync::{mpsc::error::SendError, oneshot::error::RecvError};
 
+/// A list of errors can be returned to the user from the APIs.
+/// 
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {
+    /// Error during openning a connection.
     ConnectionOpenError(String),
+    /// Error during closing a connection.
     ConnectionCloseError(String),
+    /// Error when using the connection. Usually due to incorrect usage by user.
     ConnectionUseError(String),
+    /// Error during openning a channel.
     ChannelOpenError(String),
+    /// Error during closing a channel.
     ChannelCloseError(String),
+    /// Error when using the channel. Usually due to incorrect usage by user.
     ChannelUseError(String),
+    /// Error occurs in network layer.
     NetworkError(String),
+    /// Error in sending or receiving messages via internal communication channel.
+    /// Usually due to incorrect usage by user.
     InternalChannelError(String),
-    Other(String),
+
 }
 
 impl From<net::Error> for Error {
@@ -46,7 +57,6 @@ impl fmt::Display for Error {
             Error::InternalChannelError(msg) => {
                 write!(f, "internal communication error: {msg}")
             }
-            Error::Other(msg) => write!(f, "other error: {msg}"),
         }
     }
 }
