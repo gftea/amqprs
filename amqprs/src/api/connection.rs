@@ -153,8 +153,8 @@ impl ServerProperties {
 
 /// Type represents an AMQP connection.
 ///
-/// See details in each method documentation.
-/// See also general usage in [module level][`self`] documentation.
+/// See documentation of each method.
+/// See also documentation of [module][`self`] .
 /// 
 #[derive(Debug, Clone)]
 pub struct Connection {
@@ -720,7 +720,7 @@ impl Drop for Connection {
     /// When drops, try to gracefully shutdown the connection if it is still open.
     /// It is not guaranteed to succeed in a clean way.
     /// 
-    /// User is recommended to explicitly close connection. See [module][`self`] documents.
+    /// User is recommended to explicitly close connection. See [module][`self`] documentation.
     fn drop(&mut self) {
         if let Ok(true) =
             self.shared
