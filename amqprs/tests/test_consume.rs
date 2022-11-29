@@ -1,12 +1,11 @@
 use amqprs::{
     channel::{
-        AmqArgumentTable, BasicConsumeArguments, BasicPublishArguments, Channel,
-        QueueBindArguments, QueueDeclareArguments,
+        BasicConsumeArguments, BasicPublishArguments, Channel, QueueBindArguments,
+        QueueDeclareArguments,
     },
     connection::{Connection, OpenConnectionArguments},
     consumer::DefaultConsumer,
-    delivery_mode,
-    BasicProperties,
+    delivery_mode, AmqArgumentTable, BasicProperties,
 };
 use tokio::time;
 use tracing::Level;
@@ -118,7 +117,7 @@ async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
         Some("application/json".to_string()),
         None,
         Some(headers),
-        Some(delivery_mode::NON_PERSISTENT),
+        Some(delivery_mode::TRANSIENT),
         None,
         None,
         None,

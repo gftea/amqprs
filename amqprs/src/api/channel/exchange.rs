@@ -1,9 +1,9 @@
 use crate::{
-    api::error::Error,
+    api::{AmqArgumentTable, error::Error},
     frame::{Bind, BindOk, Declare, DeclareOk, Delete, DeleteOk, Frame, Unbind, UnbindOk},
 };
 
-use super::{AmqArgumentTable, Channel, Result};
+use super::{Channel, Result};
 
 /// Arguments for [`exchange_declare`]
 ///

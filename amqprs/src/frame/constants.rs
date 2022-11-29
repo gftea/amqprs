@@ -12,10 +12,10 @@ pub const FRAME_HEARTBEAT: Octect = 8;
 
 pub const FRAME_END: Octect = 206;
 
-// all reply code are unsigned 16bit integer
+/// all reply code are unsigned 16bit integer
 pub const REPLY_SUCCESS: ShortUint = 200; //This reply code is reserved for future use
 
-// soft error for channel
+/// soft error for channel
 pub const CONTENT_TOO_LARGE: ShortUint = 311;
 pub const NO_ROUTE: ShortUint = 312;
 pub const NO_CONSUMERS: ShortUint = 313;
@@ -24,7 +24,7 @@ pub const NOT_FOUND: ShortUint = 404;
 pub const RESOURCE_LOCKED: ShortUint = 405;
 pub const PRECONDITION_FAILED: ShortUint = 406;
 
-// hard error for connection
+/// hard error for connection
 pub const CONNECTION_FORCED: ShortUint = 320;
 pub const INVALID_PATH: ShortUint = 402;
 pub const FRAME_ERROR: ShortUint = 501;
@@ -37,10 +37,20 @@ pub const NOT_ALLOWED: ShortUint = 530;
 pub const NOT_IMPLEMENTED: ShortUint = 540;
 pub const INTERNAL_ERROR: ShortUint = 541;
 
-// class id
+/// class id
 pub const CLASS_CONNECTION: ShortUint = 10;
 pub const CLASS_CHANNEL: ShortUint = 20;
 pub const CLASS_EXCHANGE: ShortUint = 40;
 pub const CLASS_QUEUE: ShortUint = 50;
 pub const CLASS_BASIC: ShortUint = 60;
 pub const CLASS_TX: ShortUint = 90;
+
+
+
+/// Constants of Delivery Mode.
+/// 
+/// See [Delivery Metadata](https://www.rabbitmq.com/consumers.html#message-properties).
+pub mod delivery_mode {
+    pub const TRANSIENT: u8 = 1;
+    pub const PERSISTENT: u8 = 2;
+}

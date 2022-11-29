@@ -110,7 +110,7 @@ impl From<LongStr> for String {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-/// According to https://www.rabbitmq.com/amqp-0-9-1-errata.html
+/// According to [amqp-0-9-1-errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html).
 /// Decimals encoding: "They are encoded as an octet representing the number of places followed by a long signed integer",
 /// but the grammar contradicts that and says: "decimal-value = scale long-uint".
 /// We treat the decimal value as signed integer.

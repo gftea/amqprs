@@ -3,7 +3,7 @@ use std::fmt;
 use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
 use serde::{de::Visitor, Deserialize, Serialize};
 
-use crate::api::channel::AmqArgumentTable;
+use crate::api::AmqArgumentTable;
 
 use super::Frame;
 

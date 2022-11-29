@@ -7,6 +7,7 @@ use crate::{
             ConsumerMessage, DispatcherManagementCommand, RegisterContentConsumer,
             CONSUMER_MESSAGE_BUFFER_SIZE,
         },
+        AmqArgumentTable,
         consumer::AsyncConsumer,
         error::Error,
         Result,
@@ -18,7 +19,7 @@ use crate::{
     },
 };
 
-use super::{AmqArgumentTable, Channel, RegisterGetContentResponder, UnregisterContentConsumer};
+use super::{Channel, RegisterGetContentResponder, UnregisterContentConsumer};
 
 #[derive(Debug, Clone)]
 pub struct BasicQosArguments {

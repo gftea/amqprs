@@ -1,9 +1,9 @@
 //! Implementation of AMQP_0-9-1's Channel class compatible with RabbitMQ.
 //!
-//! This module provides [`Channel`] type which contains all methods for communicating
-//! with RabbitMQ server.
+//! It provides [APIs][`Channel`] to manage an AMQP `Channel`.
 //!
-//! Almost all methods of [`Channel`] accepts arguments, this module contains all argument types for each method.
+//! Almost all methods of [`Channel`] accepts arguments, this module also contains 
+//! all argument types for each method.
 //!
 //! # Usage
 //!
@@ -232,62 +232,7 @@ impl Drop for Channel {
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////
-/// AMQ argument table is a user-facing type act as adaption layer for AMQP's Field Table type.
-/// The semantics of these arguments depends on the server implementation or user application.
-#[derive(Debug, Clone)]
-pub struct AmqArgumentTable {
-    table: FieldTable,
-}
 
-impl AmqArgumentTable {
-    pub fn new() -> Self {
-        Self {
-            table: FieldTable::new(),
-        }
-    }
-
-    pub fn insert_string(&mut self, key: String, value: String) {
-        self.table.insert(
-            key.try_into().unwrap(),
-            FieldValue::S(value.try_into().unwrap()),
-        );
-    }
-    pub fn insert_bool(&mut self, key: String, value: bool) {
-        self.table.insert(
-            key.try_into().unwrap(),
-            FieldValue::t(value.try_into().unwrap()),
-        );
-    }
-    pub fn insert_u8(&mut self, key: String, value: u8) {
-        self.table.insert(
-            key.try_into().unwrap(),
-            FieldValue::B(value.try_into().unwrap()),
-        );
-    }
-    pub fn insert_u16(&mut self, key: String, value: u8) {
-        self.table.insert(
-            key.try_into().unwrap(),
-            FieldValue::u(value.try_into().unwrap()),
-        );
-    }
-    pub fn insert_u32(&mut self, key: String, value: u32) {
-        self.table.insert(
-            key.try_into().unwrap(),
-            FieldValue::i(value.try_into().unwrap()),
-        );
-    }
-    pub fn insert_i64(&mut self, key: String, value: i64) {
-        self.table.insert(
-            key.try_into().unwrap(),
-            FieldValue::l(value.try_into().unwrap()),
-        );
-    }
-    /// the field table type should be hidden from API
-    pub(crate) fn into_field_table(self) -> FieldTable {
-        self.table
-    }
-}
 /////////////////////////////////////////////////////////////////////////////
 mod dispatcher;
 pub(crate) use dispatcher::*;

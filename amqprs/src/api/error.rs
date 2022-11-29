@@ -1,10 +1,11 @@
+//! Error type can be returned by the APIs.
+
 use crate::net;
 
 use std::fmt;
 use tokio::sync::{mpsc::error::SendError, oneshot::error::RecvError};
 
-/// A list of errors can be returned to the user from the APIs.
-/// 
+/// A list of errors can be returned by the APIs.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {

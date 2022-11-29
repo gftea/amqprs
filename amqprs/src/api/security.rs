@@ -1,13 +1,20 @@
+//! This module provides configuration API of Security and Access Control.
+//! 
+//! The configuration is used as part of [`OpenConnectionArguments`] value.
+//! 
+//! [`OpenConnectionArguments`]: ../connection/struct.OpenConnectionArguments.html
+//! [`Connection::open`]: ../connection/struct.Connection.html#method.open
 use amqp_serde::{
     to_buffer,
     types::{LongStr, ShortStr},
 };
 use bytes::BytesMut;
 
+/// Credentials used to open a connection.
 #[derive(Debug, Clone)]
 pub struct SecurityCredentials {
-    pub username: String,
-    pub password: String,
+    username: String,
+    password: String,
     mechanism: AuthenticationMechanism,
 }
 
@@ -21,6 +28,9 @@ enum AuthenticationMechanism {
 }
 
 impl SecurityCredentials {
+    /// Create and return a SASL/PLAIN credential with given `username` and `password`.
+    /// 
+    /// See [RabbitMQ access control](https://www.rabbitmq.com/access-control.html#mechanisms).
     pub fn new_plain(username: &str, password: &str) -> Self {
         Self {
             username: username.to_owned(),
@@ -28,6 +38,9 @@ impl SecurityCredentials {
             mechanism: AuthenticationMechanism::PLAIN,
         }
     }
+    /// Create and return a AMQPLAIN credential with given `username` and `password`.
+    /// 
+    /// See [RabbitMQ access control](https://www.rabbitmq.com/access-control.html#mechanisms).
     pub fn new_amqplain(username: &str, password: &str) -> Self {
         Self {
             username: username.to_owned(),
@@ -35,12 +48,14 @@ impl SecurityCredentials {
             mechanism: AuthenticationMechanism::AMQPLAIN,
         }
     }
+    /// Get the name of authentication mechanism of current credential
     pub(crate) fn get_mechanism_name(&self) -> &str {
         match self.mechanism {
             AuthenticationMechanism::PLAIN => "PLAIN",
             AuthenticationMechanism::AMQPLAIN => "AMQPLAIN",
         }
     }
+    /// Get the security challenge `response` string, to be sent to server.
     pub(crate) fn get_response(&self) -> String {
         match self.mechanism {
             AuthenticationMechanism::PLAIN => format!("\0{}\0{}", self.username, self.password),

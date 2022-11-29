@@ -48,7 +48,9 @@ pub struct DefaultConsumer {
 impl DefaultConsumer {
     /// Return a new consumer.
     /// 
-    /// no_ack = [`true`] means auto ack and should NOT send ACK to server.
+    /// See [Acknowledgement Modes](https://www.rabbitmq.com/consumers.html#acknowledgement-modes)
+    /// 
+    /// no_ack = [`true`] means automatic ack and should NOT send ACK to server.
     /// 
     /// no_ack = [`false`] means manual ack, and should send ACK message to server.
     pub fn new(no_ack: bool) -> Self {
@@ -71,7 +73,7 @@ impl AsyncConsumer for DefaultConsumer {
         info!("{}.", from_utf8(&content).unwrap());
         info!(">>>>> Consumer '{}' End <<<<<.", deliver.consumer_tag());
 
-        // ack explicitly if no_ack = false
+        // ack explicitly if manual ack
         if !self.no_ack {
             let mut args = BasicAckArguments::new();
             args.delivery_tag = deliver.delivery_tag();

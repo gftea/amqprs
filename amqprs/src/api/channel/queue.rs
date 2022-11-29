@@ -1,8 +1,8 @@
 use amqp_serde::types::AmqpMessageCount;
 
-use super::{AmqArgumentTable, Channel};
+use super::Channel;
 use crate::{
-    api::{error::Error, Result},
+    api::{error::Error, AmqArgumentTable, Result},
     frame::{
         BindQueue, BindQueueOk, DeclareQueue, DeclareQueueOk, DeleteQueue, DeleteQueueOk, Frame,
         PurgeQueue, PurgeQueueOk, UnbindQueue, UnbindQueueOk,
