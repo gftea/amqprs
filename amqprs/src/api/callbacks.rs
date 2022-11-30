@@ -35,7 +35,7 @@ use tracing::{error, info};
 /////////////////////////////////////////////////////////////////////////////
 /// Callback interfaces for asynchronous `Connection` class message.
 ///
-/// See [module level][`self`] documentation for general guidelines.
+/// See [module][`self`] documentation for general guidelines.
 #[async_trait]
 pub trait ConnectionCallback {
     /// Callback to handle `close` connection request from server.
@@ -83,7 +83,7 @@ impl ConnectionCallback for DefaultConnectionCallback {
 /////////////////////////////////////////////////////////////////////////////
 ///  Callback interfaces for asynchronous `Channel` class message.
 ///
-/// See [module level][`self`] documentation for general guidelines.
+/// See [module][`self`] documentation for general guidelines.
 #[async_trait]
 pub trait ChannelCallback {
     /// Callback to handle `close` channel request from server.

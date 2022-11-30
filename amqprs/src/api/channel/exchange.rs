@@ -1,5 +1,5 @@
 use crate::{
-    api::{AmqArgumentTable, error::Error},
+    api::{FieldTable, error::Error},
     frame::{Bind, BindOk, Declare, DeclareOk, Delete, DeleteOk, Frame, Unbind, UnbindOk},
 };
 
@@ -17,7 +17,7 @@ pub struct ExchangeDeclareArguments {
     pub auto_delete: bool,
     pub internal: bool,
     pub no_wait: bool,
-    pub arguments: AmqArgumentTable,
+    pub arguments: FieldTable,
 }
 
 impl ExchangeDeclareArguments {
@@ -31,7 +31,7 @@ impl ExchangeDeclareArguments {
             auto_delete: false,
             internal: false,
             no_wait: false,
-            arguments: AmqArgumentTable::new(),
+            arguments: FieldTable::new(),
         }
     }
 }
@@ -69,7 +69,7 @@ pub struct ExchangeBindArguments {
     /// A set of arguments for the binding.
     /// The syntax and semantics of these arguments depends on the exchange class
     /// What is accepted arguments?
-    pub arguments: AmqArgumentTable,
+    pub arguments: FieldTable,
 }
 
 impl ExchangeBindArguments {
@@ -80,7 +80,7 @@ impl ExchangeBindArguments {
             source: source.to_string(),
             routing_key: routing_key.to_string(),
             no_wait: false,
-            arguments: AmqArgumentTable::new(),
+            arguments: FieldTable::new(),
         }
     }
 }
@@ -97,7 +97,7 @@ pub struct ExchangeUnbindArguments {
     /// A set of arguments for the Unbinding.
     /// The syntax and semantics of these arguments depends on the exchange class
     /// What is accepted arguments?
-    pub arguments: AmqArgumentTable,
+    pub arguments: FieldTable,
 }
 
 impl ExchangeUnbindArguments {
@@ -108,7 +108,7 @@ impl ExchangeUnbindArguments {
             source: source.to_string(),
             routing_key: routing_key.to_string(),
             no_wait: false,
-            arguments: AmqArgumentTable::new(),
+            arguments: FieldTable::new(),
         }
     }
 }
@@ -121,7 +121,7 @@ impl Channel {
             args.name.try_into().unwrap(),
             args.typ.try_into().unwrap(),
             0,
-            args.arguments.into_field_table(),
+            args.arguments,
         );
 
         declare.set_passive(args.passive);
@@ -181,7 +181,7 @@ impl Channel {
             args.source.try_into().unwrap(),
             args.routing_key.try_into().unwrap(),
             args.no_wait,
-            args.arguments.into_field_table(),
+            args.arguments,
         );
         if args.no_wait {
             self.shared
@@ -210,7 +210,7 @@ impl Channel {
             args.source.try_into().unwrap(),
             args.routing_key.try_into().unwrap(),
             args.no_wait,
-            args.arguments.into_field_table(),
+            args.arguments,
         );
         if args.no_wait {
             self.shared

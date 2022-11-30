@@ -3,8 +3,6 @@ use std::fmt;
 use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
 use serde::{de::Visitor, Deserialize, Serialize};
 
-use crate::api::AmqArgumentTable;
-
 use super::Frame;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,6 +23,7 @@ impl ContentHeader {
         Frame::ContentHeader(self)
     }
 }
+////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ContentHeaderCommon {
@@ -33,12 +32,13 @@ pub struct ContentHeaderCommon {
     pub body_size: LongLongUint,
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Debug, Serialize, Default, Clone)]
 pub struct BasicProperties {
-    // // property flags is included in this type
-    // // in order to manage the value according to optional property
+    // property flags bits are included in order to
+    // manage the value according to optional property
     property_flags: [Octect; 2],
-
     content_type: Option<ShortStr>,
     content_encoding: Option<ShortStr>,
     headers: Option<FieldTable>,
@@ -55,64 +55,12 @@ pub struct BasicProperties {
     cluster_id: Option<ShortStr>,
 }
 
-impl fmt::Display for BasicProperties {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Basic Propertities: {{ ")?;
-        if let Some(ref v) = self.content_type {
-            write!(f, "content_type = {}, ", v)?;
-        }
-        if let Some(ref v) = self.content_encoding {
-            write!(f, "content_encoding = {}, ", v)?;
-        }
-        if let Some(ref v) = self.headers {
-            write!(f, "headers = {}, ", v)?;
-        }
-        if let Some(ref v) = self.delivery_mode {
-            write!(f, "delivery_mode = {}, ", v)?;
-        }
-        if let Some(ref v) = self.priority {
-            write!(f, "priority = {}, ", v)?;
-        }
-        if let Some(ref v) = self.correlation_id {
-            write!(f, "correlation_id = {}, ", v)?;
-        }
-        if let Some(ref v) = self.reply_to {
-            write!(f, "reply_to = {}, ", v)?;
-        }
-        if let Some(ref v) = self.expiration {
-            write!(f, "expiration = {}, ", v)?;
-        }
-        if let Some(ref v) = self.message_id {
-            write!(f, "message_id = {}, ", v)?;
-        }
-
-        if let Some(ref v) = self.timestamp {
-            write!(f, "timestamp = {}, ", v)?;
-        }
-        if let Some(ref v) = self.message_type {
-            write!(f, "message_type = {}, ", v)?;
-        }
-        if let Some(ref v) = self.user_id {
-            write!(f, "user_id = {}, ", v)?;
-        }
-        if let Some(ref v) = self.app_id {
-            write!(f, "app_id = {}, ", v)?;
-        }
-        if let Some(ref v) = self.cluster_id {
-            write!(f, "cluster_id = {} ", v)?;
-        }
-
-        write!(f, "}}")?;
-
-        Ok(())
-    }
-}
-
 impl BasicProperties {
+    /// Returns a new instance.
     pub fn new(
         content_type: Option<String>,
         content_encoding: Option<String>,
-        headers: Option<AmqArgumentTable>,
+        headers: Option<FieldTable>,
         delivery_mode: Option<u8>,
         priority: Option<u8>,
         correlation_id: Option<String>,
@@ -125,103 +73,105 @@ impl BasicProperties {
         app_id: Option<String>,
         cluster_id: Option<String>,
     ) -> Self {
+        // initial flags
         let mut property_flags = [0u8; 2];
-        // first byte
+        
+        // first byte of flags
         let content_type = match content_type {
             Some(v) => {
-                property_flags[0] |= 1 << 7;
+                Self::set_content_type_flag(&mut property_flags);
                 Some(v.try_into().unwrap())
             }
             None => None,
         };
         let content_encoding = match content_encoding {
             Some(v) => {
-                property_flags[0] |= 1 << 6;
+                Self::set_content_encoding_flag(&mut property_flags);
                 Some(v.try_into().unwrap())
             }
             None => None,
         };
         let headers = match headers {
             Some(v) => {
-                property_flags[0] |= 1 << 5;
-                Some(v.into_field_table())
+                Self::set_headers_flag(&mut property_flags);
+                Some(v)
             }
             None => None,
         };
         let delivery_mode = match delivery_mode {
             Some(v) => {
-                property_flags[0] |= 1 << 4;
+                Self::set_delivery_mode_flag(&mut property_flags);
                 Some(v)
             }
             None => None,
         };
         let priority = match priority {
             Some(v) => {
-                property_flags[0] |= 1 << 3;
+                Self::set_priority_flag(&mut property_flags);
                 Some(v)
             }
             None => None,
         };
         let correlation_id = match correlation_id {
             Some(v) => {
-                property_flags[0] |= 1 << 2;
+                Self::set_correlation_id_flag(&mut property_flags);
                 Some(v.try_into().unwrap())
             }
             None => None,
         };
         let reply_to = match reply_to {
             Some(v) => {
-                property_flags[0] |= 1 << 1;
+                Self::set_reply_to_flag(&mut property_flags);
                 Some(v.try_into().unwrap())
             }
             None => None,
         };
         let expiration = match expiration {
             Some(v) => {
-                property_flags[0] |= 1 << 0;
+                Self::set_expiration_flag(&mut property_flags);
                 Some(v.try_into().unwrap())
             }
             None => None,
         };
-        // 2nd byte
+        // second byte of flags
         let message_id = match message_id {
             Some(v) => {
-                property_flags[1] |= 1 << 7;
+                Self::set_message_id_flag(&mut property_flags);
                 Some(v.try_into().unwrap())
             }
             None => None,
         };
         let timestamp = match timestamp {
             Some(v) => {
-                property_flags[1] |= 1 << 6;
+                Self::set_timestamp_flag(&mut property_flags);
                 Some(v)
             }
             None => None,
         };
         let message_type = match message_type {
             Some(v) => {
-                property_flags[1] |= 1 << 5;
+                Self::set_message_type_flag(&mut property_flags);
                 Some(v.try_into().unwrap())
             }
             None => None,
         };
         let user_id = match user_id {
             Some(v) => {
-                property_flags[1] |= 1 << 4;
+                Self::set_user_id_flag(&mut property_flags);
                 Some(v.try_into().unwrap())
             }
             None => None,
         };
         let app_id = match app_id {
             Some(v) => {
-                property_flags[1] |= 1 << 3;
+                Self::set_app_id_flag(&mut property_flags);
                 Some(v.try_into().unwrap())
             }
             None => None,
         };
         let cluster_id = match cluster_id {
             Some(v) => {
-                property_flags[1] |= 1 << 2;
+                Self::set_cluster_id_flag(&mut property_flags);
                 Some(v.try_into().unwrap())
             }
             None => None,
@@ -245,64 +195,236 @@ impl BasicProperties {
         }
     }
 
+    fn set_content_type_flag(flags: &mut [Octect; 2]) {
+        flags[0] |= 1 << 7;
+    }
+    fn set_content_encoding_flag(flags: &mut [Octect; 2]) {
+        flags[0] |= 1 << 6;
+    }
+    fn set_headers_flag(flags: &mut [Octect; 2]) {
+        flags[0] |= 1 << 5;
+    }
+    fn set_delivery_mode_flag(flags: &mut [Octect; 2]) {
+        flags[0] |= 1 << 4;
+    }
+    fn set_priority_flag(flags: &mut [Octect; 2]) {
+        flags[0] |= 1 << 3;
+    }
+    fn set_correlation_id_flag(flags: &mut [Octect; 2]) {
+        flags[0] |= 1 << 2;
+    }
+    fn set_reply_to_flag(flags: &mut [Octect; 2]) {
+        flags[0] |= 1 << 1;
+    }
+    fn set_expiration_flag(flags: &mut [Octect; 2]) {
+        flags[0] |= 1 << 0;
+    }
+    fn set_message_id_flag(flags: &mut [Octect; 2]) {
+        flags[1] |= 1 << 7;
+    }
+    fn set_timestamp_flag(flags: &mut [Octect; 2]) {
+        flags[1] |= 1 << 6;
+    }
+    fn set_message_type_flag(flags: &mut [Octect; 2]) {
+        flags[1] |= 1 << 5;
+    }
+    fn set_user_id_flag(flags: &mut [Octect; 2]) {
+        flags[1] |= 1 << 4;
+    }
+    fn set_app_id_flag(flags: &mut [Octect; 2]) {
+        flags[1] |= 1 << 3;
+    }
+    fn set_cluster_id_flag(flags: &mut [Octect; 2]) {
+        flags[1] |= 1 << 2;
+    }
+
+
     pub fn content_type(&self) -> Option<&String> {
         self.content_type.as_deref()
+    }
+
+    /// Chainable setter of content type.
+    ///
+    /// # Default: [`None`]
+    pub fn set_content_type(&mut self, content_type: &str) -> &mut Self {
+        Self::set_content_type_flag(&mut self.property_flags);
+        self.content_type = Some(content_type.to_owned().try_into().unwrap());
+        self
     }
 
     pub fn content_encoding(&self) -> Option<&String> {
         self.content_encoding.as_deref()
     }
 
+    /// Chainable setter of content encoding.
+    ///
+    /// # Default: [`None`]
+    pub fn set_content_encoding(&mut self, content_encoding: &str) -> &mut Self {
+        Self::set_content_encoding_flag(&mut self.property_flags);
+        self.content_encoding = Some(content_encoding.to_owned().try_into().unwrap());
+        self
+    }
+
     pub fn headers(&self) -> Option<&FieldTable> {
         self.headers.as_ref()
+    }
+
+    /// Chainable setter of headers.
+    ///
+    /// # Default: [`None`]
+    pub fn set_headers(&mut self, headers: FieldTable) -> &mut Self {
+        Self::set_headers_flag(&mut self.property_flags);
+        self.headers = Some(headers);
+        self
     }
 
     pub fn delivery_mode(&self) -> Option<u8> {
         self.delivery_mode
     }
 
+    /// Chainable setter of delivery mode.
+    ///
+    /// `delivery_mode`: either [`DELIVERY_MODE_TRANSIENT`] or [`DELIVERY_MODE_PERSISTENT`]
+    ///
+    /// # Default: [`None`]
+    ///
+    /// [`DELIVERY_MODE_TRANSIENT`]: ../constant.DELIVERY_MODE_TRANSIENT.html
+    /// [`DELIVERY_MODE_PERSISTENT`]: ../constant.DELIVERY_MODE_PERSISTENT.html
+    pub fn set_delivery_mode(&mut self, delivery_mode: u8) -> &mut Self {
+        Self::set_delivery_mode_flag(&mut self.property_flags);
+        self.delivery_mode = Some(delivery_mode);
+        self
+    }
+
     pub fn priority(&self) -> Option<u8> {
         self.priority
+    }
+
+    /// Chainable setter of priority.
+    ///
+    /// `priority`: message priority, 0 to 9
+    ///
+    /// # Default: [`None`]
+    pub fn set_priority(&mut self, priority: u8) -> &mut Self {
+        Self::set_priority_flag(&mut self.property_flags);
+        self.priority = Some(priority);
+        self
     }
 
     pub fn correlation_id(&self) -> Option<&String> {
         self.correlation_id.as_deref()
     }
 
+    /// Chainable setter of correlation id.
+    ///
+    /// `correlation_id`: application correlation identifier
+    ///
+    /// # Default: [`None`]
+    pub fn set_correlation_id(&mut self, correlation_id: &str) -> &mut Self {
+        Self::set_correlation_id_flag(&mut self.property_flags);
+        self.correlation_id = Some(correlation_id.try_into().unwrap());
+        self
+    }    
+
     pub fn reply_to(&self) -> Option<&String> {
         self.reply_to.as_deref()
     }
+
+    /// Chainable setter of reply_to.
+    ///
+    /// # Default: [`None`]
+    pub fn set_reply_to(&mut self, reply_to: &str) -> &mut Self {
+        Self::set_reply_to_flag(&mut self.property_flags);
+        self.reply_to = Some(reply_to.try_into().unwrap());
+        self
+    }    
 
     pub fn expiration(&self) -> Option<&String> {
         self.expiration.as_deref()
     }
 
+    /// Chainable setter of expiration.
+    ///
+    /// # Default: [`None`]
+    pub fn set_expiration(&mut self, expiration: &str) -> &mut Self {
+        Self::set_expiration_flag(&mut self.property_flags);
+        self.expiration = Some(expiration.try_into().unwrap());
+        self
+    }    
+
     pub fn message_id(&self) -> Option<&String> {
         self.message_id.as_deref()
     }
+    /// Chainable setter of message_id.
+    ///
+    /// # Default: [`None`]
+    pub fn set_message_id(&mut self, message_id: &str) -> &mut Self {
+        Self::set_message_id_flag(&mut self.property_flags);
+        self.message_id = Some(message_id.try_into().unwrap());
+        self
+    }    
 
     pub fn timestamp(&self) -> Option<u64> {
         self.timestamp
     }
+    /// Chainable setter of timestamp.
+    ///
+    /// # Default: [`None`]
+    pub fn set_timestamp(&mut self, timestamp: u64) -> &mut Self {
+        Self::set_timestamp_flag(&mut self.property_flags);
+        self.timestamp = Some(timestamp);
+        self
+    }    
 
     pub fn message_type(&self) -> Option<&String> {
         self.message_type.as_deref()
     }
-
+    /// Chainable setter of message_type.
+    ///
+    /// # Default: [`None`]
+    pub fn set_message_type(&mut self, message_type: &str) -> &mut Self {
+        Self::set_message_type_flag(&mut self.property_flags);
+        self.message_type = Some(message_type.try_into().unwrap());
+        self
+    }    
     pub fn user_id(&self) -> Option<&String> {
         self.user_id.as_deref()
     }
+    /// Chainable setter of user_id.
+    ///
+    /// # Default: [`None`]
+    pub fn set_user_id(&mut self, user_id: &str) -> &mut Self {
+        Self::set_user_id_flag(&mut self.property_flags);
+        self.user_id = Some(user_id.try_into().unwrap());
+        self
+    }   
 
     pub fn app_id(&self) -> Option<&String> {
         self.app_id.as_deref()
     }
+    /// Chainable setter of app_id.
+    ///
+    /// # Default: [`None`]
+    pub fn set_app_id(&mut self, app_id: &str) -> &mut Self {
+        Self::set_app_id_flag(&mut self.property_flags);
+        self.app_id = Some(app_id.try_into().unwrap());
+        self
+    }   
 
     pub fn cluster_id(&self) -> Option<&String> {
         self.cluster_id.as_deref()
     }
-
- 
+    /// Chainable setter of cluster_id.
+    ///
+    /// # Default: [`None`]
+    pub fn set_cluster_id(&mut self, cluster_id: &str) -> &mut Self {
+        Self::set_cluster_id_flag(&mut self.property_flags);
+        self.cluster_id = Some(cluster_id.try_into().unwrap());
+        self
+    }       
 }
+
+
 
 impl<'de> Deserialize<'de> for BasicProperties {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -437,5 +559,55 @@ impl<'de> Deserialize<'de> for BasicProperties {
     }
 }
 
+impl fmt::Display for BasicProperties {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Basic Propertities: {{ ")?;
+        if let Some(ref v) = self.content_type {
+            write!(f, "content_type = {}, ", v)?;
+        }
+        if let Some(ref v) = self.content_encoding {
+            write!(f, "content_encoding = {}, ", v)?;
+        }
+        if let Some(ref v) = self.headers {
+            write!(f, "headers = {}, ", v)?;
+        }
+        if let Some(ref v) = self.delivery_mode {
+            write!(f, "delivery_mode = {}, ", v)?;
+        }
+        if let Some(ref v) = self.priority {
+            write!(f, "priority = {}, ", v)?;
+        }
+        if let Some(ref v) = self.correlation_id {
+            write!(f, "correlation_id = {}, ", v)?;
+        }
+        if let Some(ref v) = self.reply_to {
+            write!(f, "reply_to = {}, ", v)?;
+        }
+        if let Some(ref v) = self.expiration {
+            write!(f, "expiration = {}, ", v)?;
+        }
+        if let Some(ref v) = self.message_id {
+            write!(f, "message_id = {}, ", v)?;
+        }
 
+        if let Some(ref v) = self.timestamp {
+            write!(f, "timestamp = {}, ", v)?;
+        }
+        if let Some(ref v) = self.message_type {
+            write!(f, "message_type = {}, ", v)?;
+        }
+        if let Some(ref v) = self.user_id {
+            write!(f, "user_id = {}, ", v)?;
+        }
+        if let Some(ref v) = self.app_id {
+            write!(f, "app_id = {}, ", v)?;
+        }
+        if let Some(ref v) = self.cluster_id {
+            write!(f, "cluster_id = {} ", v)?;
+        }
 
+        write!(f, "}}")?;
+
+        Ok(())
+    }
+}

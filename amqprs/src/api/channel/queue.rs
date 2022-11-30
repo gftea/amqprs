@@ -2,7 +2,7 @@ use amqp_serde::types::AmqpMessageCount;
 
 use super::Channel;
 use crate::{
-    api::{error::Error, AmqArgumentTable, Result},
+    api::{error::Error, FieldTable, Result},
     frame::{
         BindQueue, BindQueueOk, DeclareQueue, DeclareQueueOk, DeleteQueue, DeleteQueueOk, Frame,
         PurgeQueue, PurgeQueueOk, UnbindQueue, UnbindQueueOk,
@@ -18,7 +18,7 @@ pub struct QueueDeclareArguments {
     exclusive: bool,
     auto_delete: bool,
     no_wait: bool,
-    arguments: AmqArgumentTable,
+    arguments: FieldTable,
 }
 
 impl QueueDeclareArguments {
@@ -30,7 +30,7 @@ impl QueueDeclareArguments {
             exclusive: false,
             auto_delete: false,
             no_wait: false,
-            arguments: AmqArgumentTable::new(),
+            arguments: FieldTable::new(),
         }
     }
 }
@@ -41,7 +41,7 @@ pub struct QueueBindArguments {
     pub exchange: String,
     pub routing_key: String,
     pub no_wait: bool,
-    pub arguments: AmqArgumentTable,
+    pub arguments: FieldTable,
 }
 
 impl QueueBindArguments {
@@ -51,7 +51,7 @@ impl QueueBindArguments {
             exchange: exchange.to_string(),
             routing_key: routing_key.to_string(),
             no_wait: false,
-            arguments: AmqArgumentTable::new(),
+            arguments: FieldTable::new(),
         }
     }
 }
@@ -95,7 +95,7 @@ pub struct QueueUnbindArguments {
     pub queue: String,
     pub exchange: String,
     pub routing_key: String,
-    pub arguments: AmqArgumentTable,
+    pub arguments: FieldTable,
 }
 
 impl QueueUnbindArguments {
@@ -104,7 +104,7 @@ impl QueueUnbindArguments {
             queue: queue.to_string(),
             exchange: exchange.to_string(),
             routing_key: routing_key.to_string(),
-            arguments: AmqArgumentTable::new(),
+            arguments: FieldTable::new(),
         }
     }
 }
@@ -129,7 +129,7 @@ impl Channel {
             0,
             args.queue.try_into().unwrap(),
             0,
-            args.arguments.into_field_table(),
+            args.arguments,
         );
         declare.set_passive(args.passive);
         declare.set_durable(args.durable);
@@ -171,7 +171,7 @@ impl Channel {
             args.exchange.try_into().unwrap(),
             args.routing_key.try_into().unwrap(),
             args.no_wait,
-            args.arguments.into_field_table(),
+            args.arguments,
         );
 
         if args.no_wait {
@@ -271,7 +271,7 @@ impl Channel {
             args.queue.try_into().unwrap(),
             args.exchange.try_into().unwrap(),
             args.routing_key.try_into().unwrap(),
-            args.arguments.into_field_table(),
+            args.arguments,
         );
 
         let responder_rx = self.register_responder(UnbindQueueOk::header()).await?;

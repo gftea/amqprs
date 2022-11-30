@@ -1,4 +1,7 @@
+use std::fmt;
+
 use amqp_serde::types::{FieldTable, FieldValue};
+use serde::{Deserialize, Serialize};
 
 use self::error::Error;
 pub(in crate::api) type Result<T> = std::result::Result<T, Error>;
@@ -42,62 +45,7 @@ pub(crate) mod helpers {
    
 }
 
-/////////////////////////////////////////////////////////////////////////////
-/// A user-facing type act as adaption layer for AMQP's Field Table type.
-/// The semantics of these arguments depends on the server implementation or user application.
-#[derive(Debug, Clone, Default)]
-pub struct AmqArgumentTable {
-    table: FieldTable,
-}
 
-impl AmqArgumentTable {
-    pub fn new() -> Self {
-        Self {
-            table: FieldTable::new(),
-        }
-    }
-
-    pub fn insert_string(&mut self, key: String, value: String) {
-        self.table.insert(
-            key.try_into().unwrap(),
-            FieldValue::S(value.try_into().unwrap()),
-        );
-    }
-    pub fn insert_bool(&mut self, key: String, value: bool) {
-        self.table.insert(
-            key.try_into().unwrap(),
-            FieldValue::t(value.try_into().unwrap()),
-        );
-    }
-    pub fn insert_u8(&mut self, key: String, value: u8) {
-        self.table.insert(
-            key.try_into().unwrap(),
-            FieldValue::B(value.try_into().unwrap()),
-        );
-    }
-    pub fn insert_u16(&mut self, key: String, value: u8) {
-        self.table.insert(
-            key.try_into().unwrap(),
-            FieldValue::u(value.try_into().unwrap()),
-        );
-    }
-    pub fn insert_u32(&mut self, key: String, value: u32) {
-        self.table.insert(
-            key.try_into().unwrap(),
-            FieldValue::i(value.try_into().unwrap()),
-        );
-    }
-    pub fn insert_i64(&mut self, key: String, value: i64) {
-        self.table.insert(
-            key.try_into().unwrap(),
-            FieldValue::l(value.try_into().unwrap()),
-        );
-    }
-    /// the field table type should be hidden from API
-    pub(crate) fn into_field_table(self) -> FieldTable {
-        self.table
-    }
-}
 
 /////////////////////////////////////////////////////////////////////////////
 pub mod callbacks;

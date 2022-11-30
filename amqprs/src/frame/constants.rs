@@ -47,10 +47,12 @@ pub const CLASS_TX: ShortUint = 90;
 
 
 
-/// Constants of Delivery Mode.
+/// Delivery Mode: transient/non-persistent
 /// 
 /// See [Delivery Metadata](https://www.rabbitmq.com/consumers.html#message-properties).
-pub mod delivery_mode {
-    pub const TRANSIENT: u8 = 1;
-    pub const PERSISTENT: u8 = 2;
-}
+pub const DELIVERY_MODE_TRANSIENT: u8 = 1;
+
+/// Delivery Mode: persistent
+/// 
+/// See [Delivery Metadata](https://www.rabbitmq.com/consumers.html#message-properties).
+pub const DELIVERY_MODE_PERSISTENT: u8 = 2;

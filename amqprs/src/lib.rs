@@ -58,4 +58,5 @@ pub use frame::BasicProperties;
 pub use frame::Deliver;
 pub use frame::GetOk;
 pub use frame::Return;
-pub use frame::delivery_mode;
+pub use frame::DELIVERY_MODE_TRANSIENT;
+pub use frame::DELIVERY_MODE_PERSISTENT;

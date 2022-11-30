@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::frame::REPLY_SUCCESS;
-use amqp_serde::types::{AmqpPeerProperties, Bit, LongStr, LongUint, Octect, ShortStr, ShortUint};
+use amqp_serde::types::{AmqpPeerProperties, LongStr, LongUint, Octect, ShortStr, ShortUint};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -133,7 +133,7 @@ pub struct Open {
     /// Deprecated: "capabilities", must be zero
     capabilities: ShortStr,
     /// Deprecated: "insist", must be zero
-    insist: Bit,
+    insist: Octect,
 }
 
 impl Open {

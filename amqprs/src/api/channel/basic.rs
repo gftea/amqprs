@@ -7,7 +7,7 @@ use crate::{
             ConsumerMessage, DispatcherManagementCommand, RegisterContentConsumer,
             CONSUMER_MESSAGE_BUFFER_SIZE,
         },
-        AmqArgumentTable,
+        FieldTable,
         consumer::AsyncConsumer,
         error::Error,
         Result,
@@ -48,7 +48,7 @@ pub struct BasicConsumeArguments {
     pub no_ack: bool,
     pub exclusive: bool,
     pub no_wait: bool,
-    pub arguments: AmqArgumentTable,
+    pub arguments: FieldTable,
 }
 
 impl BasicConsumeArguments {
@@ -60,7 +60,7 @@ impl BasicConsumeArguments {
             no_ack: false,
             exclusive: false,
             no_wait: false,
-            arguments: AmqArgumentTable::new(),
+            arguments: FieldTable::new(),
         }
     }
 }
@@ -204,7 +204,7 @@ impl Channel {
             0,
             queue.try_into().unwrap(),
             consumer_tag.clone().try_into().unwrap(),
-            arguments.into_field_table(),
+            arguments,
         );
         consume.set_no_local(no_local);
         consume.set_no_ack(no_ack);

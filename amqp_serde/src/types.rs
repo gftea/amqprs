@@ -1,5 +1,8 @@
-///! AMQP 0-9-1 types for RabbitMQ
-///! https://github.com/rabbitmq/rabbitmq-codegen/blob/main/amqp-rabbitmq-0.9.1.json
+//! AMQP 0-9-1 types for RabbitMQ.
+//! 
+//! See [RabbitMQ's Definition](https://github.com/rabbitmq/rabbitmq-codegen/blob/main/amqp-rabbitmq-0.9.1.json).
+//! 
+//! See [RabbitMQ errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html)
 use std::{
     collections::HashMap,
     fmt::{self, Debug},
@@ -10,7 +13,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
-pub type Bit = u8; // No Rust type to represent single bit, but bits are packed in octect
+// No Rust type to represent single bit, but bits are packed in octect
+// pub type Bit = u8; 
 pub type Octect = u8;
 pub type Boolean = bool; // 0 = FALSE, else TRUE
 pub type ShortShortUint = u8;
@@ -26,8 +30,26 @@ pub type Float = f32;
 pub type Double = f64;
 
 /////////////////////////////////////////////////////////////////////////////
+/// AMQP short string type.
+/// 
+/// User should not directly create it, but use conversion method to create
+/// from `String` or `&str`.
+/// 
+/// # Usage
+/// 
+/// ```
+/// # use amqp_serde::types::ShortStr;
+/// // create a ShortStr from &str
+/// let s: ShortStr = "hello".try_into().unwrap();
+/// 
+/// // create a ShortStr from String
+/// let s: ShortStr = String::from("hello").try_into().unwrap();
+/// 
+/// ```
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ShortStr(u8, String);
+
+
 impl fmt::Display for ShortStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.deref())
@@ -68,8 +90,23 @@ impl TryFrom<&str> for ShortStr {
 }
 
 /////////////////////////////////////////////////////////////////////////////
+/// AMQP long string type.
+/// 
+/// User should not directly create it, but use conversion method to create
+/// from `String` or `&str`.
+/// 
+/// # Usage
+/// 
+/// ```
+/// # use amqp_serde::types::LongStr;
+/// // create a LongStr from `&str`
+/// let s: LongStr = "hello".try_into().unwrap();
+/// // create a LongStr from `String`
+/// let s: LongStr = String::from("hello").try_into().unwrap();
+/// ```
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct LongStr(u32, String);
+
 impl fmt::Display for LongStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.deref())
@@ -110,18 +147,30 @@ impl From<LongStr> for String {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-/// According to [amqp-0-9-1-errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html).
-/// Decimals encoding: "They are encoded as an octet representing the number of places followed by a long signed integer",
-/// but the grammar contradicts that and says: "decimal-value = scale long-uint".
-/// We treat the decimal value as signed integer.
+/// AMQP decimal type. 
+/// 
+/// decimal-value = "scale long-int".
+/// 
+/// RabbitMQ treat the decimal value as signed integer.
+/// See notes "Decimals encoding" in [amqp-0-9-1-errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html).
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct DecimalValue(Octect, LongInt);
+
+impl DecimalValue {
+    pub fn new(scale: Octect, value: LongInt) -> Self {
+        Self(scale, value)
+    }
+}
+
 impl fmt::Display for DecimalValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Decimal({}, {})", self.0, self.1)
     }
 }
+
 /////////////////////////////////////////////////////////////////////////////
+/// AMQP byte array type.
+
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct ByteArray(LongUint, Vec<u8>);
 impl TryFrom<Vec<u8>> for ByteArray {
@@ -144,9 +193,17 @@ impl fmt::Display for ByteArray {
 }
 /////////////////////////////////////////////////////////////////////////////
 
-/// RabbitMQ use LongUint as length value
+/// AMQP field array type.
+
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct FieldArray(LongUint, Vec<FieldValue>);
+pub struct FieldArray(LongUint, Vec<FieldValue>);// RabbitMQ use LongUint as length value
+
+impl FieldArray {
+    pub fn new() -> Self {
+        Self(0, Vec::with_capacity(0))
+    }
+} 
+
 impl TryFrom<Vec<FieldValue>> for FieldArray {
     type Error = TryFromIntError;
 
@@ -176,31 +233,22 @@ impl fmt::Display for FieldArray {
         Ok(())
     }
 }
-/////////////////////////////////////////////////////////////////////////////
-// Follow Rabbit definitions below
-// Ref: // https://www.rabbitmq.com/amqp-0-9-1-errata.html#section_3
-//----------------------------------------------------------------------------
-// 0-9   0-9-1   Qpid/Rabbit  Type               Remarks
-// ---------------------------------------------------------------------------
-//         t       t            Boolean
-//         b       b            Signed 8-bit
-//         B       B            Unsigned 8-bit
-//         U       s            Signed 16-bit      (A1)
-//         u       u            Unsigned 16-bit
-//   I     I       I            Signed 32-bit
-//         i       i            Unsigned 32-bit
-//         L       l            Signed 64-bit      (B)
-//         l                    Unsigned 64-bit
-//         f       f            32-bit float
-//         d       d            64-bit float
-//   D     D       D            Decimal
-//         s                    Short string       (A2)
-//   S     S       S            Long string
-//         A       A            Array              (C)
-//   T     T       T            Timestamp (u64)
-//   F     F       F            Nested Table
-//   V     V       V            Void
-//                 x            Byte array         (D)
+//////////////////////////////////////////////////////////////////////////////
+/// AMQP field value type.
+/// 
+/// User is recommended to use conversion method to create FieldValue from rust's type.
+/// 
+/// # Usage
+/// 
+/// ```
+/// # use amqp_serde::types::FieldValue;
+/// // convert from `bool`
+/// let x: FieldValue = true.into();
+/// 
+/// // convert into `bool`
+/// let y: bool = x.try_into().unwrap();
+/// ```
+/// See [RabbitMQ errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html#section_3).
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 #[allow(non_camel_case_types)]
 pub enum FieldValue {
@@ -274,6 +322,33 @@ impl TryInto<LongStr> for FieldValue {
     }
 }
 
+/// RabbitMQ's field value support only long string variant, so rust string type
+/// always converted to long string variant.
+impl From<String> for FieldValue {
+    fn from(v: String) -> Self {
+        FieldValue::S(v.try_into().unwrap())
+    }
+}
+
+impl TryInto<String> for FieldValue {
+    type Error = crate::Error;
+
+    fn try_into(self) -> Result<String, Self::Error> {
+        match self {
+            FieldValue::S(v) => Ok(v.into()),
+            _ => Err(crate::Error::Message("not a LongStr".to_string())),
+        }
+    }
+}
+
+impl From<&str> for FieldValue {
+    fn from(v: &str) -> Self {
+        FieldValue::S(v.try_into().unwrap())
+    }
+}
+
+
+
 impl fmt::Display for FieldValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -297,9 +372,10 @@ impl fmt::Display for FieldValue {
         }
     }
 }
+//////////////////////////////////////////////////////////////////////////////
 
 pub type FieldName = ShortStr;
-
+/// AMQP field table type.
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct FieldTable(HashMap<FieldName, FieldValue>);
 
@@ -405,7 +481,6 @@ impl fmt::Display for FieldTable {
 pub type AmqpChannelId = ShortUint; // Define it as type used as `channel id` in AMQP frame instead of `longstr` in amqp-rabbitmq-0.9.1.json which is only used for `open-ok`
 pub type AmqpClassId = ShortUint;
 pub type AmqpMethodId = ShortUint;
-
 pub type AmqpConsumerTag = ShortStr;
 pub type AmqpDeliveryTag = LongLongUint;
 pub type AmqpDestination = ShortStr;
@@ -432,7 +507,7 @@ mod tests {
 
     use super::FieldTable;
     #[test]
-    fn test_table_display() {
+    fn test_field_table_display() {
         let mut table = FieldTable::new();
         table.insert(
             "Cash".try_into().unwrap(),
@@ -442,7 +517,7 @@ mod tests {
         assert_eq!("{ Cash: Decimal(3, 123456) }", format!("{}", table));
     }
     #[test]
-    fn test_field_array() {
+    fn test_field_array_display() {
         let field_arr = FieldArray(
             2,
             vec![FieldValue::t(true), FieldValue::D(DecimalValue(3, 123456))],

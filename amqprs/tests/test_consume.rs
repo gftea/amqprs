@@ -1,3 +1,4 @@
+use amqp_serde::types::FieldTable;
 use amqprs::{
     channel::{
         BasicConsumeArguments, BasicPublishArguments, Channel, QueueBindArguments,
@@ -5,7 +6,7 @@ use amqprs::{
     },
     connection::{Connection, OpenConnectionArguments},
     consumer::DefaultConsumer,
-    delivery_mode, AmqArgumentTable, BasicProperties,
+    DELIVERY_MODE_TRANSIENT, BasicProperties,
 };
 use tokio::time;
 use tracing::Level;
@@ -111,13 +112,13 @@ async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
     // set target exchange name
     args.exchange = exchange_name.to_string();
     args.routing_key = "eiffel.a.b.c.d".to_string();
-    let mut headers = AmqArgumentTable::new();
-    headers.insert_string("myname".to_string(), "amqprs".to_string());
+    let mut headers = FieldTable::new();
+    headers.insert("date".try_into().unwrap(), "2022-11".into());
     let basic_props = BasicProperties::new(
         Some("application/json".to_string()),
         None,
         Some(headers),
-        Some(delivery_mode::TRANSIENT),
+        Some(DELIVERY_MODE_TRANSIENT),
         None,
         None,
         None,
@@ -126,7 +127,7 @@ async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
         None,
         None,
         Some("user".to_string()),
-        Some("test".to_string()),
+        Some("consumer_test".to_string()),
         None,
     );
     for _ in 0..10 {
