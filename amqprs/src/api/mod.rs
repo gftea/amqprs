@@ -5,7 +5,7 @@ pub(in crate::api) type Result<T> = std::result::Result<T, Error>;
 
 // macro should appear before module declaration
 #[macro_use]
-mod helpers {
+pub(crate) mod helpers {
 
     macro_rules! synchronous_request {
         ($tx:expr, $msg:expr, $rx:expr, $response:path, $err:path) => {{
@@ -25,12 +25,27 @@ mod helpers {
             }
         };
     }
+
+    // implements the API for chaining
+    macro_rules! impl_builder_api {
+        ($(#[$($attrss:tt)*])* $field_name:ident, $input_type:ty, $value:expr) => {
+            $(#[$($attrss)*])*
+            pub fn $field_name(&mut self, $field_name: $input_type) -> &mut Self {
+                self.$field_name = $value;
+                self
+            }
+            
+        };
+    }
+
+    pub(crate) use impl_builder_api;
+   
 }
 
 /////////////////////////////////////////////////////////////////////////////
-/// AMQ argument table is a user-facing type act as adaption layer for AMQP's Field Table type.
+/// A user-facing type act as adaption layer for AMQP's Field Table type.
 /// The semantics of these arguments depends on the server implementation or user application.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AmqArgumentTable {
     table: FieldTable,
 }

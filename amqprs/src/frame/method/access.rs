@@ -1,7 +1,7 @@
-/// Deprecated: https://www.rabbitmq.com/spec-differences.html
+/// Deprecated: see [RabbitMQ Spec Differences](https://www.rabbitmq.com/spec-differences.html)
 
 #[allow(dead_code)]
-pub struct Request;
+pub struct Request;// Deprecated
 
 #[allow(dead_code)]
-pub struct RequestOk;
+pub struct RequestOk; // Deprecated

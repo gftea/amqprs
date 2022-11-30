@@ -300,6 +300,8 @@ impl BasicProperties {
     pub fn cluster_id(&self) -> Option<&String> {
         self.cluster_id.as_deref()
     }
+
+ 
 }
 
 impl<'de> Deserialize<'de> for BasicProperties {
@@ -434,3 +436,6 @@ impl<'de> Deserialize<'de> for BasicProperties {
         deserializer.deserialize_struct("BasicPropertities", FIELDS, BasicPropertitiesVisitor)
     }
 }
+
+
+

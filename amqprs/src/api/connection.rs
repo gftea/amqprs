@@ -3,14 +3,16 @@
 //! It provides [APIs][`Connection`] to manage an AMQP `Connection`.
 //!
 //! User should hold the connection object until no longer needs it, and call the [`close`] method
-//! to gracefully shutdown the connection. When connection object is dropped, it will try with best effort
+//! to gracefully shutdown the connection.
+//!
+//! When connection object is dropped, it will try with best effort
 //! to close the connection, but no guarantee to handle close errors.
 //!
 //! # Example
 //! ```rust
-//! use amqprs::security::SecurityCredentials;
-//! use amqprs::connection::{OpenConnectionArguments, Connection};
-//! use amqprs::callbacks;
+//! # use amqprs::security::SecurityCredentials;
+//! # use amqprs::connection::{OpenConnectionArguments, Connection};
+//! # use amqprs::callbacks;
 //!
 //! # #[tokio::main]
 //! # async fn main() {
@@ -155,7 +157,7 @@ impl ServerProperties {
 ///
 /// See documentation of each method.
 /// See also documentation of [module][`self`] .
-/// 
+///
 #[derive(Debug, Clone)]
 pub struct Connection {
     shared: Arc<SharedConnectionInner>,
@@ -173,9 +175,9 @@ struct SharedConnectionInner {
 
 /////////////////////////////////////////////////////////////////////////////
 /// The arguments used by [`Connection::open`].
-/// 
-/// Methods can be chained in order to build the desired argument values, call 
-/// [`finish`] to finish chaining and returns a new argument. 
+///
+/// Methods can be chained in order to build the desired argument values, call
+/// [`finish`] to finish chaining and returns a new argument.
 ///
 /// # Examples:
 /// ```
@@ -225,11 +227,11 @@ impl Default for OpenConnectionArguments {
 
 impl OpenConnectionArguments {
     /// Return a new argument with default configuration.
-    /// 
+    ///
     /// # Default
-    /// 
+    ///
     /// Use virtual host "/", SASL/PLAIN authentication and auto generated connection name.
-    /// 
+    ///
     pub fn new(uri: &str, username: &str, password: &str) -> Self {
         Self {
             uri: uri.to_owned(),
@@ -240,9 +242,9 @@ impl OpenConnectionArguments {
     }
 
     /// Set the URI of the server. Format: "\<ip addr\>\:\<port\>"
-    /// 
+    ///
     /// # Default
-    /// 
+    ///
     /// "localhost:5672"
     pub fn uri(&mut self, uri: &str) -> &mut Self {
         self.uri = uri.to_owned();
@@ -250,9 +252,9 @@ impl OpenConnectionArguments {
     }
 
     /// Set the virtual host. See [RabbitMQ vhosts](https://www.rabbitmq.com/vhosts.html).
-    /// 
+    ///
     /// # Default
-    /// 
+    ///
     /// "/"
     pub fn virtual_host(&mut self, virtual_host: &str) -> &mut Self {
         self.virtual_host = virtual_host.to_owned();
@@ -260,19 +262,19 @@ impl OpenConnectionArguments {
     }
 
     /// Set the connection name.
-    /// 
+    ///
     /// # Default
-    /// 
-    /// Name is auto generated.
+    ///
+    /// Name is auto generated.  
     pub fn connection_name(&mut self, connection_name: &str) -> &mut Self {
         self.connection_name = Some(connection_name.to_owned());
         self
     }
 
     /// Set the user credentials. See [RabbitMQ access control](https://www.rabbitmq.com/access-control.html#mechanisms).
-    /// 
+    ///
     /// # Default
-    /// 
+    ///
     /// SASL/PLAIN authentication, "guest" as both username and password.
     pub fn credentials(&mut self, credentials: SecurityCredentials) -> &mut Self {
         self.credentials = credentials;
@@ -289,10 +291,10 @@ impl OpenConnectionArguments {
 
 impl Connection {
     /// Open and returns a new AMQP connection.
-    /// 
+    ///
     /// # Errors
-    /// 
-    /// Returns [`Err`] if anything goes wrong during openning a AMQP connection.
+    ///
+    /// Returns [`Err`] if any step goes wrong during openning an AMQP connection.
     pub async fn open(args: &OpenConnectionArguments) -> Result<Self> {
         // TODO: uri parsing
         let mut connection = SplitConnection::open(&args.uri).await?;
@@ -376,12 +378,24 @@ impl Connection {
         Ok(new_amq_conn)
     }
 
+    /// Protocol negotiation according to AMQP 0-9-1
+    ///
+    /// Only support AMQP 0-9-1.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if fail to send protocol header.
     async fn negotiate_protocol(conn: &mut SplitConnection) -> Result<()> {
         // only support AMQP 0-9-1 at present
         conn.write(&ProtocolHeader::default()).await?;
         Ok(())
     }
 
+    /// Connection negotiation according to AMQP 0-9-1 methods Start/StartOk
+    ///
+    /// # Errors
+    ///
+    /// Returns error when encounters any protocol error.
     async fn negotiate_connection(
         conn: &mut SplitConnection,
         client_properties: AmqpPeerProperties,
@@ -512,13 +526,14 @@ impl Connection {
     }
 
     /// Register callbacks for handling asynchronous message from server for the connection.
-    /// 
+    ///
     /// User should always register callbacks. See [`callbacks`] documentation.
-    /// 
+    ///
     /// # Errors
-    /// 
-    /// If returns [`Err`], user can try again untill registration succeed.
-    /// 
+    ///
+    /// Returns error if fail to send registration command.
+    /// If returns [`Err`], user can try again until registration succeed.
+    ///
     /// [`callbacks`]: ../callbacks/index.html
     pub async fn register_callback<F>(&self, callback: F) -> Result<()>
     where
@@ -538,7 +553,7 @@ impl Connection {
         self.shared.is_open.store(is_open, Ordering::Relaxed);
     }
 
-    /// Returns [`true`] if connection is open.
+    /// Returns `true` if connection is open.
     pub fn is_open(&self) -> bool {
         self.shared.is_open.load(Ordering::Relaxed)
     }
@@ -613,10 +628,15 @@ impl Connection {
     }
 
     /// Open and return a new AMQP channel.
-    /// 
+    ///
+    /// Automatically generate channel id if input `channel_id` is [`None`],
+    /// otherwise, use the given `channel_id` if it is not occupied.
+    ///
+    /// If the given `channel_id` is occupied, error will be returned.
+    ///
     /// # Errors
-    /// 
-    /// If returns [`Err`], it usually due to usage errors and server reject or close the connection.
+    ///
+    /// Returns error if any failure in resource allocation and communication with server.
     pub async fn open_channel(&self, channel_id: Option<AmqpChannelId>) -> Result<Channel> {
         let (dispatcher_tx, dispatcher_rx) = mpsc::channel(DISPATCHER_MESSAGE_BUFFER_SIZE);
         let (dispatcher_mgmt_tx, dispatcher_mgmt_rx) =
@@ -658,14 +678,14 @@ impl Connection {
         Ok(channel)
     }
 
-    /// This method notify server that the connection has been blocked and does not 
+    /// This method notify server that the connection has been blocked and does not
     /// accept new publishes.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns error if fails to send indication to server.
-    pub async fn blocked(&self, reason: String) -> Result<()> {
-        let blocked = Blocked::new(reason.try_into().unwrap());
+    pub async fn blocked(&self, reason: &str) -> Result<()> {
+        let blocked = Blocked::new(reason.clone().try_into().unwrap());
 
         self.shared
             .outgoing_tx
@@ -673,12 +693,12 @@ impl Connection {
             .await?;
         Ok(())
     }
-    
-    /// This method notify server that the connection has been unblocked and does not 
+
+    /// This method notify server that the connection has been unblocked and does not
     /// accept new publishes.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns error if fails to send indication to server.    
     pub async fn unblocked(&self) -> Result<()> {
         let unblocked = Unblocked;
@@ -690,11 +710,17 @@ impl Connection {
         Ok(())
     }
 
-    /// Notify server that connection will be closed.
-    /// 
+    /// Send request to server to close the connection.
+    ///
+    /// To gracefully shutdown the connection, recommended to `close` the
+    /// connection explicitly instead of relying on `drop`.
+    ///
+    /// This method consume the connection, so even it may return error,
+    /// connection will anyway be dropped.
+    ///
     /// # Errors
-    /// 
-    /// Returns error if fails to send request to server or receive unexpected response from server. 
+    ///
+    /// Returns error if any failure in communication with server.
     pub async fn close(self) -> Result<()> {
         self.set_is_open(false);
 
@@ -719,7 +745,7 @@ impl Connection {
 impl Drop for Connection {
     /// When drops, try to gracefully shutdown the connection if it is still open.
     /// It is not guaranteed to succeed in a clean way.
-    /// 
+    ///
     /// User is recommended to explicitly close connection. See [module][`self`] documentation.
     fn drop(&mut self) {
         if let Ok(true) =
@@ -793,8 +819,6 @@ fn generate_name(domain: &str) -> String {
 #[cfg(test)]
 mod tests {
     use std::{collections::HashSet, thread};
-
-    
 
     use super::{generate_name, Connection, OpenConnectionArguments};
     use tokio::time;

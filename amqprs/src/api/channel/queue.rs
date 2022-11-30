@@ -9,15 +9,16 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone)]
+////////////////////////////////////////////////////////////////////////////////
+#[derive(Debug, Clone, Default)]
 pub struct QueueDeclareArguments {
-    pub queue: String,
-    pub passive: bool,
-    pub durable: bool,
-    pub exclusive: bool,
-    pub auto_delete: bool,
-    pub no_wait: bool,
-    pub arguments: AmqArgumentTable,
+    queue: String,
+    passive: bool,
+    durable: bool,
+    exclusive: bool,
+    auto_delete: bool,
+    no_wait: bool,
+    arguments: AmqArgumentTable,
 }
 
 impl QueueDeclareArguments {
@@ -33,8 +34,8 @@ impl QueueDeclareArguments {
         }
     }
 }
-
-#[derive(Debug, Clone)]
+////////////////////////////////////////////////////////////////////////////////
+#[derive(Debug, Clone, Default)]
 pub struct QueueBindArguments {
     pub queue: String,
     pub exchange: String,
@@ -54,8 +55,8 @@ impl QueueBindArguments {
         }
     }
 }
-
-#[derive(Debug, Clone)]
+////////////////////////////////////////////////////////////////////////////////
+#[derive(Debug, Clone, Default)]
 pub struct QueuePurgeArguments {
     pub queue: String,
     pub no_wait: bool,
@@ -69,8 +70,8 @@ impl QueuePurgeArguments {
         }
     }
 }
-
-#[derive(Debug, Clone)]
+////////////////////////////////////////////////////////////////////////////////
+#[derive(Debug, Clone, Default)]
 pub struct QueueDeleteArguments {
     pub queue: String,
     pub if_unused: bool,
@@ -88,8 +89,8 @@ impl QueueDeleteArguments {
         }
     }
 }
-
-#[derive(Debug, Clone)]
+////////////////////////////////////////////////////////////////////////////////
+#[derive(Debug, Clone, Default)]
 pub struct QueueUnbindArguments {
     pub queue: String,
     pub exchange: String,
@@ -110,10 +111,16 @@ impl QueueUnbindArguments {
 
 /////////////////////////////////////////////////////////////////////////////
 impl Channel {
-    /// When result is Ok
-    ///     - no_wait = false, which means require synchronous response, return `(queue_name, message_count, consumer_count)` wrapped in `Some`
-    ///     - no_wait = true, which means no response required, return `None`
-    ///
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.declare)
+    /// 
+    /// If succeed, returns [`Ok`] with a optional tuple.
+    /// 
+    /// Returns a tuple `(queue_name, message_count, consumer_count)` 
+    /// if `no_wait` argument is `false`, otherwise returns [`None`].
+    /// 
+    /// # Errors
+    /// 
+    /// Returns error if any failure in comunication with server.
     pub async fn queue_declare(
         &self,
         args: QueueDeclareArguments,
@@ -152,7 +159,11 @@ impl Channel {
         }
     }
 
-    ///
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.bind)
+    /// 
+    /// # Errors
+    /// 
+    /// Returns error if any failure in comunication with server.
     pub async fn queue_bind(&self, args: QueueBindArguments) -> Result<()> {
         let bind = BindQueue::new(
             0,
@@ -182,9 +193,15 @@ impl Channel {
         Ok(())
     }
 
-    /// When result is Ok
-    ///     - no_wait = false, which means require synchronous response, return message count wrapped in `Some`
-    ///     - no_wait = true, which means no response required, return `None`
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.purge)
+    /// 
+    /// If succeed, returns [`Ok`] with a optional `message count`.
+    /// 
+    /// Returns `message count` if `no_wait` argument is `false`, otherwise returns [`None`].
+    /// 
+    /// # Errors
+    /// 
+    /// Returns error if any failure in comunication with server.
     pub async fn queue_purge(&self, args: QueuePurgeArguments) -> Result<Option<AmqpMessageCount>> {
         let purge = PurgeQueue::new(0, args.queue.try_into().unwrap(), args.no_wait);
 
@@ -207,10 +224,15 @@ impl Channel {
             Ok(Some(purge_ok.message_count()))
         }
     }
-
-    /// When result is Ok
-    ///     - no_wait = false, which means require synchronous response, return message count wrapped in `Some`
-    ///     - no_wait = true, which means no response required, return `None`
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.delete)
+    /// 
+    /// If succeed, returns [`Ok`] with a optional `message count`.
+    /// 
+    /// Returns `message count` if `no_wait` argument is `false`, otherwise returns [`None`].
+    /// 
+    /// # Errors
+    /// 
+    /// Returns error if any failure in comunication with server.
     pub async fn queue_delete(
         &self,
         args: QueueDeleteArguments,
@@ -238,7 +260,11 @@ impl Channel {
             Ok(Some(delete_ok.message_count()))
         }
     }
-
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.unbind)
+    /// 
+    /// # Errors
+    /// 
+    /// Returns error if any failure in comunication with server.
     pub async fn queue_unbind(&self, args: QueueUnbindArguments) -> Result<()> {
         let unbind = UnbindQueue::new(
             0,

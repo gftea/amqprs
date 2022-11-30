@@ -21,14 +21,33 @@ use tracing::info;
 /// Continously consume the content data until the consumer is cancelled or channel is closed.
 #[async_trait]
 pub trait AsyncConsumer {
-    /// Consume a delivered message and associated content data from Server.
+    /// Consume a delivery from Server.
     /// 
-    /// Method is called in a async task context. 
-    /// Implementation of this method should not be CPU bound (non-blocking). 
+    /// Every delivery combines a [Deliver](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.deliver) frame, 
+    /// message propertities, and content body.
     /// 
-    /// To handle CPU bound consumer, user can spawn a blocking task dedicated 
-    /// for CPU bound job, and within this method, use channel to communicate
-    /// with the blocking task.
+    /// # Inputs
+    /// 
+    /// `channel`: consumer's channel reference, typically used for acknowledge the delivery.
+    /// 
+    /// `deliver`: see [basic.deliver](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.deliver)
+    /// or [delivery metadata](https://www.rabbitmq.com/consumers.html#message-properties)
+    /// 
+    /// `basic_properties`: see [message properties](https://www.rabbitmq.com/consumers.html#message-properties).
+    /// 
+    /// `content`: the content body
+    /// 
+    /// # Non-blocking and blocking consumer
+    /// 
+    /// This method is invoked in a async task context, so its implementation should NOT be CPU bound. 
+    /// 
+    /// To handle CPU bound task, user can spawn a blocking task using 
+    /// [tokio::spawn_blocking](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html) 
+    /// for CPU bound job, and use [tokio's mpsc channel](https://docs.rs/tokio/latest/tokio/sync/mpsc/index.html#communicating-between-sync-and-async-code)
+    /// to cummunicate between sync and async code.
+    /// 
+    /// Also check [bridging async and blocking code](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html#related-apis-and-patterns-for-bridging-asynchronous-and-blocking-code).
+    ///     
     async fn consume(
         &mut self, // use `&mut self` to make trait object to be `Sync`
         channel: &Channel,

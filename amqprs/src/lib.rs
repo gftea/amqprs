@@ -7,10 +7,13 @@
 //!
 //!
 //! # Quick Start
+//! 
 //! ```rust
-//! use amqprs::security::SecurityCredentials;
-//! use amqprs::connection::{OpenConnectionArguments, Connection};
-//! use amqprs::callbacks;
+//! use amqprs::{
+//!     callbacks, 
+//!     security::SecurityCredentials, 
+//!     connection::{OpenConnectionArguments, Connection}, 
+//! };
 //!
 //! # #[tokio::main]
 //! # async fn main() {
@@ -23,14 +26,18 @@
 //! // In production, user should create its own type and implement trait `ConnectionCallback`.
 //! connection.register_callback(callbacks::DefaultConnectionCallback).await.unwrap();
 //!
+//! // ... Now, ready to use the connection ...
+//! 
 //! // Open an AMQP channel on this connection.
 //! let channel = connection.open_channel(None).await.unwrap();
 //! // Register channel level callbacks.
 //! // In production, user should create its own type and implement trait `ChannelCallback`.
 //! channel.register_callback(callbacks::DefaultChannelCallback).await.unwrap();
 //!
-//! // ... use the channel or connection ...
-//!
+//! // ... Now, ready to use the channel ...
+//! // For examples:
+//! channel.flow(true).await.unwrap();
+//! 
 //! // gracefully shutdown.
 //! channel.close().await.unwrap();
 //! connection.close().await.unwrap();
