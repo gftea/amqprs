@@ -176,6 +176,7 @@ impl Publish {
     }
 }
 
+/// AMQP method frame [return](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.return).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Return {
     reply_code: ShortUint,
@@ -212,6 +213,7 @@ impl Return {
     }
 }
 
+/// AMQP method frame [deliver](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.deliver).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Deliver {
     consumer_tag: ShortStr,
@@ -249,6 +251,7 @@ impl Deliver {
     }
 }
 
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Get {
     pub ticket: ShortUint,
@@ -266,6 +269,7 @@ impl Get {
     }
 }
 
+/// AMQP method frame [get-ok](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.get-ok).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetOk {
     delivery_tag: LongLongUint,

@@ -90,21 +90,6 @@ async fn main() {
 }
 ```
 
-_Console Output_
-
-```Python console
-2022-11-15T13:22:19.207063Z  INFO amqprs::api::consumer: >>>>> Consumer 'amqprs-consumer-example' Start <<<<<
-2022-11-15T13:22:19.207127Z  INFO amqprs::api::consumer: Deliver { consumer_tag: ShortStr(23, "amqprs-consumer-example"), delivery_tag: 1, redelivered: false, exchange: ShortStr(9, "amq.topic"), routing_key: ShortStr(14, "eiffel.a.b.c.d") }
-2022-11-15T13:22:19.207170Z  INFO amqprs::api::consumer: BasicProperties { property_flags: [0, 0], content_type: None, content_encoding: None, headers: None, delivery_mode: None, priority: None, correlation_id: None, reply_to: None, expiration: None, message_id: None, timestamp: None, typ: None, user_id: None, app_id: None, cluster_id: None }
-2022-11-15T13:22:19.207206Z  INFO amqprs::api::consumer: 
-            {
-                "meta": {"id": "f9d42464-fceb-4282-be95-0cd98f4741b0", "type": "PublishTester", "version": "4.0.0", "time": 1640035100149},
-                "data": { "customData": []}, 
-                "links": [{"type": "BASE", "target": "fa321ff0-faa6-474e-aa1d-45edf8c99896"}]
-            }
-        
-2022-11-15T13:22:19.207231Z  INFO amqprs::api::consumer: >>>>> Consumer 'amqprs-consumer-example' End <<<<<
-```
 
 ## Design Architecture
 ![Lock-free Design](amqp-chosen_design.drawio.png) 

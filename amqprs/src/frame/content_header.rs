@@ -33,7 +33,23 @@ pub struct ContentHeaderCommon {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
+/// AMQP message properties.
+/// 
+/// User is recommended to use the chainable setter to create desired propertities.
+/// 
+/// See also [message properties](https://www.rabbitmq.com/consumers.html#message-properties).
+/// 
+/// # Example
+/// 
+/// ```
+/// # use amqprs::{BasicProperties, DELIVERY_MODE_TRANSIENT};
+/// let basic_props = BasicProperties::default()
+///     .set_content_type("application/json")
+///     .set_delivery_mode(DELIVERY_MODE_TRANSIENT)
+///     .set_user_id("user")
+///     .set_app_id("consumer_test")
+///     .finish();
+/// ```
 #[derive(Debug, Serialize, Default, Clone)]
 pub struct BasicProperties {
     // property flags bits are included in order to
@@ -422,6 +438,11 @@ impl BasicProperties {
         self.cluster_id = Some(cluster_id.try_into().unwrap());
         self
     }       
+
+    /// Finish chaining and returns a new instance according to chained configurations.
+    pub fn finish(&mut self) -> Self {
+        self.clone()
+    }
 }
 
 

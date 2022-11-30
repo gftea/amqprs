@@ -6,7 +6,7 @@ use amqprs::{
     },
     connection::{Connection, OpenConnectionArguments},
     consumer::DefaultConsumer,
-    DELIVERY_MODE_TRANSIENT, BasicProperties,
+    BasicProperties, DELIVERY_MODE_TRANSIENT,
 };
 use tokio::time;
 use tracing::Level;
@@ -114,22 +114,13 @@ async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
     args.routing_key = "eiffel.a.b.c.d".to_string();
     let mut headers = FieldTable::new();
     headers.insert("date".try_into().unwrap(), "2022-11".into());
-    let basic_props = BasicProperties::new(
-        Some("application/json".to_string()),
-        None,
-        Some(headers),
-        Some(DELIVERY_MODE_TRANSIENT),
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        Some("user".to_string()),
-        Some("consumer_test".to_string()),
-        None,
-    );
+    let basic_props = BasicProperties::default()
+        .set_content_type("application/json")
+        .set_headers(headers)
+        .set_delivery_mode(DELIVERY_MODE_TRANSIENT)
+        .set_user_id("user")
+        .set_app_id("consumer_test")
+        .finish();
     for _ in 0..10 {
         channel
             .basic_publish(basic_props.clone(), content.clone(), args.clone())

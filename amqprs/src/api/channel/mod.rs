@@ -76,7 +76,7 @@ pub(crate) enum DispatcherManagementCommand {
     RegisterChannelCallback(RegisterChannelCallback),
 }
 
-/// Type representing an AMQP Channel.
+/// Type represents an AMQP Channel.
 ///
 /// First, create a new AMQP channel by `Connection's` method [`Connection::open_channel`].
 /// 
