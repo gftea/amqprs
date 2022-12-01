@@ -16,6 +16,7 @@ use crate::{
 
 use super::Channel;
 
+/// APIs for AMQP transaction class.
 impl Channel {
     /// This method sets the channel to use standard transactions. The client must use this
     /// method at least once on a channel before using the [`tx_commit`] or [`tx_rollback`] methods.
@@ -65,7 +66,7 @@ impl Channel {
     /// if that is required an explicit recover call should be issued.
     ///
     /// Also see [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#tx.rollback).
-    /// 
+    ///
     /// # Errors
     ///
     /// Returns error if any failure in communication with server.

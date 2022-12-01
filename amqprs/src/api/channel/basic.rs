@@ -1,3 +1,4 @@
+use amqp_serde::types::AmqpDeliveryTag;
 use tokio::sync::mpsc;
 use tracing::{debug, trace};
 
@@ -7,10 +8,9 @@ use crate::{
             ConsumerMessage, DispatcherManagementCommand, RegisterContentConsumer,
             CONSUMER_MESSAGE_BUFFER_SIZE,
         },
-        FieldTable,
         consumer::AsyncConsumer,
         error::Error,
-        Result,
+        FieldTable, Result,
     },
     frame::{
         Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody, ContentHeader,
@@ -20,42 +20,88 @@ use crate::{
 };
 
 use super::{Channel, RegisterGetContentResponder, UnregisterContentConsumer};
-
-#[derive(Debug, Clone)]
+////////////////////////////////////////////////////////////////////////////////
+/// Arguments for [`basic_qos`]
+///
+/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.qos).
+///
+/// [`basic_qos`]: struct.Channel.html#method.basic_qos
+#[derive(Debug, Clone, Default)]
 pub struct BasicQosArguments {
+    /// Default: 0.
     pub prefetch_size: u32,
+    /// Default: 0.
     pub prefetch_count: u16,
+    /// Default: `false`.
     pub global: bool,
 }
 
 impl BasicQosArguments {
-    pub fn new() -> Self {
+    /// Create new arguments with defaults.
+    pub fn new(prefetch_size: u32, prefetch_count: u16, global: bool) -> Self {
         Self {
-            prefetch_size: 0,
-            prefetch_count: 0,
-            global: false,
+            prefetch_size,
+            prefetch_count,
+            global,
         }
     }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        prefetch_size, u32
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        prefetch_count, u16
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        global, bool
+    }
+    /// Finish chained configuration and return new arguments.
+    pub fn finish(&mut self) -> Self {
+        self.clone()
+    }
 }
-
-#[derive(Debug, Clone)]
+////////////////////////////////////////////////////////////////////////////////
+/// Arguments for [`basic_consume`]
+///
+/// # Support chainable methods to build arguments
+/// ```
+/// # use amqprs::channel::BasicConsumeArguments;
+/// 
+/// let x = BasicConsumeArguments::new("q", "c")
+///     .no_ack(true)
+///     .exclusive(true)
+///     .finish();
+/// ```
+/// 
+/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.consume).
+///
+/// [`basic_consume`]: struct.Channel.html#method.basic_consume
+#[derive(Debug, Clone, Default)]
 pub struct BasicConsumeArguments {
+    /// Default: "".
     pub queue: String,
+    /// Default: "".
     pub consumer_tag: String,
+    /// Default: `false`.
     pub no_local: bool,
-    // In automatic acknowledgement mode,
-    // a message is considered to be successfully delivered immediately after it is sent
+    /// Default: `false`.
     pub no_ack: bool,
+    /// Default: `false`.
     pub exclusive: bool,
+    /// Default: `false`.
     pub no_wait: bool,
+    /// Default: empty table.
     pub arguments: FieldTable,
 }
 
 impl BasicConsumeArguments {
-    pub fn new() -> Self {
+    /// Create new arguments with defaults.
+    pub fn new(queue: &str, consumer_tag: &str) -> Self {
         Self {
-            queue: "".to_string(),
-            consumer_tag: "".to_string(),
+            queue: queue.to_owned(),
+            consumer_tag: consumer_tag.to_owned(),
             no_local: false,
             no_ack: false,
             exclusive: false,
@@ -63,108 +109,267 @@ impl BasicConsumeArguments {
             arguments: FieldTable::new(),
         }
     }
-}
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        queue, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        consumer_tag, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        no_local, bool
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        no_ack, bool
+    }
 
-#[derive(Debug, Clone)]
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        exclusive, bool
+    }
+
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        no_wait, bool
+    }
+
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        arguments, FieldTable
+    }
+    /// Finish chained configuration and return new arguments.
+    pub fn finish(&mut self) -> Self {
+        self.clone()
+    }
+}
+////////////////////////////////////////////////////////////////////////////////
+/// Arguments for [`basic_cancel`]
+///
+/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.cancel).
+///
+/// [`basic_cancel`]: struct.Channel.html#method.basic_cancel
+#[derive(Debug, Clone, Default)]
 pub struct BasicCancelArguments {
+    /// Default: "".
     pub consumer_tag: String,
+    /// Default: `false`.
     pub no_wait: bool,
 }
 
 impl BasicCancelArguments {
-    pub fn new(consumer_tag: String) -> Self {
+    /// Create new arguments with defaults.
+    pub fn new(consumer_tag: &str) -> Self {
         Self {
-            consumer_tag,
+            consumer_tag: consumer_tag.to_owned(),
             no_wait: false,
         }
     }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        consumer_tag, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        no_wait, bool
+    }
+    /// Finish chained configuration and return new arguments.
+    pub fn finish(&mut self) -> Self {
+        self.clone()
+    }
 }
-
-#[derive(Debug, Clone)]
+////////////////////////////////////////////////////////////////////////////////
+/// Arguments for [`basic_get`]
+///
+/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.get).
+///
+/// [`basic_get`]: struct.Channel.html#method.basic_get
+#[derive(Debug, Clone, Default)]
 pub struct BasicGetArguments {
+    /// Queue name. Default: "".
     pub queue: String,
+    /// Default: `false`.
     pub no_ack: bool,
 }
 
 impl BasicGetArguments {
-    pub fn new() -> Self {
+    /// Create new arguments with defaults.
+    pub fn new(queue: &str) -> Self {
         Self {
-            queue: "".to_string(),
+            queue: queue.to_owned(),
             no_ack: false,
         }
     }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        queue, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        no_ack, bool
+    }
+    /// Finish chained configuration and return new arguments.
+    pub fn finish(&mut self) -> Self {
+        self.clone()
+    }
 }
 
+/// Tuple returned by [`Channel::basic_get`] method.
+///
+/// `get-ok` + `message propertities` + `message body`
+///
+/// [`Channel::basic_get`]: struct.Channel.html#method.basic_get
 pub type GetMessage = (GetOk, BasicProperties, Vec<u8>);
 
-#[derive(Debug, Clone)]
+////////////////////////////////////////////////////////////////////////////////
+/// Arguments for [`basic_ack`]
+///
+/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack).
+///
+/// [`basic_ack`]: struct.Channel.html#method.basic_ack
+#[derive(Debug, Clone, Default)]
 pub struct BasicAckArguments {
+    /// Default: 0.
     pub delivery_tag: u64,
+    /// Default: `false`.
     pub multiple: bool,
 }
 
 impl BasicAckArguments {
-    pub fn new() -> Self {
-        Self {
-            delivery_tag: 0,
-            multiple: false,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BasicNackArguments {
-    pub delivery_tag: u64,
-    pub multiple: bool,
-    pub requeue: bool,
-}
-
-impl BasicNackArguments {
-    pub fn new() -> Self {
-        Self {
-            delivery_tag: 0,
-            multiple: false,
-            requeue: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BasicRejectArguments {
-    pub delivery_tag: u64,
-    pub requeue: bool,
-}
-
-impl BasicRejectArguments {
-    pub fn new(delivery_tag: u64) -> Self {
+    /// Create new arguments with defaults.
+    pub fn new(delivery_tag: AmqpDeliveryTag, multiple: bool) -> Self {
         Self {
             delivery_tag,
+            multiple,
+        }
+    }
+}
+////////////////////////////////////////////////////////////////////////////////
+/// Arguments for [`basic_nack`]
+///
+/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.nack).
+///
+/// [`basic_nack`]: struct.Channel.html#method.basic_nack
+#[derive(Debug, Clone)]
+pub struct BasicNackArguments {
+    /// Default: 0.
+    pub delivery_tag: u64,
+    /// Default: `false`'.
+    pub multiple: bool,
+    /// Default: `true`.
+    pub requeue: bool,
+}
+impl Default for BasicNackArguments {
+    fn default() -> Self {
+        Self {
+            delivery_tag: 0,
+            multiple: false,
             requeue: true,
         }
     }
 }
+impl BasicNackArguments {
+    /// Create new arguments with defaults.
 
+    pub fn new(delivery_tag: u64, multiple: bool, requeue: bool) -> Self {
+        Self {
+            delivery_tag,
+            multiple,
+            requeue,
+        }
+    }
+}
+////////////////////////////////////////////////////////////////////////////////
+/// Arguments for [`basic_reject`]
+///
+/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.reject).
+///
+/// [`basic_reject`]: struct.Channel.html#method.basic_reject
 #[derive(Debug, Clone)]
+pub struct BasicRejectArguments {
+    /// Default: 0.
+    pub delivery_tag: u64,
+    /// Default: `true`.
+    pub requeue: bool,
+}
+
+impl Default for BasicRejectArguments {
+    fn default() -> Self {
+        Self {
+            delivery_tag: 0,
+            requeue: true,
+        }
+    }
+}
+impl BasicRejectArguments {
+    /// Create new arguments with defaults.
+    pub fn new(delivery_tag: AmqpDeliveryTag, requeue: bool) -> Self {
+        Self {
+            delivery_tag,
+            requeue,
+        }
+    }
+}
+////////////////////////////////////////////////////////////////////////////////
+/// Arguments for [`basic_publish`]
+///
+/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.publish).
+///
+/// [`basic_publish`]: struct.Channel.html#method.basic_publish
+#[derive(Debug, Clone, Default)]
 pub struct BasicPublishArguments {
+    /// Default: "".
     pub exchange: String,
+    /// Default: "".
     pub routing_key: String,
+    /// Default: `false`.
     pub mandatory: bool,
+    /// Default: `false`.
     pub immediate: bool,
 }
 
 impl BasicPublishArguments {
-    pub fn new() -> Self {
+    /// Create new arguments with defaults.
+    pub fn new(exchange: &str, routing_key: &str) -> Self {
         Self {
-            exchange: "".to_string(),
-            routing_key: "".to_string(),
+            exchange: exchange.to_owned(),
+            routing_key: routing_key.to_owned(),
             mandatory: false,
             immediate: false,
         }
     }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        exchange, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        routing_key, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        mandatory, bool
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        immediate, bool
+    }
+    /// Finish chained configuration and return new arguments.
+    pub fn finish(&mut self) -> Self {
+        self.clone()
+    }
 }
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+/// APIs for AMQP basic class.
 impl Channel {
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.qos)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.      
     pub async fn basic_qos(&mut self, args: BasicQosArguments) -> Result<()> {
         let qos = Qos::new(args.prefetch_size, args.prefetch_count, args.global);
         let responder_rx = self.register_responder(QosOk::header()).await?;
@@ -179,9 +384,15 @@ impl Channel {
         Ok(())
     }
 
-    /// return consumer tag
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack)
+    ///
+    /// Returns consumer tag if succeed.
+    /// 
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.  
     pub async fn basic_consume<F>(
-        &mut self,
+        &self,
         consumer: F,
         args: BasicConsumeArguments,
     ) -> Result<String>
@@ -239,6 +450,7 @@ impl Channel {
         Ok(consumer_tag)
     }
 
+    /// Spawn consumer task
     async fn spawn_consumer<F>(&self, consumer_tag: String, mut consumer: F) -> Result<()>
     where
         F: AsyncConsumer + Send + 'static,
@@ -292,6 +504,11 @@ impl Channel {
         Ok(())
     }
 
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.    
     pub async fn basic_ack(&self, args: BasicAckArguments) -> Result<()> {
         let ack = Ack::new(args.delivery_tag, args.multiple);
         self.shared
@@ -300,7 +517,11 @@ impl Channel {
             .await?;
         Ok(())
     }
-
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.nack)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.  
     pub async fn basic_nack(&self, args: BasicNackArguments) -> Result<()> {
         let mut nack = Nack::new(args.delivery_tag);
         nack.set_multiple(args.multiple);
@@ -311,7 +532,11 @@ impl Channel {
             .await?;
         Ok(())
     }
-
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.reject)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.  
     pub async fn basic_reject(&self, args: BasicRejectArguments) -> Result<()> {
         let reject = Reject::new(args.delivery_tag, args.requeue);
         self.shared
@@ -320,7 +545,13 @@ impl Channel {
             .await?;
         Ok(())
     }
-
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.cancel)
+    ///
+    /// Returns consumer tag if succeed.
+    /// 
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.  
     pub async fn basic_cancel(&mut self, args: BasicCancelArguments) -> Result<String> {
         let BasicCancelArguments {
             consumer_tag,
@@ -357,6 +588,13 @@ impl Channel {
         Ok(consumer_tag2)
     }
 
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.get)
+    ///
+    /// Either returns a tuple [`GetMessage`] or [`None`] if no message available.
+    /// 
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.      
     pub async fn basic_get(&mut self, args: BasicGetArguments) -> Result<Option<GetMessage>> {
         let get = Get::new(0, args.queue.try_into().unwrap(), args.no_ack);
 
@@ -397,7 +635,11 @@ impl Channel {
         Ok(Some((get_ok, basic_properties, content)))
     }
 
-    /// RabbitMQ does not support `requeue = false`. User should always pass `true`.
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.recover)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.       
     pub async fn basic_recover(&mut self, requeue: bool) -> Result<()> {
         let recover = Recover::new(requeue);
 
@@ -413,7 +655,11 @@ impl Channel {
         Ok(())
     }
 
-    /// TODO: add return call back
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.publish)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.        
     pub async fn basic_publish(
         &self,
         basic_properties: BasicProperties,
@@ -476,20 +722,25 @@ mod tests {
             let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
             let client = Connection::open(&args).await.unwrap();
 
-            let mut channel = client.open_channel(None).await.unwrap();
-            channel
-                .queue_declare(QueueDeclareArguments::new("amqprs"))
+            let channel = client.open_channel(None).await.unwrap();
+            let (queue_name, ..) = channel
+                .queue_declare(QueueDeclareArguments::default())
                 .await
+                .unwrap()
                 .unwrap();
             channel
-                .queue_bind(QueueBindArguments::new("amqprs", "amq.topic", "eiffel.#"))
+                .queue_bind(QueueBindArguments::new(
+                    &queue_name,
+                    "amq.topic",
+                    "eiffel.#",
+                ))
                 .await
                 .unwrap();
 
-            let mut args = BasicConsumeArguments::new();
-            args.queue = "amqprs".to_string();
-            args.consumer_tag = "tester".to_string();
-            args.no_ack = true;
+            let args = BasicConsumeArguments::new(&queue_name, "test_auto_ack")
+                .no_ack(true)
+                .finish();
+
             channel
                 .basic_consume(DefaultConsumer::new(args.no_ack), args)
                 .await
@@ -508,19 +759,22 @@ mod tests {
 
             let client = Connection::open(&args).await.unwrap();
 
-            let mut channel = client.open_channel(None).await.unwrap();
-            channel
-                .queue_declare(QueueDeclareArguments::new("amqprs"))
+            let channel = client.open_channel(None).await.unwrap();
+            let (queue_name, ..) = channel
+                .queue_declare(QueueDeclareArguments::default())
                 .await
+                .unwrap()
                 .unwrap();
             channel
-                .queue_bind(QueueBindArguments::new("amqprs", "amq.topic", "eiffel.#"))
+                .queue_bind(QueueBindArguments::new(
+                    &queue_name,
+                    "amq.topic",
+                    "eiffel.#",
+                ))
                 .await
                 .unwrap();
 
-            let mut args = BasicConsumeArguments::new();
-            args.queue = "amqprs".to_string();
-            args.consumer_tag = "tester".to_string();
+            let args = BasicConsumeArguments::new(&queue_name, "test_manual_ack");
             channel
                 .basic_consume(DefaultConsumer::new(args.no_ack), args)
                 .await
@@ -541,26 +795,12 @@ mod tests {
 
             let channel = client.open_channel(None).await.unwrap();
 
-            let mut args = BasicPublishArguments::new();
-            args.exchange = "amq.topic".to_string();
-            args.routing_key = "eiffel._.amqprs._.tester".to_string();
+            let args = BasicPublishArguments::new("amq.topic", "eiffel._.amqprs._.tester");
 
-            let basic_properties = BasicProperties::new(
-                Some(String::from("application/json;charset=utf-8")),
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            );
+            let basic_properties = BasicProperties::default()
+                .set_content_type("application/json;charset=utf-8")
+                .finish();
+
             let content = String::from(
             r#"
                 {

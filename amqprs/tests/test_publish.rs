@@ -23,9 +23,10 @@ async fn test_publish() {
     let exchange_type = "topic";
 
     // create arguments for exchange_declare
-    let mut args = ExchangeDeclareArguments::new(exchange_name, exchange_type);
-    // set to passive mode - checking existence of the exchange
-    args.passive = true;
+    let args = ExchangeDeclareArguments::new(exchange_name, exchange_type)
+        .passive(true)
+        .finish();
+
     // declare exchange
     channel.exchange_declare(args).await.unwrap();
 
@@ -40,10 +41,8 @@ async fn test_publish() {
         ).into_bytes();
 
     // create arguments for basic_publish
-    let mut args = BasicPublishArguments::new();
-    // set target exchange name
-    args.exchange = exchange_name.to_string();
-    args.routing_key = "eiffel.a.b.c.d".to_string();
+    let args = BasicPublishArguments::new(exchange_name, exchange_type);
+
     // basic publish
     channel
         .basic_publish(BasicProperties::default(), content, args)

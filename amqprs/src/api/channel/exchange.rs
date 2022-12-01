@@ -1,5 +1,5 @@
 use crate::{
-    api::{FieldTable, error::Error},
+    api::{error::Error, FieldTable},
     frame::{Bind, BindOk, Declare, DeclareOk, Delete, DeleteOk, Frame, Unbind, UnbindOk},
 };
 
@@ -7,25 +7,59 @@ use super::{Channel, Result};
 
 /// Arguments for [`exchange_declare`]
 ///
-/// [`exchange_declare`]: crate::api::channel::Channel::exchange_declare
+/// # Support chainable methods to build arguments
+/// ```
+/// # use amqprs::channel::ExchangeDeclareArguments;
+/// 
+/// let x = ExchangeDeclareArguments::new("amq.direct", "direct")
+///     .auto_delete(true)
+///     .durable(true)
+///     .finish();
+/// ```
+/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.declare).
+///
+/// [`exchange_declare`]: struct.Channel.html#method.exchange_declare
 #[derive(Debug, Clone)]
 pub struct ExchangeDeclareArguments {
-    pub name: String,
-    pub typ: String,
+    /// Exchange name. Default: "".
+    pub exchange: String,
+    /// Default: "direct".
+    pub exchange_type: String,
+    /// Default: `false`.
     pub passive: bool,
+    /// Default: `false`.
     pub durable: bool,
+    /// Default: `false`.
     pub auto_delete: bool,
+    /// Default: `false`.
     pub internal: bool,
+    /// Default: `false`.
     pub no_wait: bool,
+    /// Default: empty table.
     pub arguments: FieldTable,
 }
 
-impl ExchangeDeclareArguments {
-    /// Create declare arguments with defaults
-    pub fn new(name: &str, typ: &str) -> Self {
+impl Default for ExchangeDeclareArguments {
+    fn default() -> Self {
         Self {
-            name: name.to_string(),
-            typ: typ.to_string(),
+            exchange: Default::default(),
+            exchange_type: "direct".to_owned(),
+            passive: Default::default(),
+            durable: Default::default(),
+            auto_delete: Default::default(),
+            internal: Default::default(),
+            no_wait: Default::default(),
+            arguments: Default::default(),
+        }
+    }
+}
+
+impl ExchangeDeclareArguments {
+    /// Creates new arguments with defaults
+    pub fn new(exchange: &str, exchange_type: &str) -> Self {
+        Self {
+            exchange: exchange.to_string(),
+            exchange_type: exchange_type.to_string(),
             passive: false,
             durable: false,
             auto_delete: false,
@@ -34,41 +68,102 @@ impl ExchangeDeclareArguments {
             arguments: FieldTable::new(),
         }
     }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        exchange, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        exchange_type, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        passive, bool
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        durable, bool
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        auto_delete, bool
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        internal, bool
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        no_wait, bool
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        arguments, FieldTable
+    }
+    /// Finish chained configuration and return new arguments.
+    pub fn finish(&mut self) -> Self {
+        self.clone()
+    }
 }
 
 /// Arguments for [`exchange_delete`]
 ///
-/// [`exchange_delete`]: crate::api::channel::Channel::exchange_delete
-#[derive(Debug, Clone)]
+/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.delete).
+///
+/// [`exchange_delete`]: struct.Channel.html#method.exchange_delete
+#[derive(Debug, Clone, Default)]
 pub struct ExchangeDeleteArguments {
-    pub name: String,
+    /// Exchange name. Default: "".
+    pub exchange: String,
+    /// Default: `false`.
     pub if_unused: bool,
+    /// Default: `false`.
     pub no_wait: bool,
 }
 
 impl ExchangeDeleteArguments {
-    /// Create arguments with defaults
-    pub fn new(name: &str) -> Self {
+    /// Create new arguments with defaults
+    pub fn new(exchange: &str) -> Self {
         Self {
-            name: name.to_string(),
+            exchange: exchange.to_owned(),
             if_unused: false,
             no_wait: false,
         }
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        exchange, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        if_unused, bool
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        no_wait, bool
+    }
+    /// Finish chained configuration and return new arguments.
+    pub fn finish(&mut self) -> Self {
+        self.clone()
     }
 }
 
 /// Arguments for [`exchange_bind`]
 ///
-/// [`exchange_bind`]: crate::api::channel::Channel::exchange_bind
-#[derive(Debug, Clone)]
+/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.bind).
+///
+/// [`exchange_bind`]: struct.Channel.html#method.exchange_bind
+#[derive(Debug, Clone, Default)]
 pub struct ExchangeBindArguments {
+    /// Destination exchange name. Default: "".
     pub destination: String,
+    /// Source exchange name. Default: "".
     pub source: String,
+    /// Default: "".
     pub routing_key: String,
+    /// Default: `false`.
     pub no_wait: bool,
-    /// A set of arguments for the binding.
-    /// The syntax and semantics of these arguments depends on the exchange class
-    /// What is accepted arguments?
+    /// Default: empty table.
     pub arguments: FieldTable,
 }
 
@@ -76,27 +171,55 @@ impl ExchangeBindArguments {
     /// Create arguments with defaults
     pub fn new(destination: &str, source: &str, routing_key: &str) -> Self {
         Self {
-            destination: destination.to_string(),
-            source: source.to_string(),
-            routing_key: routing_key.to_string(),
+            destination: destination.to_owned(),
+            source: source.to_owned(),
+            routing_key: routing_key.to_owned(),
             no_wait: false,
             arguments: FieldTable::new(),
         }
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        destination, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        source, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        routing_key, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        no_wait, bool
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        arguments, FieldTable
+    }
+    /// Finish chained configuration and return new arguments.
+    pub fn finish(&mut self) -> Self {
+        self.clone()
     }
 }
 
 /// Arguments for [`exchange_unbind`]
 ///
-/// [`exchange_unbind`]: crate::api::channel::Channel::exchange_unbind
-#[derive(Debug, Clone)]
+/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.unbind).
+///
+/// [`exchange_unbind`]: struct.Channel.html#method.exchange_unbind
+#[derive(Debug, Clone, Default)]
 pub struct ExchangeUnbindArguments {
+    /// Destination exchange name. Default: "".
     pub destination: String,
+    /// Source exchange name. Default: "".
     pub source: String,
+    /// Default: "".
     pub routing_key: String,
+    /// Default: `false`.
     pub no_wait: bool,
-    /// A set of arguments for the Unbinding.
-    /// The syntax and semantics of these arguments depends on the exchange class
-    /// What is accepted arguments?
+    /// Default: empty table
     pub arguments: FieldTable,
 }
 
@@ -111,15 +234,44 @@ impl ExchangeUnbindArguments {
             arguments: FieldTable::new(),
         }
     }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        destination, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        source, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        routing_key, String
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        no_wait, bool
+    }
+    impl_chainable_setter! {
+        /// Chainable setter method.
+        arguments, FieldTable
+    }
+    /// Finish chained configuration and return new arguments.
+    pub fn finish(&mut self) -> Self {
+        self.clone()
+    }
 }
 /////////////////////////////////////////////////////////////////////////////
-/// API for Exchange methods
+/// APIs for AMQP exchange class
 impl Channel {
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.declaure)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.
     pub async fn exchange_declare(&self, args: ExchangeDeclareArguments) -> Result<()> {
         let mut declare = Declare::new(
             0,
-            args.name.try_into().unwrap(),
-            args.typ.try_into().unwrap(),
+            args.exchange.try_into().unwrap(),
+            args.exchange_type.try_into().unwrap(),
             0,
             args.arguments,
         );
@@ -149,9 +301,13 @@ impl Channel {
             Ok(())
         }
     }
-
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.delete)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.
     pub async fn exchange_delete(&self, args: ExchangeDeleteArguments) -> Result<()> {
-        let mut delete = Delete::new(0, args.name.try_into().unwrap(), 0);
+        let mut delete = Delete::new(0, args.exchange.try_into().unwrap(), 0);
         delete.set_if_unused(args.if_unused);
         delete.set_no_wait(args.no_wait);
         if args.no_wait {
@@ -173,7 +329,11 @@ impl Channel {
             Ok(())
         }
     }
-
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.bind)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.
     pub async fn exchange_bind(&self, args: ExchangeBindArguments) -> Result<()> {
         let bind = Bind::new(
             0,
@@ -202,7 +362,11 @@ impl Channel {
             Ok(())
         }
     }
-
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.unbind)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.
     pub async fn exchange_unbind(&self, args: ExchangeUnbindArguments) -> Result<()> {
         let unbind = Unbind::new(
             0,
@@ -236,9 +400,7 @@ impl Channel {
 #[cfg(test)]
 mod tests {
     use super::{ExchangeDeclareArguments, ExchangeDeleteArguments};
-    use crate::{
-        api::connection::{Connection, OpenConnectionArguments},
-    };
+    use crate::api::connection::{Connection, OpenConnectionArguments};
 
     #[tokio::test]
     async fn test_exchange_declare() {
@@ -247,8 +409,7 @@ mod tests {
         let client = Connection::open(&args).await.unwrap();
 
         let channel = client.open_channel(None).await.unwrap();
-        let mut args = ExchangeDeclareArguments::new("amq.direct", "direct");
-        args.passive = true;
+        let args = ExchangeDeclareArguments::new("amq.topic", "topic").passive(true).finish();
         channel.exchange_declare(args).await.unwrap();
     }
 

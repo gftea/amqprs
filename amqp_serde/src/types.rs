@@ -1,7 +1,7 @@
-//! AMQP 0-9-1 types for RabbitMQ.
-//! 
+//! AMQP 0-9-1 types definition and implementation.
+//!
 //! See [RabbitMQ's Definition](https://github.com/rabbitmq/rabbitmq-codegen/blob/main/amqp-rabbitmq-0.9.1.json).
-//! 
+//!
 //! See [RabbitMQ errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html)
 use std::{
     collections::HashMap,
@@ -13,8 +13,11 @@ use std::{
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
-// No Rust type to represent single bit, but bits are packed in octect
-// pub type Bit = u8; 
+/// DO NOT USE. No primitive rust type to represent single bit.
+///
+/// Bits are packed in octect according to AMQP 0-9-1 protocol.
+pub type Bit = u8;
+
 pub type Octect = u8;
 pub type Boolean = bool; // 0 = FALSE, else TRUE
 pub type ShortShortUint = u8;
@@ -31,24 +34,23 @@ pub type Double = f64;
 
 /////////////////////////////////////////////////////////////////////////////
 /// AMQP short string type.
-/// 
+///
 /// User should not directly create it, but use conversion method to create
 /// from `String` or `&str`.
-/// 
+///
 /// # Usage
-/// 
+///
 /// ```
 /// # use amqp_serde::types::ShortStr;
 /// // create a ShortStr from &str
 /// let s: ShortStr = "hello".try_into().unwrap();
-/// 
+///
 /// // create a ShortStr from String
 /// let s: ShortStr = String::from("hello").try_into().unwrap();
-/// 
+///
 /// ```
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ShortStr(u8, String);
-
 
 impl fmt::Display for ShortStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -91,12 +93,12 @@ impl TryFrom<&str> for ShortStr {
 
 /////////////////////////////////////////////////////////////////////////////
 /// AMQP long string type.
-/// 
+///
 /// User should not directly create it, but use conversion method to create
 /// from `String` or `&str`.
-/// 
+///
 /// # Usage
-/// 
+///
 /// ```
 /// # use amqp_serde::types::LongStr;
 /// // create a LongStr from `&str`
@@ -147,10 +149,10 @@ impl From<LongStr> for String {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-/// AMQP decimal type. 
-/// 
+/// AMQP decimal type.
+///
 /// decimal-value = "scale long-int".
-/// 
+///
 /// RabbitMQ treat the decimal value as signed integer.
 /// See notes "Decimals encoding" in [amqp-0-9-1-errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html).
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -196,13 +198,13 @@ impl fmt::Display for ByteArray {
 /// AMQP field array type.
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct FieldArray(LongUint, Vec<FieldValue>);// RabbitMQ use LongUint as length value
+pub struct FieldArray(LongUint, Vec<FieldValue>); // RabbitMQ use LongUint as length value
 
 impl FieldArray {
     pub fn new() -> Self {
         Self(0, Vec::with_capacity(0))
     }
-} 
+}
 
 impl TryFrom<Vec<FieldValue>> for FieldArray {
     type Error = TryFromIntError;
@@ -235,20 +237,21 @@ impl fmt::Display for FieldArray {
 }
 //////////////////////////////////////////////////////////////////////////////
 /// AMQP field value type.
-/// 
+///
 /// User is recommended to use conversion method to create FieldValue from rust's type.
 /// 
-/// # Usage
+/// See [RabbitMQ errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html#section_3).
 /// 
+/// # Usage
+///
 /// ```
 /// # use amqp_serde::types::FieldValue;
 /// // convert from `bool`
 /// let x: FieldValue = true.into();
-/// 
+///
 /// // convert into `bool`
 /// let y: bool = x.try_into().unwrap();
 /// ```
-/// See [RabbitMQ errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html#section_3).
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 #[allow(non_camel_case_types)]
 pub enum FieldValue {
@@ -346,8 +349,6 @@ impl From<&str> for FieldValue {
         FieldValue::S(v.try_into().unwrap())
     }
 }
-
-
 
 impl fmt::Display for FieldValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -478,7 +479,16 @@ impl fmt::Display for FieldTable {
 
 /////////////////////////////////////////////////////////////////////////////
 // AMQP domains
-pub type AmqpChannelId = ShortUint; // Define it as type used as `channel id` in AMQP frame instead of `longstr` in amqp-rabbitmq-0.9.1.json which is only used for `open-ok`
+/// Note: it is different from definition in [`RabbitMQ Definition`].
+///
+/// In [`RabbitMQ Definition`], it is defined as `longstr`, and only used in `open-ok` frame.
+///
+/// Here, it is defined as [`ShortUint`], which is the type of channel id field in AMQP frame.
+/// It is intended to be used in place where readability can be improved.
+///
+/// [`RabbitMQ Definition`]: https://github.com/rabbitmq/rabbitmq-codegen/blob/main/amqp-rabbitmq-0.9.1.json
+pub type AmqpChannelId = ShortUint;
+
 pub type AmqpClassId = ShortUint;
 pub type AmqpMethodId = ShortUint;
 pub type AmqpConsumerTag = ShortStr;

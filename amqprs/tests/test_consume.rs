@@ -26,16 +26,16 @@ async fn test_multi_consumer() {
 
     let exchange_name = "amq.topic";
     // declare a queue
-    let queue_name = "amqprs";
-    channel
-        .queue_declare(QueueDeclareArguments::new(queue_name))
+    let (queue_name, ..) = channel
+        .queue_declare(QueueDeclareArguments::default())
         .await
+        .unwrap()
         .unwrap();
 
     // bind the queue to exchange
     channel
         .queue_bind(QueueBindArguments::new(
-            queue_name,
+            &queue_name,
             exchange_name,
             "eiffel.#",
         ))
@@ -43,9 +43,7 @@ async fn test_multi_consumer() {
         .unwrap();
 
     // start consumer with given name
-    let mut args = BasicConsumeArguments::new();
-    args.queue = queue_name.to_string();
-    args.consumer_tag = "amqprs-consumer-example".to_string();
+    let args = BasicConsumeArguments::new(&queue_name, "test_multi_consume");
 
     channel
         .basic_consume(DefaultConsumer::new(args.no_ack), args)
@@ -53,8 +51,7 @@ async fn test_multi_consumer() {
         .unwrap();
 
     // start consumer with generated name by server
-    let mut args = BasicConsumeArguments::new();
-    args.queue = queue_name.to_string();
+    let args = BasicConsumeArguments::new(&queue_name, "");
     channel
         .basic_consume(DefaultConsumer::new(args.no_ack), args)
         .await
@@ -108,12 +105,12 @@ async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
         ).into_bytes();
 
     // create arguments for basic_publish
-    let mut args = BasicPublishArguments::new();
-    // set target exchange name
-    args.exchange = exchange_name.to_string();
-    args.routing_key = "eiffel.a.b.c.d".to_string();
+    let args = BasicPublishArguments::new(&exchange_name, "eiffel.a.b.c.d");
+
+    // applicaton's headers
     let mut headers = FieldTable::new();
     headers.insert("date".try_into().unwrap(), "2022-11".into());
+
     let basic_props = BasicProperties::default()
         .set_content_type("application/json")
         .set_headers(headers)

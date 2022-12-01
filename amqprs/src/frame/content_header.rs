@@ -34,13 +34,13 @@ pub struct ContentHeaderCommon {
 
 ////////////////////////////////////////////////////////////////////////////////
 /// AMQP message properties.
-/// 
+///
 /// User is recommended to use the chainable setter to create desired propertities.
-/// 
+///
 /// See also [message properties](https://www.rabbitmq.com/consumers.html#message-properties).
-/// 
+///
 /// # Example
-/// 
+///
 /// ```
 /// # use amqprs::{BasicProperties, DELIVERY_MODE_TRANSIENT};
 /// let basic_props = BasicProperties::default()
@@ -91,7 +91,7 @@ impl BasicProperties {
     ) -> Self {
         // initial flags
         let mut property_flags = [0u8; 2];
-        
+
         // first byte of flags
         let content_type = match content_type {
             Some(v) => {
@@ -254,7 +254,6 @@ impl BasicProperties {
         flags[1] |= 1 << 2;
     }
 
-
     pub fn content_type(&self) -> Option<&String> {
         self.content_type.as_deref()
     }
@@ -340,7 +339,7 @@ impl BasicProperties {
         Self::set_correlation_id_flag(&mut self.property_flags);
         self.correlation_id = Some(correlation_id.try_into().unwrap());
         self
-    }    
+    }
 
     pub fn reply_to(&self) -> Option<&String> {
         self.reply_to.as_deref()
@@ -353,7 +352,7 @@ impl BasicProperties {
         Self::set_reply_to_flag(&mut self.property_flags);
         self.reply_to = Some(reply_to.try_into().unwrap());
         self
-    }    
+    }
 
     pub fn expiration(&self) -> Option<&String> {
         self.expiration.as_deref()
@@ -366,7 +365,7 @@ impl BasicProperties {
         Self::set_expiration_flag(&mut self.property_flags);
         self.expiration = Some(expiration.try_into().unwrap());
         self
-    }    
+    }
 
     pub fn message_id(&self) -> Option<&String> {
         self.message_id.as_deref()
@@ -378,7 +377,7 @@ impl BasicProperties {
         Self::set_message_id_flag(&mut self.property_flags);
         self.message_id = Some(message_id.try_into().unwrap());
         self
-    }    
+    }
 
     pub fn timestamp(&self) -> Option<u64> {
         self.timestamp
@@ -390,7 +389,7 @@ impl BasicProperties {
         Self::set_timestamp_flag(&mut self.property_flags);
         self.timestamp = Some(timestamp);
         self
-    }    
+    }
 
     pub fn message_type(&self) -> Option<&String> {
         self.message_type.as_deref()
@@ -402,7 +401,7 @@ impl BasicProperties {
         Self::set_message_type_flag(&mut self.property_flags);
         self.message_type = Some(message_type.try_into().unwrap());
         self
-    }    
+    }
     pub fn user_id(&self) -> Option<&String> {
         self.user_id.as_deref()
     }
@@ -413,7 +412,7 @@ impl BasicProperties {
         Self::set_user_id_flag(&mut self.property_flags);
         self.user_id = Some(user_id.try_into().unwrap());
         self
-    }   
+    }
 
     pub fn app_id(&self) -> Option<&String> {
         self.app_id.as_deref()
@@ -425,7 +424,7 @@ impl BasicProperties {
         Self::set_app_id_flag(&mut self.property_flags);
         self.app_id = Some(app_id.try_into().unwrap());
         self
-    }   
+    }
 
     pub fn cluster_id(&self) -> Option<&String> {
         self.cluster_id.as_deref()
@@ -437,15 +436,13 @@ impl BasicProperties {
         Self::set_cluster_id_flag(&mut self.property_flags);
         self.cluster_id = Some(cluster_id.try_into().unwrap());
         self
-    }       
+    }
 
     /// Finish chaining and returns a new instance according to chained configurations.
     pub fn finish(&mut self) -> Self {
         self.clone()
     }
 }
-
-
 
 impl<'de> Deserialize<'de> for BasicProperties {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>

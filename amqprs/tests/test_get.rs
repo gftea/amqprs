@@ -24,16 +24,16 @@ async fn test_get() {
 
     let exchange_name = "amq.topic";
     // declare a queue
-    let queue_name = "amqprs";
-    channel
-        .queue_declare(QueueDeclareArguments::new(queue_name))
+    let (queue_name, ..) = channel
+        .queue_declare(QueueDeclareArguments::default())
         .await
+        .unwrap()
         .unwrap();
 
     // bind the queue to exchange
     channel
         .queue_bind(QueueBindArguments::new(
-            queue_name,
+            &queue_name,
             exchange_name,
             "eiffel.#",
         ))
@@ -41,8 +41,7 @@ async fn test_get() {
         .unwrap();
 
     // get empty
-    let mut get_args = BasicGetArguments::new();
-    get_args.queue = queue_name.to_string();
+    let get_args = BasicGetArguments::new(&queue_name);
 
     let get_message = channel.basic_get(get_args.clone()).await.unwrap();
     if let Some(_) = get_message {
@@ -61,10 +60,7 @@ async fn test_get() {
         ).into_bytes();
 
     // create arguments for basic_publish
-    let mut args = BasicPublishArguments::new();
-    // set target exchange name
-    args.exchange = exchange_name.to_string();
-    args.routing_key = "eiffel.a.b.c.d".to_string();
+    let args = BasicPublishArguments::new(&exchange_name, "eiffel.a.b.c.d");
 
     let num_of_msg = 3;
     for _ in 0..num_of_msg {

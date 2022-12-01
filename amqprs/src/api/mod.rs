@@ -1,7 +1,7 @@
-use std::fmt;
 
-use amqp_serde::types::{FieldTable, FieldValue};
-use serde::{Deserialize, Serialize};
+
+use amqp_serde::types::{FieldTable};
+
 
 use self::error::Error;
 pub(in crate::api) type Result<T> = std::result::Result<T, Error>;
@@ -29,23 +29,19 @@ pub(crate) mod helpers {
         };
     }
 
-    // implements the API for chaining
-    macro_rules! impl_builder_api {
-        ($(#[$($attrss:tt)*])* $field_name:ident, $input_type:ty, $value:expr) => {
+    macro_rules! impl_chainable_setter {
+        ($(#[$($attrss:tt)*])* $field_name:ident, $input_type:ty) => {
             $(#[$($attrss)*])*
             pub fn $field_name(&mut self, $field_name: $input_type) -> &mut Self {
-                self.$field_name = $value;
+                self.$field_name = $field_name;
                 self
             }
-            
+
         };
     }
 
-    pub(crate) use impl_builder_api;
-   
+    // pub(crate) use impl_chainable_setter;
 }
-
-
 
 /////////////////////////////////////////////////////////////////////////////
 pub mod callbacks;

@@ -1,7 +1,7 @@
 //! This module provides configuration API of Security and Access Control.
-//! 
+//!
 //! The configuration is used as part of [`OpenConnectionArguments`] value.
-//! 
+//!
 //! [`OpenConnectionArguments`]: ../connection/struct.OpenConnectionArguments.html
 //! [`Connection::open`]: ../connection/struct.Connection.html#method.open
 use amqp_serde::{
@@ -29,7 +29,7 @@ enum AuthenticationMechanism {
 
 impl SecurityCredentials {
     /// Create and return a SASL/PLAIN credential with given `username` and `password`.
-    /// 
+    ///
     /// See [RabbitMQ access control](https://www.rabbitmq.com/access-control.html#mechanisms).
     pub fn new_plain(username: &str, password: &str) -> Self {
         Self {
@@ -39,7 +39,7 @@ impl SecurityCredentials {
         }
     }
     /// Create and return a AMQPLAIN credential with given `username` and `password`.
-    /// 
+    ///
     /// See [RabbitMQ access control](https://www.rabbitmq.com/access-control.html#mechanisms).
     pub fn new_amqplain(username: &str, password: &str) -> Self {
         Self {

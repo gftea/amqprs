@@ -1,17 +1,17 @@
 //! Callback interfaces of asynchronous message for [`Connection`] and [`Channel`].
 //!
 //! In AMQP_0-9-1 protocol, some messages (`methods` in AMQP's term) can be initiated by server.
-//! These messages are handled asynchronously by client via callbacks. 
-//! 
-//! User should define its own callback types and implement the traits [`ConnectionCallback`] 
-//! and [`ChannelCallback`]. 
-//! 
+//! These messages are handled asynchronously by client via callbacks.
+//!
+//! User should define its own callback types and implement the traits [`ConnectionCallback`]
+//! and [`ChannelCallback`].
+//!
 //! After open a connection, immediately register the callbacks by [`Connection::register_callback`].
 //! After open a channel,  immediately register the callbacks by [`Channel::register_callback`].
 //!
 //! # Examples
 //! See [`DefaultConnectionCallback`] and [`DefaultChannelCallback`] for simple example.
-//! 
+//!
 //! The default callback implementations are only for demo and debugging purposes.
 //! User is expected to implement its own callbacks.
 //!
@@ -42,9 +42,9 @@ pub trait ConnectionCallback {
     ///
     /// Returns [`Ok`] to reply server that the request is received and
     /// handled properly.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// If returns [`Err`], no reply to server, which means server won't know
     /// whether the request has been received by client, and may consider
     /// the connection isn't shutdown.
@@ -88,11 +88,11 @@ impl ConnectionCallback for DefaultConnectionCallback {
 pub trait ChannelCallback {
     /// Callback to handle `close` channel request from server.
     ///
-    /// Returns [`Ok`] to reply server that the request is received and 
+    /// Returns [`Ok`] to reply server that the request is received and
     /// handled properly.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// If returns [`Err`], no reply to server, which means server won't know
     /// whether the request has been received by client, and may consider
     /// the channel isn't closed.
@@ -100,15 +100,15 @@ pub trait ChannelCallback {
 
     /// Callback to handle server's request to `cancel` the consumer of current channel.
     ///
-    /// Returns [`Ok`] to reply server that request has been received and 
+    /// Returns [`Ok`] to reply server that request has been received and
     /// the consumer will be cancelled.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// If returns [`Err`], no reply to server and no consumer will be cancelled.  
     async fn cancel(&mut self, channel: &Channel, cancel: Cancel) -> Result<()>;
 
-    /// Callback to handle server's `flow` request to pause or restart 
+    /// Callback to handle server's `flow` request to pause or restart
     /// the flow of sending content data.
     ///
     /// Returns [`true`] to indicate to server that client starts sending data.
@@ -117,23 +117,23 @@ pub trait ChannelCallback {
 
     /// Callback to handle `ack` indication from server.
     ///
-    /// Only occurs in `publish confirm` mode, sent by server to acknowledges 
+    /// Only occurs in `publish confirm` mode, sent by server to acknowledges
     /// one or more messages published.
     async fn publish_ack(&mut self, channel: &Channel, ack: Ack);
 
     /// Callback to handle `nack` indication from server.
     ///
-    /// Only occurs in `publish confirm` mode, sent by server to inform publisher 
+    /// Only occurs in `publish confirm` mode, sent by server to inform publisher
     /// of unhandled messages.
     async fn publish_nack(&mut self, channel: &Channel, nack: Nack);
 
     /// Callback to handle `return` indication with undeliverable message from server.
     ///
     /// The [ret][`Return`] contains the reason why the message is returned.
-    /// 
+    ///
     /// The [basic_properties][`BasicProperties`] contains the propertities
     /// of the returned message.
-    /// 
+    ///
     /// The [content][`Vec<u8>`] contains the body of the returned message.
     ///
     /// [`Return`]: ../struct.Return.html

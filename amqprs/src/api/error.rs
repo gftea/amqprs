@@ -26,7 +26,6 @@ pub enum Error {
     /// Error in sending or receiving messages via internal communication channel.
     /// Usually due to incorrect usage by user.
     InternalChannelError(String),
-
 }
 
 impl From<net::Error> for Error {

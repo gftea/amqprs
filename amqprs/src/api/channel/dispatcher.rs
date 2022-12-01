@@ -17,8 +17,12 @@ use tracing::{debug, error, trace};
 
 use super::{Channel, ConsumerMessage, DispatcherManagementCommand};
 
+/// Resource for handling consumer messages.
 struct ConsumerResource {
+    /// FIFO buffer for a delivery = `deliver + content`.
     fifo: VecDeque<ConsumerMessage>,
+    /// tx channel to forward a delivery to a consumer task.
+    /// dispatcher task holds the tx half, and the consumer task holds the rx half.
     tx: Option<mpsc::Sender<ConsumerMessage>>,
 }
 
@@ -29,14 +33,12 @@ impl ConsumerResource {
             tx: None,
         }
     }
+
     fn register_tx(
         &mut self,
         tx: mpsc::Sender<ConsumerMessage>,
     ) -> Option<mpsc::Sender<ConsumerMessage>> {
         self.tx.replace(tx)
-    }
-    fn unregister_tx(&mut self) -> Option<mpsc::Sender<ConsumerMessage>> {
-        self.tx.take()
     }
 
     fn get_tx(&self) -> Option<&mpsc::Sender<ConsumerMessage>> {
@@ -46,6 +48,7 @@ impl ConsumerResource {
     fn push(&mut self, message: ConsumerMessage) {
         self.fifo.push_back(message);
     }
+
     fn pop(&mut self) -> Option<ConsumerMessage> {
         self.fifo.pop_front()
     }
@@ -58,6 +61,12 @@ enum State {
     GetEmpty,
     Return,
 }
+
+/// Dispatcher for a AMQP channel.
+///
+/// Each channel will spawn a dispatcher.
+/// It handles channel level callbacks, incoming messages and registration commands.
+/// It also dispatch messages to consumers.
 pub(crate) struct ChannelDispatcher {
     channel: Channel,
     dispatcher_rx: mpsc::Receiver<IncomingMessage>,
@@ -86,6 +95,8 @@ impl ChannelDispatcher {
             state: State::Initial,
         }
     }
+
+    /// Return the consumer resource if it always exists, otherwise create new one.
     fn get_or_new_consumer(&mut self, consumer_tag: &String) -> &mut ConsumerResource {
         if !self.consumers.contains_key(consumer_tag) {
             let resource = ConsumerResource::new();
@@ -94,17 +105,23 @@ impl ChannelDispatcher {
         self.consumers.get_mut(consumer_tag).unwrap()
     }
 
+    /// Remove the consumer resource.
+    ///
+    /// Becuase the tx channel will drop, the consumer task will also exit.
     fn remove_consumer(&mut self, consumer_tag: &String) -> Option<ConsumerResource> {
         self.consumers.remove(consumer_tag)
     }
+
+    /// Spawn dispatcher task.
     pub(in crate::api) async fn spawn(mut self) {
         tokio::spawn(async move {
-            // single message aggregation buffer
+            // aggregation buffer for `deliver + content` messages to a consumer
             let mut message_buffer = ConsumerMessage {
                 deliver: None,
                 basic_properties: None,
                 content: None,
             };
+            // buffer for `return + content` messages due to publish failure.
             let mut return_buffer = ReturnMessage {
                 ret: None,
                 basic_properties: None,
@@ -113,7 +130,7 @@ impl ChannelDispatcher {
                 "dispatcher of channel {} starts up.",
                 self.channel.channel_id()
             );
-
+            // main loop of dispatcher
             loop {
                 tokio::select! {
                     biased;
@@ -135,7 +152,9 @@ impl ChannelDispatcher {
                                 while !consumer.fifo.is_empty() {
                                     trace!("total buffered messages: {}.", consumer.fifo.len());
                                     let msg = consumer.pop().unwrap();
-                                    consumer.get_tx().unwrap().send(msg).await.unwrap();
+                                    if let Err(_err) = consumer.get_tx().unwrap().send(msg).await {
+                                        error!("failed to forward message to consumer {}", &cmd.consumer_tag);
+                                    }
                                 }
 
                             },

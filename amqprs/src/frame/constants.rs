@@ -45,14 +45,12 @@ pub const CLASS_QUEUE: ShortUint = 50;
 pub const CLASS_BASIC: ShortUint = 60;
 pub const CLASS_TX: ShortUint = 90;
 
-
-
 /// Delivery Mode: transient/non-persistent
-/// 
+///
 /// See [Delivery Metadata](https://www.rabbitmq.com/consumers.html#message-properties).
 pub const DELIVERY_MODE_TRANSIENT: u8 = 1;
 
 /// Delivery Mode: persistent
-/// 
+///
 /// See [Delivery Metadata](https://www.rabbitmq.com/consumers.html#message-properties).
 pub const DELIVERY_MODE_PERSISTENT: u8 = 2;

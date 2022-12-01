@@ -29,7 +29,7 @@ async fn test_connection_callback() {
     // the connection callback for `Close` method should be called and all internal channel services are closed
     // which results in error of below API call
     channel
-        .exchange_declare(ExchangeDeclareArguments::new("name", "invalid_type"))
+        .exchange_declare(ExchangeDeclareArguments::default())
         .await
         .unwrap();
 
@@ -54,13 +54,11 @@ async fn test_channel_callback() {
         .register_callback(DefaultChannelCallback)
         .await
         .unwrap();
-    // expect panic because invalid exchange type will cause server to shutdown connection,
-    // the connection callback for `Close` method should be called and all internal channel services are closed
-    // which results in error of below API call
-    channel
-        .exchange_declare(ExchangeDeclareArguments::new("amq.topic", "topic"))
-        .await
-        .unwrap();
+
+    // expect panic because "amp.topic" is `durable = true`, we declare "durable = false",
+    // which is the default value in arguments.
+    let args = ExchangeDeclareArguments::new("amq.topic", "topic");
+    channel.exchange_declare(args).await.unwrap();
 
     // keep the `channel` and `connection` object from dropping until publish is done
     // NOTE: channel/connection will be closed when drop

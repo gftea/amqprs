@@ -251,7 +251,6 @@ impl Deliver {
     }
 }
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Get {
     pub ticket: ShortUint,

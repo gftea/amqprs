@@ -1,4 +1,5 @@
 use amqprs::{
+    callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
     channel::{
         BasicConsumeArguments, BasicPublishArguments, QueueBindArguments, QueueDeclareArguments,
     },
@@ -23,21 +24,30 @@ async fn main() {
     let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
     let connection = Connection::open(&args).await.unwrap();
+    connection
+        .register_callback(DefaultConnectionCallback)
+        .await
+        .unwrap();
+
     // open a channel on the connection
-    let mut channel = connection.open_channel(None).await.unwrap();
+    let channel = connection.open_channel(None).await.unwrap();
+    channel
+        .register_callback(DefaultChannelCallback)
+        .await
+        .unwrap();
 
     // declare a queue
-    let queue_name = "amqprs";
-    channel
-        .queue_declare(QueueDeclareArguments::new(queue_name))
+    let (queue_name, _, _) = channel
+        .queue_declare(QueueDeclareArguments::default())
         .await
+        .unwrap()
         .unwrap();
 
     // bind the queue to exchange
     let exchange_name = "amq.topic";
     channel
         .queue_bind(QueueBindArguments::new(
-            queue_name,
+            &queue_name,
             exchange_name,
             "eiffel.#",
         ))
@@ -46,9 +56,7 @@ async fn main() {
 
     //////////////////////////////////////////////////////////////////////////////
     // start consumer with given name
-    let mut args = BasicConsumeArguments::new();
-    args.queue = queue_name.to_string();
-    args.consumer_tag = "amqprs-consumer-example".to_string();
+    let args = BasicConsumeArguments::new(&queue_name, "example_basic_pub_sub");
 
     channel
         .basic_consume(DefaultConsumer::new(args.no_ack), args)
@@ -67,10 +75,7 @@ async fn main() {
         "#).into_bytes();
 
     // create arguments for basic_publish
-    let mut args = BasicPublishArguments::new();
-    // set target exchange name
-    args.exchange = exchange_name.to_string();
-    args.routing_key = "eiffel.a.b.c.d".to_string();
+    let args = BasicPublishArguments::new(exchange_name, "eiffel.a.b.c.d");
 
     channel
         .basic_publish(BasicProperties::default(), content, args)

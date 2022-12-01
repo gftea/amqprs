@@ -7,12 +7,12 @@
 //!
 //!
 //! # Quick Start
-//! 
+//!
 //! ```rust
 //! use amqprs::{
-//!     callbacks, 
-//!     security::SecurityCredentials, 
-//!     connection::{OpenConnectionArguments, Connection}, 
+//!     callbacks,
+//!     security::SecurityCredentials,
+//!     connection::{OpenConnectionArguments, Connection},
 //! };
 //!
 //! # #[tokio::main]
@@ -27,7 +27,7 @@
 //! connection.register_callback(callbacks::DefaultConnectionCallback).await.unwrap();
 //!
 //! // ... Now, ready to use the connection ...
-//! 
+//!
 //! // Open an AMQP channel on this connection.
 //! let channel = connection.open_channel(None).await.unwrap();
 //! // Register channel level callbacks.
@@ -37,7 +37,7 @@
 //! // ... Now, ready to use the channel ...
 //! // For examples:
 //! channel.flow(true).await.unwrap();
-//! 
+//!
 //! // gracefully shutdown.
 //! channel.close().await.unwrap();
 //! connection.close().await.unwrap();
@@ -58,5 +58,5 @@ pub use frame::BasicProperties;
 pub use frame::Deliver;
 pub use frame::GetOk;
 pub use frame::Return;
-pub use frame::DELIVERY_MODE_TRANSIENT;
 pub use frame::DELIVERY_MODE_PERSISTENT;
+pub use frame::DELIVERY_MODE_TRANSIENT;
