@@ -16,78 +16,67 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 [Example source code](amqprs/examples/basic_pub_sub.rs) 
 
 ```rust
-#[tokio::main(flavor = "multi_thread", worker_threads = 2)]
-async fn main() {
-    // construct a subscriber that prints formatted traces to stdout
-    let subscriber = tracing_subscriber::fmt().with_max_level(Level::INFO).finish();
+// open a connection to RabbitMQ server
+let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
-    // use that subscriber to process traces emitted after this point
-    tracing::subscriber::set_global_default(subscriber).unwrap();
+let connection = Connection::open(&args).await.unwrap();
+connection
+    .register_callback(DefaultConnectionCallback)
+    .await
+    .unwrap();
 
-    //////////////////////////////////////////////////////////////////////////////
-    // open a connection to RabbitMQ server
-    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
-    let connection = Connection::open(&args).await.unwrap();
+// open a channel on the connection
+let channel = connection.open_channel(None).await.unwrap();
+channel
+    .register_callback(DefaultChannelCallback)
+    .await
+    .unwrap();
 
-    // open a channel on the connection
-    let mut channel = connection.open_channel(None).await.unwrap();
+// declare a queue
+let (queue_name, _, _) = channel
+    .queue_declare(QueueDeclareArguments::default())
+    .await
+    .unwrap()
+    .unwrap();
 
-    // declare a queue
-    let queue_name = "amqprs";
-    channel
-        .queue_declare(QueueDeclareArguments::new(queue_name))
-        .await
-        .unwrap();
+// bind the queue to exchange
+let exchange_name = "amq.topic";
+channel
+    .queue_bind(QueueBindArguments::new(
+        &queue_name,
+        exchange_name,
+        "eiffel.#",
+    ))
+    .await
+    .unwrap();
 
-    // bind the queue to exchange
-    let exchange_name = "amq.topic";
-    channel
-        .queue_bind(QueueBindArguments::new(
-            queue_name,
-            exchange_name,
-            "eiffel.#",
-        ))
-        .await
-        .unwrap();
+//////////////////////////////////////////////////////////////////////////////
+// start consumer with given name
+channel
+    .basic_consume(DefaultConsumer::new(args.no_ack), BasicConsumeArguments::new(&queue_name, "example_basic_pub_sub"))
+    .await
+    .unwrap();
 
-    //////////////////////////////////////////////////////////////////////////////
-    // start consumer with given name
-    let mut args = BasicConsumeArguments::new();
-    args.queue = queue_name.to_string();
-    args.consumer_tag = "amqprs-consumer-example".to_string();
+//////////////////////////////////////////////////////////////////////////////
+// publish a message
+let content = String::from(
+    r#"
+        {
+            "meta": {"id": "f9d42464-fceb-4282-be95-0cd98f4741b0", "type": "PublishTester", "version": "4.0.0", "time": 1640035100149},
+            "data": { "customData": []}, 
+            "links": [{"type": "BASE", "target": "fa321ff0-faa6-474e-aa1d-45edf8c99896"}]
+        }
+    "#).into_bytes();
 
-    channel
-        .basic_consume(DefaultConsumer::new(args.no_ack), args)
-        .await
-        .unwrap();
+channel
+    .basic_publish(BasicProperties::default(), content, BasicPublishArguments::new(exchange_name, "eiffel.a.b.c.d"))
+    .await
+    .unwrap();
 
-    //////////////////////////////////////////////////////////////////////////////
-    // publish message
-    let content = String::from(
-        r#"
-            {
-                "meta": {"id": "f9d42464-fceb-4282-be95-0cd98f4741b0", "type": "PublishTester", "version": "4.0.0", "time": 1640035100149},
-                "data": { "customData": []}, 
-                "links": [{"type": "BASE", "target": "fa321ff0-faa6-474e-aa1d-45edf8c99896"}]
-            }
-        "#
-        ).into_bytes();
+// keep the `channel` and `connection` object from dropping
+// NOTE: channel/connection will be closed when drop
+time::sleep(time::Duration::from_secs(10)).await;
 
-    // create arguments for basic_publish
-    let mut args = BasicPublishArguments::new();
-    // set target exchange name
-    args.exchange = exchange_name.to_string();
-    args.routing_key = "eiffel.a.b.c.d".to_string();
-
-    channel
-        .basic_publish(BasicProperties::default(), content, args)
-        .await
-        .unwrap();
-
-    // keep the `channel` and `connection` object from dropping
-    // NOTE: channel/connection will be closed when drop
-    time::sleep(time::Duration::from_secs(10)).await;
-}
 ```
 
 
