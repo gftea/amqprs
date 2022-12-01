@@ -11,6 +11,10 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 3. lock free: no mutex/lock in client library itself 
 
 
+## Design Architecture
+![Lock-free Design](amqp-chosen_design.drawio.png) 
+
+
 ## Example: Consume and Publish
 
 [Example source code](amqprs/examples/basic_pub_sub.rs) 
@@ -78,7 +82,3 @@ channel
 time::sleep(time::Duration::from_secs(10)).await;
 
 ```
-
-
-## Design Architecture
-![Lock-free Design](amqp-chosen_design.drawio.png) 
