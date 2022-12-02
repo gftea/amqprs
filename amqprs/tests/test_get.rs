@@ -93,15 +93,8 @@ async fn test_get() {
             .await
             .unwrap();
     }
-    // TODO: move to separate test case, below is for test only
-    if true {
-        // implicitly close by drop
-        drop(channel);
-        drop(connection);
-    } else {
-        // explicitly close
-        channel.close().await.unwrap();
-        connection.close().await.unwrap();
-    }
     time::sleep(time::Duration::from_secs(1)).await;
+    // explicitly close
+    channel.close().await.unwrap();
+    connection.close().await.unwrap();
 }

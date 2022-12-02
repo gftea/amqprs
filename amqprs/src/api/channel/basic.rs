@@ -68,13 +68,13 @@ impl BasicQosArguments {
 /// # Support chainable methods to build arguments
 /// ```
 /// # use amqprs::channel::BasicConsumeArguments;
-/// 
+///
 /// let x = BasicConsumeArguments::new("q", "c")
 ///     .no_ack(true)
 ///     .exclusive(true)
 ///     .finish();
 /// ```
-/// 
+///
 /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.consume).
 ///
 /// [`basic_consume`]: struct.Channel.html#method.basic_consume
@@ -387,15 +387,11 @@ impl Channel {
     /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack)
     ///
     /// Returns consumer tag if succeed.
-    /// 
+    ///
     /// # Errors
     ///
     /// Returns error if any failure in comunication with server.  
-    pub async fn basic_consume<F>(
-        &self,
-        consumer: F,
-        args: BasicConsumeArguments,
-    ) -> Result<String>
+    pub async fn basic_consume<F>(&self, consumer: F, args: BasicConsumeArguments) -> Result<String>
     where
         // TODO: this is blocking callback, spawn blocking task in connection manager
         // to provide async callback, and spawn async task  in connection manager
@@ -548,7 +544,7 @@ impl Channel {
     /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.cancel)
     ///
     /// Returns consumer tag if succeed.
-    /// 
+    ///
     /// # Errors
     ///
     /// Returns error if any failure in comunication with server.  
@@ -591,7 +587,7 @@ impl Channel {
     /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.get)
     ///
     /// Either returns a tuple [`GetMessage`] or [`None`] if no message available.
-    /// 
+    ///
     /// # Errors
     ///
     /// Returns error if any failure in comunication with server.      

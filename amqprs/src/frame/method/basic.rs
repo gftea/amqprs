@@ -25,6 +25,8 @@ mod bit_flag {
         pub const REQUEUE: Octect = 0b0000_0010;
     }
 }
+
+// TX 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Qos {
     prefetch_size: LongUint,
@@ -41,9 +43,12 @@ impl Qos {
         }
     }
 }
+
+// RX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QosOk;
 
+// TX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Consume {
     ticket: ShortUint,
@@ -52,6 +57,7 @@ pub struct Consume {
     bits: Octect,
     arguments: FieldTable,
 }
+
 impl Consume {
     pub fn new(
         ticket: ShortUint,
@@ -98,25 +104,26 @@ impl Consume {
     }
 }
 
+// RX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConsumeOk {
     pub(crate) consumer_tag: ShortStr,
 }
 
-impl ConsumeOk {
-    pub fn consumer_tag(&self) -> &String {
-        &self.consumer_tag
-    }
-}
-
+/// Used by channel [`cancel`] callback.
+/// 
+/// AMQP method frame [cancel](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.cancel).
+/// 
+/// [`cancel`]: callbacks/trait.ChannelCallback.html#tymethod.cancel
+// TX + RX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Cancel {
-    pub(crate) consumer_tag: ShortStr,
+    consumer_tag: ShortStr,
     no_wait: Boolean,
 }
 
 impl Cancel {
-    pub fn new(consumer_tag: ShortStr, no_wait: Boolean) -> Self {
+    pub(crate) fn new(consumer_tag: ShortStr, no_wait: Boolean) -> Self {
         Self {
             consumer_tag,
             no_wait,
@@ -124,7 +131,7 @@ impl Cancel {
     }
 
     pub fn consumer_tag(&self) -> &String {
-        &self.consumer_tag
+        self.consumer_tag.as_ref()
     }
 
     pub fn no_wait(&self) -> bool {
@@ -132,9 +139,10 @@ impl Cancel {
     }
 }
 
+// TX + RX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CancelOk {
-    pub consumer_tag: ShortStr,
+    pub(crate) consumer_tag: ShortStr,
 }
 
 impl CancelOk {
@@ -143,6 +151,7 @@ impl CancelOk {
     }
 }
 
+// TX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Publish {
     ticket: ShortUint,
@@ -176,7 +185,12 @@ impl Publish {
     }
 }
 
+/// Used by channel [`publish_return`] callback.
+/// 
 /// AMQP method frame [return](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.return).
+/// 
+/// [`publish_return`]: callbacks/trait.ChannelCallback.html#tymethod.publish_return
+// RX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Return {
     reply_code: ShortUint,
@@ -201,19 +215,23 @@ impl Return {
     }
 
     pub fn reply_text(&self) -> &String {
-        &self.reply_text
+        self.reply_text.as_ref()
     }
 
     pub fn exchange(&self) -> &String {
-        &self.exchange
+        self.exchange.as_ref()
     }
 
     pub fn routing_key(&self) -> &String {
-        &self.routing_key
+        self.routing_key.as_ref()
     }
 }
-
+/// Used by consumer [`consume`] callback.
+/// 
 /// AMQP method frame [deliver](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.deliver).
+/// 
+/// [`consume`]: consumer/trait.AsyncConsumer.html#tymethod.consume
+// RX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Deliver {
     consumer_tag: ShortStr,
@@ -232,7 +250,7 @@ impl fmt::Display for Deliver {
 
 impl Deliver {
     pub fn consumer_tag(&self) -> &String {
-        &self.consumer_tag
+        self.consumer_tag.as_ref()
     }
     pub fn delivery_tag(&self) -> u64 {
         self.delivery_tag
@@ -243,19 +261,20 @@ impl Deliver {
     }
 
     pub fn exchange(&self) -> &String {
-        &self.exchange
+        self.exchange.as_ref()
     }
 
     pub fn routing_key(&self) -> &String {
-        &self.routing_key
+        self.routing_key.as_ref()
     }
 }
 
+// TX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Get {
-    pub ticket: ShortUint,
-    pub queue: AmqpQueueName,
-    pub no_ack: Boolean,
+    ticket: ShortUint,
+    queue: AmqpQueueName,
+    no_ack: Boolean,
 }
 
 impl Get {
@@ -267,8 +286,11 @@ impl Get {
         }
     }
 }
-
+/// Part of [`GetMessage`]
+/// 
 /// AMQP method frame [get-ok](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.get-ok).
+/// 
+/// [`GetMessage`]: channel/type.GetMessage.html
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetOk {
     delivery_tag: LongLongUint,
@@ -294,11 +316,11 @@ impl GetOk {
     }
 
     pub fn exchange(&self) -> &String {
-        &self.exchange
+        self.exchange.as_ref()
     }
 
     pub fn routing_key(&self) -> &String {
-        &self.routing_key
+        self.routing_key.as_ref()
     }
 
     pub fn message_count(&self) -> u32 {
@@ -306,11 +328,18 @@ impl GetOk {
     }
 }
 
+// RX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetEmpty {
-    pub cluster_id: ShortStr,
+    pub(crate) cluster_id: ShortStr,
 }
 
+/// Used by channel [`publish_ack`] callback.
+/// 
+/// AMQP method frame [ack](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack).
+/// 
+/// [`publish_ack`]: callbacks/trait.ChannelCallback.html#tymethod.publish_ack
+// TX + RX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Ack {
     delivery_tag: LongLongUint,
@@ -318,7 +347,7 @@ pub struct Ack {
 }
 
 impl Ack {
-    pub fn new(delivery_tag: LongLongUint, mutiple: Boolean) -> Self {
+    pub(crate) fn new(delivery_tag: LongLongUint, mutiple: Boolean) -> Self {
         Self {
             delivery_tag,
             mutiple,
@@ -334,6 +363,7 @@ impl Ack {
     }
 }
 
+// TX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Reject {
     delivery_tag: LongLongUint,
@@ -347,21 +377,19 @@ impl Reject {
             requeue,
         }
     }
-
-    pub fn delivery_tag(&self) -> u64 {
-        self.delivery_tag
-    }
-
-    pub fn requeue(&self) -> bool {
-        self.requeue
-    }
 }
 
+// TX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RecoverAsync {
-    pub requeue: Boolean,
+    requeue: Boolean,
 }
 
+impl RecoverAsync {
+    pub fn new(requeue: Boolean) -> Self { Self { requeue } }
+}
+
+// TX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Recover {
     requeue: Boolean,
@@ -373,16 +401,23 @@ impl Recover {
     }
 }
 
+// RX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RecoverOk;
 
+/// Used by channel [`publish_nack`] callback.
+/// 
+/// AMQP method frame [nack](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.nack).
+/// 
+/// [`publish_nack`]: callbacks/trait.ChannelCallback.html#tymethod.publish_nack
+// TX + RX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Nack {
     delivery_tag: LongLongUint,
     bits: Octect,
 }
 impl Nack {
-    pub fn new(delivery_tag: LongLongUint) -> Self {
+    pub(crate) fn new(delivery_tag: LongLongUint) -> Self {
         Self {
             delivery_tag,
             bits: 0,
@@ -406,5 +441,13 @@ impl Nack {
 
     pub fn delivery_tag(&self) -> u64 {
         self.delivery_tag
+    }
+
+    pub fn multiple(&self) -> bool {
+        self.bits & bit_flag::nack::MULTIPLE > 0
+    }
+
+    pub fn requeue(&self) -> bool {
+        self.bits & bit_flag::nack::REQUEUE > 0
     }
 }

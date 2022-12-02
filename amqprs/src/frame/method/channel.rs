@@ -9,11 +9,23 @@ pub struct OpenChannel {
     out_of_band: ShortStr,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OpenChannelOk {
-    pub channel_id: LongStr,
+impl OpenChannel {
+    pub fn new(out_of_band: ShortStr) -> Self {
+        Self { out_of_band }
+    }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OpenChannelOk {
+    pub(crate) channel_id: LongStr,
+}
+
+/// Used by channel [`close`] callback.
+/// 
+/// AMQP method frame [close](https://www.rabbitmq.com/amqp-0-9-1-reference.html#channel.close).
+/// 
+/// [`close`]: callbacks/trait.ChannelCallback.html#tymethod.close
+// TX + RX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CloseChannel {
     reply_code: ShortUint,
@@ -23,12 +35,26 @@ pub struct CloseChannel {
 }
 
 impl CloseChannel {
+    pub(crate) fn new(
+        reply_code: ShortUint,
+        reply_text: ShortStr,
+        class_id: ShortUint,
+        method_id: ShortUint,
+    ) -> Self {
+        Self {
+            reply_code,
+            reply_text,
+            class_id,
+            method_id,
+        }
+    }
+
     pub fn reply_code(&self) -> u16 {
         self.reply_code
     }
 
     pub fn reply_text(&self) -> &String {
-        &self.reply_text
+        self.reply_text.as_ref()
     }
 
     pub fn class_id(&self) -> u16 {
@@ -64,33 +90,27 @@ impl Default for CloseChannel {
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct CloseChannelOk;
 
+// TX + RX
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Flow {
-    active: Boolean,
+    pub(crate) active: Boolean,
 }
 
 impl Flow {
     pub fn new(active: Boolean) -> Self {
         Self { active }
     }
-
-    pub fn active(&self) -> bool {
-        self.active
-    }
 }
 
+// TX + RX
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct FlowOk {
-    active: Boolean,
+    pub(crate) active: Boolean,
 }
 
 impl FlowOk {
     pub fn new(active: Boolean) -> Self {
         Self { active }
-    }
-
-    pub fn active(&self) -> bool {
-        self.active
     }
 }
 

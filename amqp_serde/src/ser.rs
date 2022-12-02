@@ -17,9 +17,10 @@ where
     Ok(buf)
 }
 
-pub fn to_buffer<T, U: BufMut + DerefMut<Target = [u8]>>(value: &T, buf: &mut U) -> Result<usize>
+pub fn to_buffer<T, U>(value: &T, buf: &mut U) -> Result<usize>
 where
     T: Serialize,
+    U: BufMut + DerefMut<Target = [u8]>,
 {
     let initial_size = buf.len();
     let mut serializer = Serializer { output: buf };

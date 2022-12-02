@@ -10,7 +10,7 @@ use super::{Channel, Result};
 /// # Support chainable methods to build arguments
 /// ```
 /// # use amqprs::channel::ExchangeDeclareArguments;
-/// 
+///
 /// let x = ExchangeDeclareArguments::new("amq.direct", "direct")
 ///     .auto_delete(true)
 ///     .durable(true)
@@ -272,7 +272,6 @@ impl Channel {
             0,
             args.exchange.try_into().unwrap(),
             args.exchange_type.try_into().unwrap(),
-            0,
             args.arguments,
         );
 
@@ -307,7 +306,7 @@ impl Channel {
     ///
     /// Returns error if any failure in comunication with server.
     pub async fn exchange_delete(&self, args: ExchangeDeleteArguments) -> Result<()> {
-        let mut delete = Delete::new(0, args.exchange.try_into().unwrap(), 0);
+        let mut delete = Delete::new(0, args.exchange.try_into().unwrap());
         delete.set_if_unused(args.if_unused);
         delete.set_no_wait(args.no_wait);
         if args.no_wait {
@@ -409,7 +408,9 @@ mod tests {
         let client = Connection::open(&args).await.unwrap();
 
         let channel = client.open_channel(None).await.unwrap();
-        let args = ExchangeDeclareArguments::new("amq.topic", "topic").passive(true).finish();
+        let args = ExchangeDeclareArguments::new("amq.topic", "topic")
+            .passive(true)
+            .finish();
         channel.exchange_declare(args).await.unwrap();
     }
 

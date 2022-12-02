@@ -13,28 +13,6 @@ pub struct Start {
     pub(crate) locales: LongStr,
 }
 
-impl Start {
-    pub fn version_major(&self) -> u8 {
-        self.version_major
-    }
-
-    pub fn version_minor(&self) -> u8 {
-        self.version_minor
-    }
-
-    pub fn server_properties(&self) -> &AmqpPeerProperties {
-        &self.server_properties
-    }
-
-    pub fn mechanisms(&self) -> &String {
-        &self.mechanisms
-    }
-
-    pub fn locales(&self) -> &String {
-        &self.locales
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StartOk {
     client_properties: AmqpPeerProperties,
@@ -80,7 +58,7 @@ impl Default for StartOk {
         Self {
             client_properties: AmqpPeerProperties::new(),
             machanisms: "PLAIN".try_into().unwrap(),
-            response: "\0user\0bitnami".try_into().unwrap(),
+            response: "\0guest\0guest".try_into().unwrap(),
             locale: "en_US".try_into().unwrap(),
         }
     }
@@ -137,10 +115,10 @@ pub struct Open {
 }
 
 impl Open {
-    pub fn new(virtual_host: ShortStr) -> Self {
+    pub fn new(virtual_host: ShortStr, capabilities: ShortStr) -> Self {
         Self {
             virtual_host,
-            capabilities: ShortStr::default(),
+            capabilities,
             insist: 0,
         }
     }
@@ -160,7 +138,12 @@ pub struct OpenOk {
     ///  Deprecated: "known-hosts", must be zero
     know_hosts: ShortStr,
 }
-
+/// Used by connection's [`close`] callback.
+/// 
+/// AMQP method frame [close](https://www.rabbitmq.com/amqp-0-9-1-reference.html#connection.close).
+/// 
+/// [`close`]: callbacks/trait.ConnectionCallback.html#tymethod.close
+// TX + RX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Close {
     reply_code: ShortUint,
@@ -180,7 +163,7 @@ impl fmt::Display for Close {
     }
 }
 impl Close {
-    pub fn new(
+    pub(crate) fn new(
         reply_code: ShortUint,
         reply_text: ShortStr,
         class_id: ShortUint,
@@ -199,7 +182,7 @@ impl Close {
     }
 
     pub fn reply_text(&self) -> &String {
-        &self.reply_text
+        self.reply_text.as_ref()
     }
 
     pub fn class_id(&self) -> u16 {
@@ -226,7 +209,7 @@ pub struct CloseOk;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Secure {
-    challenge: LongStr,
+    pub(crate) challenge: LongStr,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -243,7 +226,7 @@ impl SecureOk {
 // below from https://www.rabbitmq.com/resources/specs/amqp0-9-1.extended.xml
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Blocked {
-    reason: ShortStr,
+    pub(crate) reason: ShortStr,
 }
 
 impl Blocked {
@@ -252,7 +235,7 @@ impl Blocked {
     }
 
     pub fn reason(&self) -> &String {
-        &self.reason
+        self.reason.as_ref()
     }
 }
 
@@ -261,8 +244,8 @@ pub struct Unblocked;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateSecret {
-    new_secret: LongStr,
-    reason: ShortStr,
+    pub(crate) new_secret: LongStr,
+    pub(crate) reason: ShortStr,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]

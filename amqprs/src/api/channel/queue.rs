@@ -15,13 +15,13 @@ use crate::{
 /// # Support chainable methods to build arguments
 /// ```
 /// # use amqprs::channel::QueueDeclareArguments;
-/// 
+///
 /// let x = QueueDeclareArguments::default()
 ///     .auto_delete(true)
 ///     .durable(true)
 ///     .finish();
 /// ```
-/// 
+///
 /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.declare).
 ///
 /// [`queue_declare`]: struct.Channel.html#method.queue_declare
@@ -286,7 +286,7 @@ impl Channel {
         &self,
         args: QueueDeclareArguments,
     ) -> Result<Option<(String, AmqpMessageCount, u32)>> {
-        let mut declare = DeclareQueue::new(0, args.queue.try_into().unwrap(), 0, args.arguments);
+        let mut declare = DeclareQueue::new(0, args.queue.try_into().unwrap(), args.arguments);
         declare.set_passive(args.passive);
         declare.set_durable(args.durable);
         declare.set_exclusive(args.exclusive);
@@ -377,7 +377,7 @@ impl Channel {
                 Frame::PurgeQueueOk,
                 Error::ChannelUseError
             )?;
-            Ok(Some(purge_ok.message_count()))
+            Ok(Some(purge_ok.message_count))
         }
     }
     /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.delete)
@@ -393,7 +393,7 @@ impl Channel {
         &self,
         args: QueueDeleteArguments,
     ) -> Result<Option<AmqpMessageCount>> {
-        let mut delete = DeleteQueue::new(0, args.queue.try_into().unwrap(), 0);
+        let mut delete = DeleteQueue::new(0, args.queue.try_into().unwrap());
         delete.set_if_unused(args.if_unused);
         delete.set_if_empty(args.if_empty);
         delete.set_no_wait(args.no_wait);
@@ -413,7 +413,7 @@ impl Channel {
                 Frame::DeleteQueueOk,
                 Error::ChannelUseError
             )?;
-            Ok(Some(delete_ok.message_count()))
+            Ok(Some(delete_ok.message_count))
         }
     }
     /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.unbind)

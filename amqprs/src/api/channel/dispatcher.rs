@@ -343,7 +343,7 @@ impl ChannelDispatcher {
                             Frame::Flow(_, flow) => {
                                 // callback
                                 if let Some(ref mut cb) = self.callback {
-                                    match cb.flow(&self.channel, flow).await {
+                                    match cb.flow(&self.channel, flow.active).await {
                                       Err(err) => {
                                         debug!("channel {} flow callback error, cause: {}.", self.channel.channel_id(), err);
                                         // no response to server

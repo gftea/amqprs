@@ -84,5 +84,8 @@ async fn main() {
 
     // keep the `channel` and `connection` object from dropping
     // NOTE: channel/connection will be closed when drop
-    time::sleep(time::Duration::from_secs(10)).await;
+    time::sleep(time::Duration::from_secs(1)).await;
+    // explicitly close
+    channel.close().await.unwrap();
+    connection.close().await.unwrap();    
 }

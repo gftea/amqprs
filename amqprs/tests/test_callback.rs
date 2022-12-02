@@ -36,6 +36,8 @@ async fn test_connection_callback() {
     // keep the `channel` and `connection` object from dropping until publish is done
     // NOTE: channel/connection will be closed when drop
     time::sleep(time::Duration::from_millis(1)).await;
+    channel.close().await.unwrap();
+    connection.close().await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -63,4 +65,6 @@ async fn test_channel_callback() {
     // keep the `channel` and `connection` object from dropping until publish is done
     // NOTE: channel/connection will be closed when drop
     time::sleep(time::Duration::from_millis(1)).await;
+    channel.close().await.unwrap();
+    connection.close().await.unwrap();    
 }

@@ -7,7 +7,6 @@ use std::{
     collections::HashMap,
     fmt::{self, Debug},
     num::TryFromIntError,
-    ops::Deref,
 };
 
 use serde::{Deserialize, Serialize};
@@ -54,7 +53,7 @@ pub struct ShortStr(u8, String);
 
 impl fmt::Display for ShortStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.deref())
+        write!(f, "{}", self.as_ref())
     }
 }
 impl Default for ShortStr {
@@ -67,10 +66,8 @@ impl From<ShortStr> for String {
         s.1
     }
 }
-impl Deref for ShortStr {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
+impl AsRef<String> for ShortStr {
+    fn as_ref(&self) -> &String {
         &self.1
     }
 }
@@ -111,7 +108,7 @@ pub struct LongStr(u32, String);
 
 impl fmt::Display for LongStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.deref())
+        write!(f, "{}", self.as_ref())
     }
 }
 impl Default for LongStr {
@@ -120,10 +117,8 @@ impl Default for LongStr {
     }
 }
 
-impl Deref for LongStr {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
+impl AsRef<String> for LongStr {
+    fn as_ref(&self) -> &String {
         &self.1
     }
 }
@@ -239,9 +234,9 @@ impl fmt::Display for FieldArray {
 /// AMQP field value type.
 ///
 /// User is recommended to use conversion method to create FieldValue from rust's type.
-/// 
+///
 /// See [RabbitMQ errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html#section_3).
-/// 
+///
 /// # Usage
 ///
 /// ```

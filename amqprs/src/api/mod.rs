@@ -1,7 +1,4 @@
-
-
-use amqp_serde::types::{FieldTable};
-
+use amqp_serde::types::FieldTable;
 
 use self::error::Error;
 pub(in crate::api) type Result<T> = std::result::Result<T, Error>;

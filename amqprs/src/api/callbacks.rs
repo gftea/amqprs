@@ -51,10 +51,10 @@ pub trait ConnectionCallback {
     async fn close(&mut self, connection: &Connection, close: Close) -> Result<()>;
 
     /// Callback to handle connection `blocked` indication from server
-    async fn blocked(&mut self, connection: &Connection, blocked: Blocked);
+    async fn blocked(&mut self, connection: &Connection, reason: String);
 
     /// Callback to handle connection `unblocked` indication from server
-    async fn unblocked(&mut self, connection: &Connection, blocked: Unblocked);
+    async fn unblocked(&mut self, connection: &Connection);
 }
 
 /// Default type that implements `ConnectionCallback`.
@@ -69,13 +69,13 @@ impl ConnectionCallback for DefaultConnectionCallback {
         Ok(())
     }
 
-    async fn blocked(&mut self, _connection: &Connection, blocked: Blocked) {
+    async fn blocked(&mut self, _connection: &Connection, reason: String) {
         info!(
             "connection blocked by server, reason: {}.",
-            blocked.reason()
+            reason
         );
     }
-    async fn unblocked(&mut self, _connection: &Connection, _blocked: Unblocked) {
+    async fn unblocked(&mut self, _connection: &Connection) {
         info!("connection unblocked by server.");
     }
 }
@@ -111,9 +111,11 @@ pub trait ChannelCallback {
     /// Callback to handle server's `flow` request to pause or restart
     /// the flow of sending content data.
     ///
+    /// if `active` = [`true`], request to start, otherwise to pause.
+    /// 
     /// Returns [`true`] to indicate to server that client starts sending data.
     /// Returns [`false`] to indicate to server that client stops sending data.
-    async fn flow(&mut self, channel: &Channel, flow: Flow) -> Result<bool>;
+    async fn flow(&mut self, channel: &Channel, active: bool) -> Result<bool>;
 
     /// Callback to handle `ack` indication from server.
     ///
@@ -162,8 +164,8 @@ impl ChannelCallback for DefaultChannelCallback {
         info!("receive cancel for consumer: {}.", cancel.consumer_tag());
         Ok(())
     }
-    async fn flow(&mut self, _channel: &Channel, flow: Flow) -> Result<bool> {
-        info!("channel flow request from server, {}.", flow.active());
+    async fn flow(&mut self, _channel: &Channel, active: bool) -> Result<bool> {
+        info!("channel flow request from server, {}.", active);
         Ok(true)
     }
     async fn publish_ack(&mut self, _channel: &Channel, ack: Ack) {

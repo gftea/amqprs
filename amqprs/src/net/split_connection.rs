@@ -229,8 +229,8 @@ mod test {
         let auth_machanism = 2;
         match auth_machanism {
             1 => {
-                let start_ok = StartOk::default();
-
+                let mut start_ok = StartOk::default();
+                *start_ok.response_mut() = "\0user\0bitnami".try_into().unwrap();
                 // default: PLAIN
                 tx_req
                     .send((DEFAULT_CONN_CHANNEL, start_ok.into_frame()))

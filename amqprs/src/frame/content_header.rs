@@ -255,7 +255,7 @@ impl BasicProperties {
     }
 
     pub fn content_type(&self) -> Option<&String> {
-        self.content_type.as_deref()
+        self.content_type.as_ref().map(|v| v.as_ref())
     }
 
     /// Chainable setter of content type.
@@ -268,7 +268,7 @@ impl BasicProperties {
     }
 
     pub fn content_encoding(&self) -> Option<&String> {
-        self.content_encoding.as_deref()
+        self.content_encoding.as_ref().map(|v| v.as_ref())
     }
 
     /// Chainable setter of content encoding.
@@ -327,7 +327,7 @@ impl BasicProperties {
     }
 
     pub fn correlation_id(&self) -> Option<&String> {
-        self.correlation_id.as_deref()
+        self.correlation_id.as_ref().map(|v| v.as_ref())
     }
 
     /// Chainable setter of correlation id.
@@ -342,7 +342,7 @@ impl BasicProperties {
     }
 
     pub fn reply_to(&self) -> Option<&String> {
-        self.reply_to.as_deref()
+        self.reply_to.as_ref().map(|v| v.as_ref())
     }
 
     /// Chainable setter of reply_to.
@@ -355,7 +355,7 @@ impl BasicProperties {
     }
 
     pub fn expiration(&self) -> Option<&String> {
-        self.expiration.as_deref()
+        self.expiration.as_ref().map(|v| v.as_ref())
     }
 
     /// Chainable setter of expiration.
@@ -368,7 +368,7 @@ impl BasicProperties {
     }
 
     pub fn message_id(&self) -> Option<&String> {
-        self.message_id.as_deref()
+        self.message_id.as_ref().map(|v| v.as_ref())
     }
     /// Chainable setter of message_id.
     ///
@@ -392,7 +392,7 @@ impl BasicProperties {
     }
 
     pub fn message_type(&self) -> Option<&String> {
-        self.message_type.as_deref()
+        self.message_type.as_ref().map(|v| v.as_ref())
     }
     /// Chainable setter of message_type.
     ///
@@ -403,7 +403,7 @@ impl BasicProperties {
         self
     }
     pub fn user_id(&self) -> Option<&String> {
-        self.user_id.as_deref()
+        self.user_id.as_ref().map(|v| v.as_ref())
     }
     /// Chainable setter of user_id.
     ///
@@ -415,7 +415,7 @@ impl BasicProperties {
     }
 
     pub fn app_id(&self) -> Option<&String> {
-        self.app_id.as_deref()
+        self.app_id.as_ref().map(|v| v.as_ref())
     }
     /// Chainable setter of app_id.
     ///
@@ -427,7 +427,7 @@ impl BasicProperties {
     }
 
     pub fn cluster_id(&self) -> Option<&String> {
-        self.cluster_id.as_deref()
+        self.cluster_id.as_ref().map(|v| v.as_ref())
     }
     /// Chainable setter of cluster_id.
     ///

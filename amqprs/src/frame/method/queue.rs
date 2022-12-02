@@ -30,16 +30,11 @@ pub struct DeclareQueue {
 }
 
 impl DeclareQueue {
-    pub fn new(
-        ticket: ShortUint,
-        queue: AmqpQueueName,
-        bits: Octect,
-        arguments: FieldTable,
-    ) -> Self {
+    pub fn new(ticket: ShortUint, queue: AmqpQueueName, arguments: FieldTable) -> Self {
         Self {
             ticket,
             queue,
-            bits,
+            bits: 0,
             arguments,
         }
     }
@@ -87,32 +82,6 @@ pub struct DeclareQueueOk {
     pub(crate) queue: AmqpQueueName,
     pub(crate) message_count: AmqpMessageCount,
     pub(crate) consumer_count: LongUint,
-}
-
-impl DeclareQueueOk {
-    pub fn new(
-        queue: AmqpQueueName,
-        message_count: AmqpMessageCount,
-        consumer_count: LongUint,
-    ) -> Self {
-        Self {
-            queue,
-            message_count,
-            consumer_count,
-        }
-    }
-
-    pub fn queue(&self) -> &String {
-        &self.queue
-    }
-
-    pub fn message_count(&self) -> u32 {
-        self.message_count
-    }
-
-    pub fn consumer_count(&self) -> u32 {
-        self.consumer_count
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -186,11 +155,11 @@ pub struct DeleteQueue {
 }
 
 impl DeleteQueue {
-    pub fn new(ticket: ShortUint, queue: AmqpQueueName, bits: Octect) -> Self {
+    pub fn new(ticket: ShortUint, queue: AmqpQueueName) -> Self {
         Self {
             ticket,
             queue,
-            bits,
+            bits: 0,
         }
     }
 
@@ -218,13 +187,7 @@ impl DeleteQueue {
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeleteQueueOk {
-    message_count: AmqpMessageCount,
-}
-
-impl DeleteQueueOk {
-    pub fn message_count(&self) -> u32 {
-        self.message_count
-    }
+    pub(crate) message_count: AmqpMessageCount,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -246,11 +209,5 @@ impl PurgeQueue {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PurgeQueueOk {
-    message_count: AmqpMessageCount,
-}
-
-impl PurgeQueueOk {
-    pub fn message_count(&self) -> u32 {
-        self.message_count
-    }
+    pub(crate) message_count: AmqpMessageCount,
 }

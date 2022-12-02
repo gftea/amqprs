@@ -80,15 +80,15 @@ async fn test_multi_consumer() {
     if false {
         // implicitly close by drop
         drop(channel);
+        // wait for close task finished
         time::sleep(time::Duration::from_millis(10)).await;
         drop(connection);
+        // wait for close task finished
         time::sleep(time::Duration::from_millis(10)).await;
     } else {
         // explicitly close
         channel.close().await.unwrap();
-        time::sleep(time::Duration::from_millis(10)).await;
         connection.close().await.unwrap();
-        time::sleep(time::Duration::from_millis(10)).await;
     }
 }
 
@@ -124,4 +124,5 @@ async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
             .await
             .unwrap();
     }
+
 }

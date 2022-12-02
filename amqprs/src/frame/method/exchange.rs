@@ -31,14 +31,13 @@ impl Declare {
         ticket: ShortUint,
         exchange: AmqpExchangeName,
         typ: ShortStr,
-        bits: Octect,
         arguments: FieldTable,
     ) -> Self {
         Self {
             ticket,
             exchange,
             typ,
-            bits,
+            bits: 0,
             arguments,
         }
     }
@@ -93,11 +92,11 @@ pub struct Delete {
     bits: Octect,
 }
 impl Delete {
-    pub fn new(ticket: ShortUint, exchange: AmqpExchangeName, bits: Octect) -> Self {
+    pub fn new(ticket: ShortUint, exchange: AmqpExchangeName) -> Self {
         Self {
             ticket,
             exchange,
-            bits,
+            bits: 0,
         }
     }
 

@@ -336,7 +336,11 @@ impl Connection {
             .await?;
 
         // C: Open
-        let open = Open::new(args.virtual_host.clone().try_into().unwrap()).into_frame();
+        let open = Open::new(
+            args.virtual_host.clone().try_into().unwrap(),
+            "".try_into().unwrap(),
+        )
+        .into_frame();
         connection.write_frame(DEFAULT_CONN_CHANNEL, open).await?;
 
         // S: OpenOk
@@ -409,7 +413,13 @@ impl Connection {
             Error::ConnectionOpenError("start".to_string())
         )?;
         // get server supported locales
-        if false == start.locales().split(" ").any(|v| DEFAULT_LOCALE == v) {
+        if false
+            == start
+                .locales
+                .as_ref()
+                .split(" ")
+                .any(|v| DEFAULT_LOCALE == v)
+        {
             return Err(Error::ConnectionOpenError(format!(
                 "locale '{}' is not supported by server",
                 DEFAULT_LOCALE
@@ -418,7 +428,8 @@ impl Connection {
         // get server supported authentication mechanisms
         if false
             == start
-                .mechanisms()
+                .mechanisms
+                .as_ref()
                 .split(" ")
                 .any(|v| args.credentials.get_mechanism_name() == v)
         {

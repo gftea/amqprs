@@ -2,6 +2,7 @@ use amqp_serde::{
     from_bytes,
     types::{AmqpChannelId, LongUint, Octect, ShortUint},
 };
+
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -26,7 +27,7 @@ mod helpers {
 
     macro_rules! impl_frame {
     ($($class_id:literal => $($method_id:literal : $method:ident),+);+) => {
-        // function to decode method frame
+        /// function to decode method frame
         fn decode_method_frame(header: MethodHeader, content: &[u8]) -> Result<Frame, Error> {
             match header.class_id() {
                 $($class_id => {
@@ -42,15 +43,15 @@ mod helpers {
         // common interfaces of each method type
         $($(impl_method_frame!{$method, $class_id, $method_id})+)+
 
-        // `Frame` enum to generailize various frames.
-        // To avoid generic type parameter for new type depends on `Frame`.
-        // Only wrap the frame payload in enum variant, excluding the `FrameHeader` and FRAME_END byte
-        // The `Frame` type only need to implement Serialize, because when decoding a `Frame`,
-        // `FrameHeader`, its payload, and `FRAME_END` bytes are desrialized separately
+        /// `Frame` enum to generailize various frames.
+        /// To avoid generic type parameter for new type depends on `Frame`.
+        /// Only wrap the frame payload in enum variant, excluding the `FrameHeader` and FRAME_END byte
+        /// The `Frame` type only need to implement Serialize, because when decoding a `Frame`,
+        /// `FrameHeader`, its payload, and `FRAME_END` bytes are desrialized separately
         #[derive(Debug, Serialize)]
         #[serde(untagged)]
         pub enum Frame {
-            // method frame payload = method header + method
+            /// method frame payload = method header + method
             $($($method(&'static MethodHeader, $method),)+)+
 
             HeartBeat(HeartBeat),
@@ -140,7 +141,7 @@ impl_frame! {
             72: GetEmpty,
             80: Ack,
             90: Reject,
-            100: RecoverAsync,
+            // 100: RecoverAsync, // Deprecated
             110: Recover,
             111: RecoverOk,
             120: Nack;
@@ -182,9 +183,9 @@ impl Frame {
     }
 
     /// To support channels multiplex on one connection, need to populate the channel id
-    /// to support update of read buffer cursor, need to populate the number of bytes are read
-    /// Return :
-    ///     (Number of bytes are read, Channel id, the Frame)
+    /// to support update of read buffer cursor, and the number of bytes are read
+    /// Returns:
+    ///     (num of bytes read, channel id, decoded frame)
     pub fn decode(buf: &[u8]) -> Result<Option<(usize, AmqpChannelId, Frame)>, Error> {
         // check frame header, 7 octects
         if buf.len() < FRAME_HEADER_SIZE {

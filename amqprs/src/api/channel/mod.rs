@@ -22,7 +22,7 @@ use std::sync::{
     Arc,
 };
 
-use amqp_serde::types::{AmqpChannelId};
+use amqp_serde::types::AmqpChannelId;
 use tokio::sync::{mpsc, oneshot};
 
 use super::callbacks::ChannelCallback;
@@ -249,7 +249,7 @@ impl Channel {
             Frame::FlowOk,
             Error::ChannelUseError
         )?;
-        Ok(flow_ok.active())
+        Ok(flow_ok.active)
     }
 
     /// Ask the server to close the channel.
