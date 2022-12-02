@@ -394,8 +394,10 @@ impl FieldTable {
 impl fmt::Display for FieldTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{ ")?;
-        for (k, v) in self.0.iter().take(self.0.len() - 1) {
-            write!(f, "{}: {}, ", k, v)?;
+        if self.0.len() > 1 {
+            for (k, v) in self.0.iter().take(self.0.len() - 1) {
+                write!(f, "{}: {}, ", k, v)?;
+            }
         }
         if let Some((k, v)) = self.0.iter().last() {
             write!(f, "{}: {} ", k, v)?;

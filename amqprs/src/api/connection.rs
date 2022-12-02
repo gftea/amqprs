@@ -330,7 +330,7 @@ impl Connection {
         let tune_ok = TuneOk::new(tune.channel_max(), tune.frame_max(), tune.heartbeat());
 
         let channel_max = tune.channel_max();
-        let _heartbeat = tune.heartbeat();
+        let heartbeat = tune.heartbeat();
         connection
             .write_frame(DEFAULT_CONN_CHANNEL, tune_ok.into_frame())
             .await?;
@@ -368,7 +368,7 @@ impl Connection {
 
         // spawn handlers for reader and writer of network connection
         new_amq_conn
-            .spawn_handlers(connection, outgoing_rx, conn_mgmt_rx)
+            .spawn_handlers(connection, outgoing_rx, conn_mgmt_rx, heartbeat)
             .await;
 
         // register channel resource for connection's default channel
@@ -609,6 +609,7 @@ impl Connection {
         connection: SplitConnection,
         outgoing_rx: mpsc::Receiver<OutgoingMessage>,
         conn_mgmt_rx: mpsc::Receiver<ConnManagementCommand>,
+        heartbeat: ShortUint,
     ) {
         // Spawn two tasks for the connection
         // - one task for writer
@@ -628,13 +629,13 @@ impl Connection {
             shutdown_notifer,
         );
         tokio::spawn(async move {
-            rh.run_until_shutdown().await;
+            rh.run_until_shutdown(heartbeat).await;
         });
 
         // spawn task for write connection handler
         let wh = WriterHandler::new(writer, outgoing_rx, shutdown_listener);
         tokio::spawn(async move {
-            wh.run_until_shutdown().await;
+            wh.run_until_shutdown(heartbeat).await;
         });
     }
 

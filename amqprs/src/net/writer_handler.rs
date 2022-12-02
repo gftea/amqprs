@@ -1,5 +1,11 @@
-use tokio::sync::{broadcast, mpsc};
+use amqp_serde::types::ShortUint;
+use tokio::{
+    sync::{broadcast, mpsc},
+    time,
+};
 use tracing::{debug, error, info};
+
+use crate::frame::{Frame, HeartBeat, DEFAULT_CONN_CHANNEL};
 
 use super::{BufWriter, OutgoingMessage};
 
@@ -24,7 +30,9 @@ impl WriterHandler {
         }
     }
 
-    pub async fn run_until_shutdown(mut self) {
+    pub async fn run_until_shutdown(mut self, heartbeat: ShortUint) {
+        let mut heartbeat_interval = time::interval(time::Duration::from_secs(heartbeat.into()));
+
         loop {
             tokio::select! {
                 biased;
@@ -38,6 +46,14 @@ impl WriterHandler {
                         error!("failed to send frame over network, cause: {}!", err);
                         break;
                     }
+                }
+                _ = heartbeat_interval.tick() => {
+                    
+                    if let Err(err) = self.stream.write_frame(DEFAULT_CONN_CHANNEL, Frame::HeartBeat(HeartBeat)).await {
+                        error!("failed to send heartbeat over network, cause: {}!", err);
+                        break;
+                    }
+                    debug!("sent heartbeat ...");
                 }
                 _ = self.shutdown.recv() => {
                     info!("received shutdown notification.");

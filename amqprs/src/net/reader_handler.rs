@@ -70,7 +70,7 @@ impl ReaderHandler {
         match frame {
             // TODO: Handle heartbeat
             Frame::HeartBeat(_) => {
-                debug!("heartbeat, to be handled....");
+                debug!("heartbeat received, to be handled....");
                 Ok(())
             }
 
@@ -160,7 +160,7 @@ impl ReaderHandler {
         }
     }
 
-    pub async fn run_until_shutdown(mut self) {
+    pub async fn run_until_shutdown(mut self, heartbeat: ShortUint) {
         loop {
             tokio::select! {
                 biased;
