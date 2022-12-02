@@ -4,20 +4,20 @@ use amqprs::{
     consumer::DefaultConsumer,
 };
 
-use tokio::{sync::Notify, time};
-use tracing::{Level, info};
+use tokio::time;
+use tracing::{info, Level};
 mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_multi_consumer() {
     common::setup_logging(Level::DEBUG).ok();
 
-    // open a connection to RabbitMQ server
-    let connection = Connection::open(&OpenConnectionArguments::new(
-        "localhost:5672",
-        "user",
-        "bitnami",
-    ))
+    // open a connection to RabbitMQ server, set heartbeat = 10s
+    let connection = Connection::open(
+        &OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+            .heartbeat(10)
+            .finish(),
+    )
     .await
     .unwrap();
 
@@ -48,7 +48,22 @@ async fn test_multi_consumer() {
         .basic_consume(DefaultConsumer::new(args.no_ack), args)
         .await
         .unwrap();
-    info!("------------------------------------------------------");
-    
-    time::sleep(time::Duration::from_secs(60 * 60)).await;
+    info!("-------------no heartbeat required--------------------");
+
+    // normal interval is the heartbeat timeout / 2
+    let interval: u64 = (connection.heartbeat() / 2).into();
+    let num_loop = 5;
+
+    for _ in 0..num_loop {
+        time::sleep(time::Duration::from_secs(interval - 1)).await;
+        // if any frame sent between heartbeat deadline, the heartbeat deadline will be updated.
+        // during this loop, do not expect any heartbeat sent
+        channel.flow(true).await.unwrap();
+    }
+    info!("------------------now heartbeat should be sent as required interval------------------");
+
+    // now heartbeat should be sent as required interval
+    time::sleep(time::Duration::from_secs(interval * num_loop)).await;
+    channel.close().await.unwrap();
+    connection.close().await.unwrap();
 }

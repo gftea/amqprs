@@ -43,12 +43,13 @@ use std::{
 };
 
 use amqp_serde::types::{
-    AmqpChannelId, AmqpPeerProperties, FieldTable, FieldValue, LongStr, ShortUint,
+    AmqpChannelId, AmqpPeerProperties, FieldTable, FieldValue, LongStr, LongUint, ShortUint,
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::{debug, error, info, trace};
 
 use crate::{
+    channel,
     frame::{
         Blocked, Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, OpenChannelOk,
         ProtocolHeader, StartOk, TuneOk, Unblocked, DEFAULT_CONN_CHANNEL,
@@ -168,6 +169,8 @@ struct SharedConnectionInner {
     server_properties: ServerProperties,
     connection_name: String,
     channel_max: ShortUint,
+    frame_max: LongUint,
+    heartbeat: ShortUint,
     is_open: AtomicBool,
     outgoing_tx: mpsc::Sender<OutgoingMessage>,
     conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
@@ -212,6 +215,9 @@ pub struct OpenConnectionArguments {
     connection_name: Option<String>,
     /// Default: use SASL/PLAIN authentication. See [RabbitMQ access control](https://www.rabbitmq.com/access-control.html#mechanisms).
     credentials: SecurityCredentials,
+    /// Heartbeat timeout in seconds. See [RabbitMQ heartbeats](https://www.rabbitmq.com/heartbeats.html)
+    /// Default: 60s. 
+    heartbeat: u16,
 }
 
 impl Default for OpenConnectionArguments {
@@ -221,6 +227,7 @@ impl Default for OpenConnectionArguments {
             virtual_host: String::from("/"),
             connection_name: None,
             credentials: SecurityCredentials::new_plain("guest", "guest"),
+            heartbeat: 60,
         }
     }
 }
@@ -238,6 +245,7 @@ impl OpenConnectionArguments {
             virtual_host: String::from("/"),
             connection_name: None,
             credentials: SecurityCredentials::new_plain(username, password),
+            heartbeat: 60,
         }
     }
 
@@ -280,7 +288,16 @@ impl OpenConnectionArguments {
         self.credentials = credentials;
         self
     }
-
+    /// Set the heartbeat timeout in seconds. See [RabbitMQ heartbeats](https://www.rabbitmq.com/heartbeats.html).
+    ///
+    /// # Default
+    ///
+    /// 60 seconds.
+    pub fn heartbeat(&mut self, heartbeat: u16) -> &mut Self {
+        self.heartbeat = heartbeat;
+        self
+    }
+    
     /// Finish chaining and returns a new argument according to chained configurations.
     pub fn finish(&mut self) -> Self {
         self.clone()
@@ -297,10 +314,10 @@ impl Connection {
     /// Returns [`Err`] if any step goes wrong during openning an AMQP connection.
     pub async fn open(args: &OpenConnectionArguments) -> Result<Self> {
         // TODO: uri parsing
-        let mut connection = SplitConnection::open(&args.uri).await?;
+        let mut io_conn = SplitConnection::open(&args.uri).await?;
 
         // C:protocol-header
-        Self::negotiate_protocol(&mut connection).await?;
+        Self::negotiate_protocol(&mut io_conn).await?;
 
         // if no given connection name, generate one
         let connection_name = match args.connection_name {
@@ -314,37 +331,23 @@ impl Connection {
             FieldValue::S(connection_name.clone().try_into().unwrap()),
         );
 
-        // S:START C:START-OK
+        // S: `Start` C: `StartOk`
         let server_properties =
-            Self::negotiate_connection(&mut connection, client_properties, args).await?;
+            Self::start_connection_negotiation(&mut io_conn, client_properties, args).await?;
 
-        // TODO: tune for channel_max, frame_max, heartbeat between client and server
-        // S: 'Tune'
-        let (_, frame) = connection.read_frame().await?;
-        let tune = unwrap_expected_method!(
-            frame,
-            Frame::Tune,
-            Error::ConnectionOpenError("tune".to_string())
-        )?;
-        // C: TuneOk
-        let tune_ok = TuneOk::new(tune.channel_max(), tune.frame_max(), tune.heartbeat());
-
-        let channel_max = tune.channel_max();
-        let heartbeat = tune.heartbeat();
-        connection
-            .write_frame(DEFAULT_CONN_CHANNEL, tune_ok.into_frame())
-            .await?;
-
+        // S: 'Tune' C: `TuneOk`
+        let (channel_max, frame_max, heartbeat) =
+            Self::tuning_parameters(&mut io_conn, args.heartbeat).await?;
         // C: Open
         let open = Open::new(
             args.virtual_host.clone().try_into().unwrap(),
             "".try_into().unwrap(),
         )
         .into_frame();
-        connection.write_frame(DEFAULT_CONN_CHANNEL, open).await?;
+        io_conn.write_frame(DEFAULT_CONN_CHANNEL, open).await?;
 
         // S: OpenOk
-        let (_, frame) = connection.read_frame().await?;
+        let (_, frame) = io_conn.read_frame().await?;
         unwrap_expected_method!(
             frame,
             Frame::OpenOk,
@@ -359,6 +362,8 @@ impl Connection {
             server_properties,
             connection_name,
             channel_max,
+            frame_max,
+            heartbeat,
             is_open: AtomicBool::new(true),
             outgoing_tx,
             conn_mgmt_tx,
@@ -368,7 +373,7 @@ impl Connection {
 
         // spawn handlers for reader and writer of network connection
         new_amq_conn
-            .spawn_handlers(connection, outgoing_rx, conn_mgmt_rx, heartbeat)
+            .spawn_handlers(io_conn, outgoing_rx, conn_mgmt_rx, heartbeat)
             .await;
 
         // register channel resource for connection's default channel
@@ -389,24 +394,28 @@ impl Connection {
     /// # Errors
     ///
     /// Returns error if fail to send protocol header.
-    async fn negotiate_protocol(conn: &mut SplitConnection) -> Result<()> {
+    async fn negotiate_protocol(io_conn: &mut SplitConnection) -> Result<()> {
         // only support AMQP 0-9-1 at present
-        conn.write(&ProtocolHeader::default()).await?;
+        io_conn.write(&ProtocolHeader::default()).await?;
         Ok(())
     }
 
-    /// Connection negotiation according to AMQP 0-9-1 methods Start/StartOk
+    /// Start connection negotiation according to AMQP 0-9-1 methods Start/StartOk
     ///
+    /// Returns
+    /// 
+    /// [`ServerProperties`]
+    /// 
     /// # Errors
     ///
     /// Returns error when encounters any protocol error.
-    async fn negotiate_connection(
-        conn: &mut SplitConnection,
+    async fn start_connection_negotiation(
+        io_conn: &mut SplitConnection,
         client_properties: AmqpPeerProperties,
         args: &OpenConnectionArguments,
     ) -> Result<ServerProperties> {
         // S: 'Start'
-        let (_, frame) = conn.read_frame().await?;
+        let (_, frame) = io_conn.read_frame().await?;
         let mut start = unwrap_expected_method!(
             frame,
             Frame::Start,
@@ -496,9 +505,45 @@ impl Connection {
             DEFAULT_LOCALE.try_into().unwrap(),
         );
 
-        conn.write_frame(DEFAULT_CONN_CHANNEL, start_ok.into_frame())
+        io_conn
+            .write_frame(DEFAULT_CONN_CHANNEL, start_ok.into_frame())
             .await?;
         Ok(server_properties)
+    }
+
+    /// Tuning for channel_max, frame_max, heartbeat between client and server.
+    /// 
+    /// # Returns
+    /// 
+    ///  `(channel_max, frame_max, heartbeat)` 
+    async fn tuning_parameters(
+        io_conn: &mut SplitConnection,
+        heartbeat: ShortUint,
+    ) -> Result<(ShortUint, LongUint, ShortUint)> {
+        // S: 'Tune'
+        let (_, frame) = io_conn.read_frame().await?;
+        let tune = unwrap_expected_method!(
+            frame,
+            Frame::Tune,
+            Error::ConnectionOpenError("tune".to_string())
+        )?;
+
+        // according to https://www.rabbitmq.com/heartbeats.html
+        let new_heartbeat = if tune.heartbeat() == 0 || heartbeat == 0 {
+            std::cmp::max(tune.heartbeat(), heartbeat)
+        } else {
+            std::cmp::min(tune.heartbeat(), heartbeat)
+        };
+        // No tunning of channel_max and frame_max
+        let new_channel_max = tune.channel_max();
+        let new_frame_max = tune.frame_max();
+        // C: TuneOk
+        let tune_ok = TuneOk::new(new_channel_max, new_frame_max, new_heartbeat);
+
+        io_conn
+            .write_frame(DEFAULT_CONN_CHANNEL, tune_ok.into_frame())
+            .await?;
+        Ok((new_channel_max, new_frame_max, new_heartbeat))
     }
 
     /// Get connection name.
@@ -567,6 +612,10 @@ impl Connection {
     /// Returns `true` if connection is open.
     pub fn is_open(&self) -> bool {
         self.shared.is_open.load(Ordering::Relaxed)
+    }
+    /// Returns interval of heartbeat in seconds.
+    pub fn heartbeat(&self) -> u16 {
+        self.shared.heartbeat
     }
 
     pub(crate) async fn register_channel_resource(

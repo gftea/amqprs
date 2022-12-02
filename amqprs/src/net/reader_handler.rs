@@ -1,9 +1,9 @@
 use amqp_serde::types::{AmqpChannelId, ShortUint};
-use tokio::sync::{
+use tokio::{sync::{
     broadcast,
     mpsc::{Receiver, Sender},
-};
-use tracing::{debug, error, info};
+}, time};
+use tracing::{debug, error, info, trace};
 
 use crate::{
     api::{callbacks::ConnectionCallback, connection::Connection},
@@ -68,9 +68,10 @@ impl ReaderHandler {
         // handle only connection level frame,
         // channel level frames are forwarded to corresponding channel dispatcher
         match frame {
-            // TODO: Handle heartbeat
+            // any received frame can be considered as heartbeat
+            // nothing to handle with heartbeat frame.
             Frame::HeartBeat(_) => {
-                debug!("heartbeat received, to be handled....");
+                debug!("heartbeat received ...");
                 Ok(())
             }
 
@@ -161,6 +162,9 @@ impl ReaderHandler {
     }
 
     pub async fn run_until_shutdown(mut self, heartbeat: ShortUint) {
+        // max interval to consider heartbeat is timeout
+        let max_interval: u64 = heartbeat.into();
+        let mut expiration = time::Instant::now() + time::Duration::from_secs(max_interval);
         loop {
             tokio::select! {
                 biased;
@@ -190,8 +194,11 @@ impl ReaderHandler {
 
                     }
                 }
-
                 res = self.stream.read_frame() => {
+                    // any frame can be considered as heartbeat                    
+                    expiration = time::Instant::now() + time::Duration::from_secs(max_interval);
+                    trace!("server heartbeat deadline is updated to {:?}", expiration);
+
                     match res {
                         Ok((channel_id, frame)) => {
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
@@ -207,6 +214,15 @@ impl ReaderHandler {
                             error!("failed to read frame, cause: {}!", err);
                             break;
                         },
+                    }
+
+                }
+                _ = time::sleep_until(expiration) => {
+                    // heartbeat deadline is updated whenever any frame received
+                    // in normal case, expiration is always in the future due to received frame or heartbeats.
+                    if expiration <= time::Instant::now() {
+                        expiration = time::Instant::now() + time::Duration::from_secs(max_interval);
+                        error!("missing heartbeat from server for connection {}", self.amqp_connection.connection_name());
                     }
 
                 }
