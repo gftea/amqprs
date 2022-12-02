@@ -5,6 +5,9 @@ edition = "2021"
 license = "MIT"
 description = "AMQP 0-9-1 client implementation for RabbitMQ"
 repository = "https://github.com/gftea/amqprs"
+keywords = ["amqp", "rabbitmq", "client", "async", "tokio", "lock-free"]
+categories = ["network-programming"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -20,10 +23,8 @@ tokio = { version = "1.0", features = [
 bytes = { version = "1.0" }
 serde = { version = "1.0", features = ["derive"] }
 amqp_serde = { path = "../amqp_serde" }
-# futures = "0.3"
-# tokio-stream = "0.1"
 async-trait = "0.1"
 tracing = "0.1"
-# rand = "0.8"
+
 [dev-dependencies]
 tracing-subscriber = "0.3"
