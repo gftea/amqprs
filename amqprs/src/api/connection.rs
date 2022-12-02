@@ -668,7 +668,7 @@ impl Connection {
 
         synchronous_request!(
             self.shared.outgoing_tx,
-            (channel_id, OpenChannel::default().into_frame()),
+            (channel_id, OpenChannel::new().into_frame()),
             responder_rx,
             Frame::OpenChannelOk,
             Error::ChannelOpenError

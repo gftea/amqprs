@@ -26,7 +26,7 @@ use super::{channel::Channel, connection::Connection};
 use crate::api::Result;
 use crate::frame::Cancel;
 use crate::{
-    frame::{Ack, Blocked, Close, CloseChannel, Flow, Nack, Return, Unblocked},
+    frame::{Ack, Close, CloseChannel, Nack, Return},
     BasicProperties,
 };
 use async_trait::async_trait;
@@ -70,10 +70,7 @@ impl ConnectionCallback for DefaultConnectionCallback {
     }
 
     async fn blocked(&mut self, _connection: &Connection, reason: String) {
-        info!(
-            "connection blocked by server, reason: {}.",
-            reason
-        );
+        info!("connection blocked by server, reason: {}.", reason);
     }
     async fn unblocked(&mut self, _connection: &Connection) {
         info!("connection unblocked by server.");
@@ -112,7 +109,7 @@ pub trait ChannelCallback {
     /// the flow of sending content data.
     ///
     /// if `active` = [`true`], request to start, otherwise to pause.
-    /// 
+    ///
     /// Returns [`true`] to indicate to server that client starts sending data.
     /// Returns [`false`] to indicate to server that client stops sending data.
     async fn flow(&mut self, channel: &Channel, active: bool) -> Result<bool>;

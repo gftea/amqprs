@@ -66,5 +66,5 @@ async fn test_channel_callback() {
     // NOTE: channel/connection will be closed when drop
     time::sleep(time::Duration::from_millis(1)).await;
     channel.close().await.unwrap();
-    connection.close().await.unwrap();    
+    connection.close().await.unwrap();
 }

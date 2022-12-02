@@ -87,5 +87,5 @@ async fn main() {
     time::sleep(time::Duration::from_secs(1)).await;
     // explicitly close
     channel.close().await.unwrap();
-    connection.close().await.unwrap();    
+    connection.close().await.unwrap();
 }

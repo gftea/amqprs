@@ -36,21 +36,6 @@ impl StartOk {
         }
     }
 
-    pub fn client_properties_mut(&mut self) -> &mut AmqpPeerProperties {
-        &mut self.client_properties
-    }
-
-    pub fn machanisms_mut(&mut self) -> &mut ShortStr {
-        &mut self.machanisms
-    }
-
-    pub fn response_mut(&mut self) -> &mut LongStr {
-        &mut self.response
-    }
-
-    pub fn locale_mut(&mut self) -> &mut ShortStr {
-        &mut self.locale
-    }
 }
 
 impl Default for StartOk {
@@ -139,9 +124,9 @@ pub struct OpenOk {
     know_hosts: ShortStr,
 }
 /// Used by connection's [`close`] callback.
-/// 
+///
 /// AMQP method frame [close](https://www.rabbitmq.com/amqp-0-9-1-reference.html#connection.close).
-/// 
+///
 /// [`close`]: callbacks/trait.ConnectionCallback.html#tymethod.close
 // TX + RX
 #[derive(Debug, Serialize, Deserialize)]
@@ -223,7 +208,7 @@ impl SecureOk {
     }
 }
 
-// below from https://www.rabbitmq.com/resources/specs/amqp0-9-1.extended.xml
+// See https://www.rabbitmq.com/resources/specs/amqp0-9-1.extended.xml
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Blocked {
     pub(crate) reason: ShortStr,
@@ -232,10 +217,6 @@ pub struct Blocked {
 impl Blocked {
     pub fn new(reason: ShortStr) -> Self {
         Self { reason }
-    }
-
-    pub fn reason(&self) -> &String {
-        self.reason.as_ref()
     }
 }
 

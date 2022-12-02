@@ -26,7 +26,7 @@ mod bit_flag {
     }
 }
 
-// TX 
+// TX
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Qos {
     prefetch_size: LongUint,
@@ -111,9 +111,9 @@ pub struct ConsumeOk {
 }
 
 /// Used by channel [`cancel`] callback.
-/// 
+///
 /// AMQP method frame [cancel](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.cancel).
-/// 
+///
 /// [`cancel`]: callbacks/trait.ChannelCallback.html#tymethod.cancel
 // TX + RX
 #[derive(Debug, Serialize, Deserialize)]
@@ -186,9 +186,9 @@ impl Publish {
 }
 
 /// Used by channel [`publish_return`] callback.
-/// 
+///
 /// AMQP method frame [return](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.return).
-/// 
+///
 /// [`publish_return`]: callbacks/trait.ChannelCallback.html#tymethod.publish_return
 // RX
 #[derive(Debug, Serialize, Deserialize)]
@@ -227,9 +227,9 @@ impl Return {
     }
 }
 /// Used by consumer [`consume`] callback.
-/// 
+///
 /// AMQP method frame [deliver](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.deliver).
-/// 
+///
 /// [`consume`]: consumer/trait.AsyncConsumer.html#tymethod.consume
 // RX
 #[derive(Debug, Serialize, Deserialize)]
@@ -287,9 +287,9 @@ impl Get {
     }
 }
 /// Part of [`GetMessage`]
-/// 
+///
 /// AMQP method frame [get-ok](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.get-ok).
-/// 
+///
 /// [`GetMessage`]: channel/type.GetMessage.html
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetOk {
@@ -335,9 +335,9 @@ pub struct GetEmpty {
 }
 
 /// Used by channel [`publish_ack`] callback.
-/// 
+///
 /// AMQP method frame [ack](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack).
-/// 
+///
 /// [`publish_ack`]: callbacks/trait.ChannelCallback.html#tymethod.publish_ack
 // TX + RX
 #[derive(Debug, Serialize, Deserialize)]
@@ -380,14 +380,17 @@ impl Reject {
 }
 
 // TX
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RecoverAsync {
-    requeue: Boolean,
-}
+// Deprecated
+// #[derive(Debug, Serialize, Deserialize)]
+// pub struct RecoverAsync {
+//     requeue: Boolean,
+// }
 
-impl RecoverAsync {
-    pub fn new(requeue: Boolean) -> Self { Self { requeue } }
-}
+// impl RecoverAsync {
+//     pub fn new(requeue: Boolean) -> Self {
+//         Self { requeue }
+//     }
+// }
 
 // TX
 #[derive(Debug, Serialize, Deserialize)]
@@ -406,9 +409,9 @@ impl Recover {
 pub struct RecoverOk;
 
 /// Used by channel [`publish_nack`] callback.
-/// 
+///
 /// AMQP method frame [nack](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.nack).
-/// 
+///
 /// [`publish_nack`]: callbacks/trait.ChannelCallback.html#tymethod.publish_nack
 // TX + RX
 #[derive(Debug, Serialize, Deserialize)]

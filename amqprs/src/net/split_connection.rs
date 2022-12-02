@@ -52,13 +52,14 @@ impl SplitConnection {
         })
     }
 
-    // split connection into reader half and writer half
+    /// split connection into reader half and writer half
     pub(crate) fn into_split(self) -> (BufReader, BufWriter) {
         (self.reader, self.writer)
     }
 
-    // to keep same read/write interfaces before and after connection split
-    // below interfaces are forwarded to `BufferReader` and `BufferWriter` internally
+    /// to keep same read/write interfaces before and after connection split
+    /// below interfaces are forwarded to `BufferReader` and `BufferWriter` internally
+    #[allow(dead_code, /*used for testing only*/)]
     pub async fn close(self) -> Result<()> {
         self.reader.close().await;
         self.writer.close().await
@@ -190,7 +191,7 @@ mod test {
     use crate::frame::*;
     use amqp_serde::{
         to_buffer,
-        types::{LongStr, ShortStr},
+        types::{AmqpPeerProperties, LongStr, ShortStr},
     };
     use bytes::BytesMut;
     use tokio::sync::mpsc;
@@ -229,8 +230,12 @@ mod test {
         let auth_machanism = 2;
         match auth_machanism {
             1 => {
-                let mut start_ok = StartOk::default();
-                *start_ok.response_mut() = "\0user\0bitnami".try_into().unwrap();
+                let start_ok = StartOk::new(
+                    AmqpPeerProperties::new(),
+                    "PLAIN".try_into().unwrap(),
+                    "\0user\0bitnami".try_into().unwrap(),
+                    "en_US".try_into().unwrap(),
+                );
                 // default: PLAIN
                 tx_req
                     .send((DEFAULT_CONN_CHANNEL, start_ok.into_frame()))
@@ -238,15 +243,8 @@ mod test {
                     .unwrap();
             }
             2 => {
-                let mut start_ok = StartOk::default();
                 println!("AMQPLAIN authentication");
-                *start_ok.machanisms_mut() = "AMQPLAIN".try_into().unwrap();
-                let user = "user";
-                let password = "bitnami";
-
-                let s = format!(
-                    "\x05LOGIN\x53\x00\x00\x00\x04{user}\x08PASSWORD\x53\x00\x00\x00\x07{password}"
-                );
+                // serialize response
                 let mut buf = BytesMut::new();
                 to_buffer(
                     &<&str as TryInto<ShortStr>>::try_into("LOGIN").unwrap(),
@@ -255,7 +253,7 @@ mod test {
                 .unwrap();
                 to_buffer(&'S', &mut buf).unwrap();
                 to_buffer(
-                    &<&str as TryInto<LongStr>>::try_into(user).unwrap(),
+                    &<&str as TryInto<LongStr>>::try_into("user").unwrap(),
                     &mut buf,
                 )
                 .unwrap();
@@ -267,26 +265,30 @@ mod test {
                 .unwrap();
                 to_buffer(&'S', &mut buf).unwrap();
                 to_buffer(
-                    &<&str as TryInto<LongStr>>::try_into(password).unwrap(),
+                    &<&str as TryInto<LongStr>>::try_into("bitnami").unwrap(),
                     &mut buf,
                 )
                 .unwrap();
 
-                println!("{:#?}", s);
-                let s2 = String::from_utf8(buf.to_vec()).unwrap().try_into().unwrap();
-                println!("{:#?}", s2);
-
-                *start_ok.response_mut() = s2;
+                let start_ok = StartOk::new(
+                    AmqpPeerProperties::new(),
+                    "AMQPLAIN".try_into().unwrap(),
+                    String::from_utf8(buf.to_vec()).unwrap().try_into().unwrap(),
+                    "en_US".try_into().unwrap(),
+                );
                 tx_req
                     .send((DEFAULT_CONN_CHANNEL, start_ok.into_frame()))
                     .await
                     .unwrap();
             }
             3 => {
-                let mut start_ok = StartOk::default();
-
-                *start_ok.machanisms_mut() = "RABBIT-CR-DEMO".try_into().unwrap();
-                *start_ok.response_mut() = "user".try_into().unwrap();
+                let start_ok = StartOk::new(
+                    AmqpPeerProperties::new(),
+                    "RABBIT-CR-DEMO".try_into().unwrap(),
+                    "user".try_into().unwrap(),
+                    "en_US".try_into().unwrap(),
+                );
+           
                 tx_req
                     .send((DEFAULT_CONN_CHANNEL, start_ok.into_frame()))
                     .await
@@ -335,6 +337,7 @@ mod test {
 
         // S: CloseOk
         let _close_ok = rx_resp.recv().await.unwrap();
+
     }
 
     #[tokio::test]

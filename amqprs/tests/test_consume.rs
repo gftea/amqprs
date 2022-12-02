@@ -124,5 +124,4 @@ async fn publish_test_messages(channel: &Channel, exchange_name: &str) {
             .await
             .unwrap();
     }
-
 }

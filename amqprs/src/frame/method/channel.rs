@@ -10,8 +10,10 @@ pub struct OpenChannel {
 }
 
 impl OpenChannel {
-    pub fn new(out_of_band: ShortStr) -> Self {
-        Self { out_of_band }
+    pub(crate) fn new() -> Self {
+        Self {
+            out_of_band: "".try_into().unwrap(),
+        }
     }
 }
 
@@ -21,9 +23,9 @@ pub struct OpenChannelOk {
 }
 
 /// Used by channel [`close`] callback.
-/// 
+///
 /// AMQP method frame [close](https://www.rabbitmq.com/amqp-0-9-1-reference.html#channel.close).
-/// 
+///
 /// [`close`]: callbacks/trait.ChannelCallback.html#tymethod.close
 // TX + RX
 #[derive(Debug, Serialize, Deserialize)]

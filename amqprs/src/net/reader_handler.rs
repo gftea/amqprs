@@ -129,11 +129,13 @@ impl ReaderHandler {
 
             Frame::Blocked(_, blocked) => {
                 if let Some(ref mut callback) = self.callback {
-                    callback.blocked(&self.amqp_connection, blocked.reason.into()).await;
+                    callback
+                        .blocked(&self.amqp_connection, blocked.reason.into())
+                        .await;
                 }
                 Ok(())
             }
-            Frame::Unblocked(_, unblocked) => {
+            Frame::Unblocked(_, _unblocked) => {
                 if let Some(ref mut callback) = self.callback {
                     callback.unblocked(&self.amqp_connection).await;
                 }

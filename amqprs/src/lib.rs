@@ -54,15 +54,15 @@ mod net;
 
 /// public API and types
 pub use api::*;
+pub use frame::Ack;
+pub use frame::BasicProperties;
+pub use frame::Cancel;
 pub use frame::Close;
 pub use frame::CloseChannel;
-pub use frame::Cancel;
-pub use frame::Ack;
-pub use frame::Nack;
-pub use frame::Return;
 pub use frame::Deliver;
 pub use frame::GetOk;
-pub use frame::BasicProperties;
+pub use frame::Nack;
+pub use frame::Return;
 
 pub use frame::DELIVERY_MODE_PERSISTENT;
 pub use frame::DELIVERY_MODE_TRANSIENT;
