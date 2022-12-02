@@ -32,7 +32,7 @@ use crate::{
     net::{ConnManagementCommand, IncomingMessage, OutgoingMessage},
     BasicProperties,
 };
-use tracing::{error, trace};
+use tracing::{debug, error, info, trace};
 
 pub(crate) const CONSUMER_MESSAGE_BUFFER_SIZE: usize = 32;
 
@@ -213,7 +213,7 @@ impl Channel {
     }
 
     /// Returns `true` if the channel's connection is already closed.
-    pub fn is_connection_closed(&self) -> bool {
+    pub(crate) fn is_connection_handler_closed(&self) -> bool {
         self.shared.conn_mgmt_tx.is_closed()
     }
 
@@ -265,20 +265,32 @@ impl Channel {
     /// Returns error if any failure in communication with server.
     /// Fail to close the channel may result in `channel leak` in server.
     pub async fn close(self) -> Result<()> {
-        self.set_is_open(false);
+        if let Ok(true) =
+            self.shared
+                .is_open
+                .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
+        {
+            info!("close channel: {}", self.channel_id());
 
-        // if connection has been closed, no need to close channel
-        if !self.is_connection_closed() {
-            let responder_rx = self.register_responder(CloseChannelOk::header()).await?;
-
-            synchronous_request!(
-                self.shared.outgoing_tx,
-                (self.shared.channel_id, CloseChannel::default().into_frame()),
-                responder_rx,
-                Frame::CloseChannelOk,
-                Error::ChannelCloseError
-            )?;
+            // if connection has been closed, no need to close channel
+            if !self.is_connection_handler_closed() {
+                self.close_internal().await?;
+            }
         }
+        Ok(())
+    }
+    async fn close_internal(&self) -> Result<()> {
+        let responder_rx = self.register_responder(CloseChannelOk::header()).await?;
+
+        synchronous_request!(
+            self.shared.outgoing_tx,
+            (self.shared.channel_id, CloseChannel::default().into_frame()),
+            responder_rx,
+            Frame::CloseChannelOk,
+            Error::ChannelCloseError
+        )?;
+        // let cmd = ConnManagementCommand::UnregisterChannelResource(self.channel_id());
+        // self.shared.conn_mgmt_tx.send(cmd).await?;
 
         Ok(())
     }
@@ -293,17 +305,29 @@ impl Drop for Channel {
         if let Ok(true) =
             self.shared
                 .is_open
-                .compare_exchange(true, false, Ordering::Relaxed, Ordering::Relaxed)
+                .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
         {
-            trace!("drop and close channel {}.", self.channel_id());
+            debug!(
+                "drop channel {}, spawn a task to close it.",
+                self.channel_id()
+            );
 
             let channel = self.clone();
             tokio::spawn(async move {
-                if let Err(err) = channel.close().await {
-                    error!(
-                        "error occurred during close channel when drop, cause: {}",
-                        err
-                    );
+                if channel.is_connection_handler_closed() {
+                    return;
+                }
+                info!("close channel: {} at drop", channel.channel_id());
+                if let Err(err) = channel.close_internal().await {
+
+                    // check if handler has exited
+                    if !channel.is_connection_handler_closed() {
+                        error!(
+                            "'{}' occurred at closing channel {} after drop.",
+                            err,
+                            channel.channel_id(),
+                        );
+                    }
                 }
             });
         }

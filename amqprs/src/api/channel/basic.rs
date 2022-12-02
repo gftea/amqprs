@@ -741,7 +741,7 @@ mod tests {
                 .basic_consume(DefaultConsumer::new(args.no_ack), args)
                 .await
                 .unwrap();
-            time::sleep(time::Duration::from_secs(15)).await;
+            time::sleep(time::Duration::from_secs(1)).await;
         }
 
         println!("connection and channel are dropped");
@@ -775,7 +775,7 @@ mod tests {
                 .basic_consume(DefaultConsumer::new(args.no_ack), args)
                 .await
                 .unwrap();
-            time::sleep(time::Duration::from_secs(15)).await;
+            time::sleep(time::Duration::from_secs(1)).await;
         }
 
         println!("connection and channel are dropped");

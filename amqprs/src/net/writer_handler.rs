@@ -48,6 +48,8 @@ impl WriterHandler {
                 }
             }
         }
-        debug!("shutdown!");
+        if let Err(err) = self.stream.close().await {
+            error!("failed to close writer cleanly, cause: {}", err);
+        }
     }
 }

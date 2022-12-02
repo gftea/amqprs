@@ -10,7 +10,7 @@ mod common;
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[should_panic = "InternalChannelError(\"channel closed\")"]
 async fn test_connection_callback() {
-    let _guard = common::setup_logging(Level::TRACE);
+    let _guard = common::setup_logging(Level::INFO);
 
     // open a connection to RabbitMQ server
     let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
@@ -29,21 +29,17 @@ async fn test_connection_callback() {
     // the connection callback for `Close` method should be called and all internal channel services are closed
     // which results in error of below API call
     channel
-        .exchange_declare(ExchangeDeclareArguments::default())
+        .exchange_declare(ExchangeDeclareArguments::new("amq.direct", "invalid_type"))
         .await
         .unwrap();
 
-    // keep the `channel` and `connection` object from dropping until publish is done
-    // NOTE: channel/connection will be closed when drop
-    time::sleep(time::Duration::from_millis(1)).await;
-    channel.close().await.unwrap();
-    connection.close().await.unwrap();
+
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[should_panic = "InternalChannelError(\"channel closed\")"]
 async fn test_channel_callback() {
-    let _guard = common::setup_logging(Level::DEBUG);
+    let _guard = common::setup_logging(Level::INFO);
 
     // open a connection to RabbitMQ server
     let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
@@ -62,9 +58,5 @@ async fn test_channel_callback() {
     let args = ExchangeDeclareArguments::new("amq.topic", "topic");
     channel.exchange_declare(args).await.unwrap();
 
-    // keep the `channel` and `connection` object from dropping until publish is done
-    // NOTE: channel/connection will be closed when drop
-    time::sleep(time::Duration::from_millis(1)).await;
-    channel.close().await.unwrap();
-    connection.close().await.unwrap();
+
 }

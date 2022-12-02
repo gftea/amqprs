@@ -14,7 +14,7 @@ mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_multi_consumer() {
-    let _guard = common::setup_logging(Level::DEBUG);
+    let _guard = common::setup_logging(Level::INFO);
 
     // open a connection to RabbitMQ server
     let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");

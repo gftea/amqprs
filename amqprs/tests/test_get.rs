@@ -12,7 +12,7 @@ mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_get() {
-    let _guard = common::setup_logging(Level::DEBUG);
+    let _guard = common::setup_logging(Level::INFO);
 
     // open a connection to RabbitMQ server
     let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
@@ -78,8 +78,8 @@ async fn test_get() {
                     "Get results: 
                     {}
                     {}
-                    Content: {:?}",
-                    get_ok, basic_props, content
+                    Content: {}",
+                    get_ok, basic_props, std::str::from_utf8(&content).unwrap()
                 );
                 get_ok.delivery_tag()
             }

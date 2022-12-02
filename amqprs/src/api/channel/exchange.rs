@@ -399,19 +399,23 @@ impl Channel {
 #[cfg(test)]
 mod tests {
     use super::{ExchangeDeclareArguments, ExchangeDeleteArguments};
-    use crate::api::connection::{Connection, OpenConnectionArguments};
+    use crate::{api::connection::{Connection, OpenConnectionArguments}, callbacks::{DefaultConnectionCallback, DefaultChannelCallback}};
 
     #[tokio::test]
     async fn test_exchange_declare() {
         let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
-        let client = Connection::open(&args).await.unwrap();
+        let connection = Connection::open(&args).await.unwrap();
+        connection.register_callback(DefaultConnectionCallback).await.unwrap();
 
-        let channel = client.open_channel(None).await.unwrap();
+        let channel = connection.open_channel(None).await.unwrap();
+        channel.register_callback(DefaultChannelCallback).await.unwrap();
+
         let args = ExchangeDeclareArguments::new("amq.topic", "topic")
             .passive(true)
             .finish();
         channel.exchange_declare(args).await.unwrap();
+
     }
 
     #[tokio::test]
@@ -419,10 +423,13 @@ mod tests {
     async fn test_exchange_delete() {
         let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
-        let client = Connection::open(&args).await.unwrap();
+        let connection = Connection::open(&args).await.unwrap();
+        connection.register_callback(DefaultConnectionCallback).await.unwrap();
 
-        let channel = client.open_channel(None).await.unwrap();
+        let channel = connection.open_channel(None).await.unwrap();
+        channel.register_callback(DefaultChannelCallback).await.unwrap();
         let args = ExchangeDeleteArguments::new("amq.direct");
         channel.exchange_delete(args).await.unwrap();
+
     }
 }

@@ -199,7 +199,7 @@ impl ReaderHandler {
                                 break;
                             }
                             if !self.amqp_connection.is_open() {
-                                info!("client has requested to shutdown connection or shutdown requested by server.");
+                                info!("client/server has requested to shutdown connection {}.", self.amqp_connection.connection_name());
                                 break;
                             }
                         },
@@ -218,12 +218,9 @@ impl ReaderHandler {
 
         // FIXME: should here do Close/CloseOk to gracefully shutdown connection.
         // Best effort, ignore returned error
-        if self.amqp_connection.is_open() {
-            self.amqp_connection.close().await.ok();
-        }
+        self.amqp_connection.close().await.ok();
 
         // `self` will drop, so the `self.shutdown_notifier`
         // all tasks which have `subscribed` to `shutdown_notifier` will be notified
-        debug!("shutdown!");
     }
 }

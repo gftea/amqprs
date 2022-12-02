@@ -46,7 +46,7 @@ use amqp_serde::types::{
     AmqpChannelId, AmqpPeerProperties, FieldTable, FieldValue, LongStr, ShortUint,
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
-use tracing::{debug, error, trace};
+use tracing::{debug, error, info, trace};
 
 use crate::{
     frame::{
@@ -378,7 +378,7 @@ impl Connection {
             .ok_or_else(|| {
                 Error::ConnectionOpenError("failed to register channel resource".to_string())
             })?;
-
+        info!("open connection: {}", new_amq_conn.connection_name());
         Ok(new_amq_conn)
     }
 
@@ -685,6 +685,11 @@ impl Connection {
 
         let dispatcher = ChannelDispatcher::new(channel.clone(), dispatcher_rx, dispatcher_mgmt_rx);
         dispatcher.spawn().await;
+        info!(
+            "open channel: {} on connection {} ",
+            channel.channel_id(),
+            self.connection_name()
+        );
 
         Ok(channel)
     }
@@ -733,8 +738,18 @@ impl Connection {
     ///
     /// Returns error if any failure in communication with server.
     pub async fn close(self) -> Result<()> {
-        self.set_is_open(false);
+        if let Ok(true) =
+            self.shared
+                .is_open
+                .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
+        {
+            info!("close connection: {}", self.connection_name());
+            self.close_internal().await?;
+        }
+        Ok(())
+    }
 
+    async fn close_internal(&self) -> Result<()> {
         // connection's close method , should use default channel id
         let responder_rx = self
             .register_responder(DEFAULT_CONN_CHANNEL, CloseOk::header())
@@ -762,16 +777,25 @@ impl Drop for Connection {
         if let Ok(true) =
             self.shared
                 .is_open
-                .compare_exchange(true, false, Ordering::Relaxed, Ordering::Relaxed)
+                .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
         {
-            trace!("drop and close connection.");
+            debug!(
+                "drop connection {}, spawn a task to close it.",
+                self.connection_name()
+            );
             let conn = self.clone();
             tokio::spawn(async move {
-                if let Err(err) = conn.close().await {
-                    error!(
-                        "error occurred during close connection when drop, cause: {}.",
-                        err
-                    );
+                info!("close connection: {} at drop", conn.connection_name());
+
+                if let Err(err) = conn.close_internal().await {
+                    // check if connection handler has exited
+                    if !conn.shared.conn_mgmt_tx.is_closed() {
+                        error!(
+                            "{} occurred at closing connection {} after drop.",
+                            err,
+                            conn.connection_name()
+                        );
+                    }
                 }
             });
         }
@@ -831,33 +855,33 @@ fn generate_name(domain: &str) -> String {
 mod tests {
     use std::{collections::HashSet, thread};
 
+    use crate::callbacks::{DefaultChannelCallback, DefaultConnectionCallback};
+
     use super::{generate_name, Connection, OpenConnectionArguments};
     use tokio::time;
-    use tracing::{subscriber::SetGlobalDefaultError, trace, Level};
+    use tracing::{info, subscriber::SetGlobalDefaultError, trace, Level};
 
     #[tokio::test]
     async fn test_channel_open_close() {
-        setup_logging(Level::TRACE).ok();
+        setup_logging(Level::INFO).ok();
         {
             // test close on drop
             let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
             let connection = Connection::open(&args).await.unwrap();
-            trace!("{:?}", connection);
-
             {
                 // test close on drop
                 let _channel = connection.open_channel(None).await.unwrap();
             }
-            time::sleep(time::Duration::from_millis(10)).await;
+            time::sleep(time::Duration::from_millis(10000)).await;
         }
         // wait for finished, otherwise runtime exit before all tasks are done
-        time::sleep(time::Duration::from_millis(100)).await;
+        time::sleep(time::Duration::from_millis(10000)).await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
     async fn test_multi_conn_open_close() {
-        setup_logging(Level::DEBUG).ok();
+        setup_logging(Level::INFO).ok();
 
         let mut handles = vec![];
 
@@ -877,16 +901,16 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
     async fn test_multi_channel_open_close() {
-        setup_logging(Level::DEBUG).ok();
+        setup_logging(Level::INFO).ok();
         {
             let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
             let connection = Connection::open(&args).await.unwrap();
             let mut handles = vec![];
-
-            for _ in 0..10 {
+            let num_loop = 10;
+            for _ in 0..num_loop {
                 let ch = connection.open_channel(None).await.unwrap();
                 let handle = tokio::spawn(async move {
                     let _ch = ch;
@@ -897,8 +921,11 @@ mod tests {
             for h in handles {
                 h.await.unwrap();
             }
-            time::sleep(time::Duration::from_millis(100)).await;
+            // wait for all channel tasks done
+            time::sleep(time::Duration::from_millis(100 * num_loop)).await;
+            // now connection drop
         }
+        // wait for connection close task done.
         time::sleep(time::Duration::from_millis(100)).await;
     }
 

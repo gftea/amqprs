@@ -13,7 +13,7 @@ use crate::{
     frame::{CancelOk, CloseChannelOk, FlowOk, Frame, MethodHeader},
     net::{ConnManagementCommand, IncomingMessage},
 };
-use tracing::{debug, error, trace};
+use tracing::{debug, error, trace, info};
 
 use super::{Channel, ConsumerMessage, DispatcherManagementCommand};
 
@@ -138,7 +138,11 @@ impl ChannelDispatcher {
                     command = self.dispatcher_mgmt_rx.recv() => {
                         // handle command channel error
                         let cmd = match command {
-                            None => break,
+                            None => {
+                                // exit
+                                debug!("channel {}: dispatcher command channel closed.", self.channel.channel_id());
+                                break;
+                            },
                             Some(v) => v,
                         };
                         // handle command
@@ -178,7 +182,11 @@ impl ChannelDispatcher {
                     message = self.dispatcher_rx.recv() => {
                         // handle message channel error
                         let frame = match message {
-                            None => break,
+                            None => {
+                                // exit
+                                debug!("channel {}: dispatcher message channel closed.", self.channel.channel_id());
+                                break;
+                            },
                             Some(v) => v,
                         };
                         // handle frames
@@ -264,8 +272,6 @@ impl ChannelDispatcher {
                                     },
                                     State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state"),
                                 }
-
-
                             }
                             // Close channel response from server
                             Frame::CloseChannelOk(method_header, close_channel_ok) => {
@@ -274,6 +280,8 @@ impl ChannelDispatcher {
                                 .send(close_channel_ok.into_frame()).unwrap();
 
                                 self.channel.set_is_open(false);
+                                debug!("channel {}: receive close-ok response.", self.channel.channel_id());
+                                // exit
                                 break;
                             }
                             // TODO:
@@ -322,12 +330,12 @@ impl ChannelDispatcher {
                                 // callback
                                 if let Some(ref mut cb) = self.callback {
                                     if let Err(err) = cb.close(&self.channel, close_channel).await {
-                                      debug!("channel {} close callback error, cause: {}.", self.channel.channel_id(), err);
-                                      // no response to server
+                                      error!("channel {} close callback error, cause: {}.", self.channel.channel_id(), err);
+                                      // exit, no response to server
                                       break;
                                     };
                                 } else {
-                                    debug!("channel {} callback not registered.", self.channel.channel_id());
+                                    info!("channel {} callback not registered.", self.channel.channel_id());
                                 }
 
                                 // respond to server if no callback registered or callback succeed
@@ -336,6 +344,7 @@ impl ChannelDispatcher {
                                 self.channel.shared.outgoing_tx
                                 .send((self.channel.channel_id(), CloseChannelOk::default().into_frame()))
                                 .await.unwrap();
+                                info!("channel {}: receive close request.", self.channel.channel_id());
 
                                 break;
                             }
@@ -346,8 +355,7 @@ impl ChannelDispatcher {
                                     match cb.flow(&self.channel, flow.active).await {
                                       Err(err) => {
                                         debug!("channel {} flow callback error, cause: {}.", self.channel.channel_id(), err);
-                                        // no response to server
-                                        break;
+                                        
                                       }
                                       Ok(active) => {
                                          // respond to server that we have handled the request
@@ -369,8 +377,7 @@ impl ChannelDispatcher {
                                     match cb.cancel(&self.channel, cancel).await {
                                       Err(err) => {
                                         debug!("channel {} cancel callback error, cause: {}.", self.channel.channel_id(), err);
-                                        // no response to server
-                                        break;
+                                        // no response to server                                        
                                       }
                                       Ok(_) => {
                                         self.remove_consumer(&consumer_tag);
@@ -410,16 +417,16 @@ impl ChannelDispatcher {
                     }
 
                 }
-            }
+            }        
             let cmd = ConnManagementCommand::UnregisterChannelResource(self.channel.channel_id());
             debug!(
                 "request to unregister channel resource {}.",
                 self.channel.channel_id()
             );
             if let Err(err) = self.channel.shared.conn_mgmt_tx.send(cmd).await {
-                error!("failed to unregister channel resource, cause: {}. Connection may be already closed!", err);
+                debug!("failed to unregister resource of channel {}, cause: {}. Connection may be already closed!", self.channel.channel_id(), err);
             }
-            debug!("exit dispatcher of channel {}.", self.channel.channel_id());
+            info!("exit dispatcher of channel {}, is open: {}", self.channel.channel_id(), self.channel.is_open());
         });
     }
 }
