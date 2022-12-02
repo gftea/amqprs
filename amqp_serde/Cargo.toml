@@ -5,6 +5,7 @@ edition = "2021"
 license = "MIT"
 description = "Serde implementation for AMQP types"
 repository = "https://github.com/gftea/amqprs"
+keywords = ["amqp", "rabbitmq", "serde"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
