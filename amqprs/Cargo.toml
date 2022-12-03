@@ -1,6 +1,6 @@
 [package]
 name = "amqprs"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 license = "MIT"
 readme = "README.md"
@@ -23,7 +23,7 @@ tokio = { version = "1.0", features = [
 ] }
 bytes = { version = "1.0" }
 serde = { version = "1.0", features = ["derive"] }
-amqp_serde = { version = "0.1.0" }
+amqp_serde = { version = "0.1.1" }
 async-trait = "0.1"
 tracing = "0.1"
 

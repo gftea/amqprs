@@ -4,9 +4,7 @@ version = 3
 
 [[package]]
 name = "amqp_serde"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a6236c93b9b82eddef98400de38c2fba89a2daae8a4ee47828d796934836252"
+version = "0.1.1"
 dependencies = [
  "bytes",
  "serde",
@@ -15,6 +13,8 @@ dependencies = [
 [[package]]
 name = "amqp_serde"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b880f4e8bacac01b872cbcd670e1a3b7f9c619e72af8cb77bdb6b7c37ceb51d0"
 dependencies = [
  "bytes",
  "serde",
@@ -22,9 +22,9 @@ dependencies = [
 
 [[package]]
 name = "amqprs"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
- "amqp_serde 0.1.0",
+ "amqp_serde 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-trait",
  "bytes",
  "serde",
