@@ -4,8 +4,6 @@
 
 Yet another RabbitMQ client implementation in rust with different design goals.
 
-[amqprs docs](https://docs.rs/amqprs/latest/amqprs/)
-
 ## Design philosophy
 
 1. API first: easy to use, easy to understand. Keep the API similar as python client library so that it is easier for users to move from there.
@@ -14,13 +12,12 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 
 
 ## Design Architecture
-<img src="amqprs/amqp-chosen_design.drawio.png" />
-
+<img src="amqp-chosen_design.drawio.png" alt="lock-free design architecture" />
 
 
 ## Example: Consume and Publish
 
-[Example source code](amqprs/examples/basic_pub_sub.rs) 
+[See full source code in examples](examples/basic_pub_sub.rs) 
 
 ```rust
 // open a connection to RabbitMQ server

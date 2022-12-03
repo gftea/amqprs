@@ -11,10 +11,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "amqprs"
+name = "amqp_serde"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a6236c93b9b82eddef98400de38c2fba89a2daae8a4ee47828d796934836252"
 dependencies = [
- "amqp_serde",
+ "bytes",
+ "serde",
+]
+
+[[package]]
+name = "amqprs"
+version = "0.1.6"
+dependencies = [
+ "amqp_serde 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-trait",
  "bytes",
  "serde",
