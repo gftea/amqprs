@@ -13,19 +13,26 @@ env:
 
 jobs:
 
-  basic_test:
+  integration_test:
 
     runs-on: ubuntu-latest
 
     steps:
-
     - uses: actions/checkout@v3
     - name: Start RabbitMQ
       run:  docker-compose up -d
 
     - name: Build
       run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+
+    - name: Run doc tests
+      run: cargo test --doc --verbose
+
+    - name: Run lib unit tests
+      run: cargo test --lib --verbose
+    
+    - name: Run integration tests
+      run: cargo test --test '*'
+
     - name: Run examples
       run: cargo run --example 2>&1 | grep -E '^ ' | xargs -n1 cargo run --example
