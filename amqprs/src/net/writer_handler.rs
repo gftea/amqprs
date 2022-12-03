@@ -1,4 +1,4 @@
-use std::time::Duration;
+
 
 use amqp_serde::types::ShortUint;
 use tokio::{
@@ -64,7 +64,7 @@ impl WriterHandler {
                         }
                         debug!("sent heartbeat ...");
                     }
-                   
+
                 }
                 _ = self.shutdown.recv() => {
                     info!("received shutdown notification.");

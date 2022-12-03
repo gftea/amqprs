@@ -79,7 +79,9 @@ async fn test_get() {
                     {}
                     {}
                     Content: {}",
-                    get_ok, basic_props, std::str::from_utf8(&content).unwrap()
+                    get_ok,
+                    basic_props,
+                    std::str::from_utf8(&content).unwrap()
                 );
                 get_ok.delivery_tag()
             }

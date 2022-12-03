@@ -1,5 +1,5 @@
 //! Template for callbacks implementation.
-//! 
+//!
 use amqprs::{
     callbacks::{ChannelCallback, ConnectionCallback},
     channel::Channel,
@@ -7,7 +7,6 @@ use amqprs::{
     Ack, BasicProperties, Cancel, Close, CloseChannel, Nack, Return,
 };
 use async_trait::async_trait;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 type Result<T> = std::result::Result<T, amqprs::error::Error>;

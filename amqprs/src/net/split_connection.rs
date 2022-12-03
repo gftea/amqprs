@@ -288,7 +288,7 @@ mod test {
                     "user".try_into().unwrap(),
                     "en_US".try_into().unwrap(),
                 );
-           
+
                 tx_req
                     .send((DEFAULT_CONN_CHANNEL, start_ok.into_frame()))
                     .await
@@ -337,7 +337,6 @@ mod test {
 
         // S: CloseOk
         let _close_ok = rx_resp.recv().await.unwrap();
-
     }
 
     #[tokio::test]

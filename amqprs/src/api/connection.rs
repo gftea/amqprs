@@ -46,10 +46,9 @@ use amqp_serde::types::{
     AmqpChannelId, AmqpPeerProperties, FieldTable, FieldValue, LongStr, LongUint, ShortUint,
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info};
 
 use crate::{
-    channel,
     frame::{
         Blocked, Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, OpenChannelOk,
         ProtocolHeader, StartOk, TuneOk, Unblocked, DEFAULT_CONN_CHANNEL,
@@ -216,7 +215,7 @@ pub struct OpenConnectionArguments {
     /// Default: use SASL/PLAIN authentication. See [RabbitMQ access control](https://www.rabbitmq.com/access-control.html#mechanisms).
     credentials: SecurityCredentials,
     /// Heartbeat timeout in seconds. See [RabbitMQ heartbeats](https://www.rabbitmq.com/heartbeats.html)
-    /// Default: 60s. 
+    /// Default: 60s.
     heartbeat: u16,
 }
 
@@ -297,7 +296,7 @@ impl OpenConnectionArguments {
         self.heartbeat = heartbeat;
         self
     }
-    
+
     /// Finish chaining and returns a new argument according to chained configurations.
     pub fn finish(&mut self) -> Self {
         self.clone()
@@ -403,9 +402,9 @@ impl Connection {
     /// Start connection negotiation according to AMQP 0-9-1 methods Start/StartOk
     ///
     /// Returns
-    /// 
+    ///
     /// [`ServerProperties`]
-    /// 
+    ///
     /// # Errors
     ///
     /// Returns error when encounters any protocol error.
@@ -512,10 +511,10 @@ impl Connection {
     }
 
     /// Tuning for channel_max, frame_max, heartbeat between client and server.
-    /// 
+    ///
     /// # Returns
-    /// 
-    ///  `(channel_max, frame_max, heartbeat)` 
+    ///
+    ///  `(channel_max, frame_max, heartbeat)`
     async fn tuning_parameters(
         io_conn: &mut SplitConnection,
         heartbeat: ShortUint,
@@ -555,7 +554,10 @@ impl Connection {
     pub fn channel_max(&self) -> u16 {
         self.shared.channel_max
     }
-
+    /// Get The largest frame size that the client and server will use for the connection.
+    pub fn frame_max(&self) -> u32 {
+        self.shared.frame_max
+    }
     /// Get the server propertities reported by server.
     pub fn server_properties(&self) -> &ServerProperties {
         &self.shared.server_properties
@@ -905,11 +907,9 @@ fn generate_name(domain: &str) -> String {
 mod tests {
     use std::{collections::HashSet, thread};
 
-    use crate::callbacks::{DefaultChannelCallback, DefaultConnectionCallback};
-
     use super::{generate_name, Connection, OpenConnectionArguments};
     use tokio::time;
-    use tracing::{info, subscriber::SetGlobalDefaultError, trace, Level};
+    use tracing::{subscriber::SetGlobalDefaultError, Level};
 
     #[tokio::test]
     async fn test_channel_open_close() {

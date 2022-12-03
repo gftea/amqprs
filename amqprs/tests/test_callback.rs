@@ -3,7 +3,7 @@ use amqprs::{
     channel::ExchangeDeclareArguments,
     connection::{Connection, OpenConnectionArguments},
 };
-use tokio::time;
+
 use tracing::Level;
 mod common;
 
@@ -32,8 +32,6 @@ async fn test_connection_callback() {
         .exchange_declare(ExchangeDeclareArguments::new("amq.direct", "invalid_type"))
         .await
         .unwrap();
-
-
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -57,6 +55,4 @@ async fn test_channel_callback() {
     // which is the default value in arguments.
     let args = ExchangeDeclareArguments::new("amq.topic", "topic");
     channel.exchange_declare(args).await.unwrap();
-
-
 }

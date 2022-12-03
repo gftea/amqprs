@@ -32,7 +32,7 @@ use crate::{
     net::{ConnManagementCommand, IncomingMessage, OutgoingMessage},
     BasicProperties,
 };
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info};
 
 pub(crate) const CONSUMER_MESSAGE_BUFFER_SIZE: usize = 32;
 
@@ -319,7 +319,6 @@ impl Drop for Channel {
                 }
                 info!("close channel: {} at drop", channel.channel_id());
                 if let Err(err) = channel.close_internal().await {
-
                     // check if handler has exited
                     if !channel.is_connection_handler_closed() {
                         error!(

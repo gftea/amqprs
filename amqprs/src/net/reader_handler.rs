@@ -1,8 +1,11 @@
 use amqp_serde::types::{AmqpChannelId, ShortUint};
-use tokio::{sync::{
-    broadcast,
-    mpsc::{Receiver, Sender},
-}, time};
+use tokio::{
+    sync::{
+        broadcast,
+        mpsc::{Receiver, Sender},
+    },
+    time,
+};
 use tracing::{debug, error, info, trace};
 
 use crate::{
@@ -195,7 +198,7 @@ impl ReaderHandler {
                     }
                 }
                 res = self.stream.read_frame() => {
-                    // any frame can be considered as heartbeat                    
+                    // any frame can be considered as heartbeat
                     expiration = time::Instant::now() + time::Duration::from_secs(max_interval);
                     trace!("server heartbeat deadline is updated to {:?}", expiration);
 

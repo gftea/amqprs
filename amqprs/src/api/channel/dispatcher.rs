@@ -13,7 +13,7 @@ use crate::{
     frame::{CancelOk, CloseChannelOk, FlowOk, Frame, MethodHeader},
     net::{ConnManagementCommand, IncomingMessage},
 };
-use tracing::{debug, error, trace, info};
+use tracing::{debug, error, info, trace};
 
 use super::{Channel, ConsumerMessage, DispatcherManagementCommand};
 
@@ -355,7 +355,7 @@ impl ChannelDispatcher {
                                     match cb.flow(&self.channel, flow.active).await {
                                       Err(err) => {
                                         debug!("channel {} flow callback error, cause: {}.", self.channel.channel_id(), err);
-                                        
+
                                       }
                                       Ok(active) => {
                                          // respond to server that we have handled the request
@@ -377,7 +377,7 @@ impl ChannelDispatcher {
                                     match cb.cancel(&self.channel, cancel).await {
                                       Err(err) => {
                                         debug!("channel {} cancel callback error, cause: {}.", self.channel.channel_id(), err);
-                                        // no response to server                                        
+                                        // no response to server
                                       }
                                       Ok(_) => {
                                         self.remove_consumer(&consumer_tag);
@@ -417,7 +417,7 @@ impl ChannelDispatcher {
                     }
 
                 }
-            }        
+            }
             let cmd = ConnManagementCommand::UnregisterChannelResource(self.channel.channel_id());
             debug!(
                 "request to unregister channel resource {}.",
@@ -426,7 +426,11 @@ impl ChannelDispatcher {
             if let Err(err) = self.channel.shared.conn_mgmt_tx.send(cmd).await {
                 debug!("failed to unregister resource of channel {}, cause: {}. Connection may be already closed!", self.channel.channel_id(), err);
             }
-            info!("exit dispatcher of channel {}, is open: {}", self.channel.channel_id(), self.channel.is_open());
+            info!(
+                "exit dispatcher of channel {}, is open: {}",
+                self.channel.channel_id(),
+                self.channel.is_open()
+            );
         });
     }
 }

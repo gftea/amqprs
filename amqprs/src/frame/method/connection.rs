@@ -35,7 +35,6 @@ impl StartOk {
             locale,
         }
     }
-
 }
 
 impl Default for StartOk {
