@@ -109,10 +109,10 @@ pub struct Channel {
     shared: Arc<SharedChannelInner>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct SharedChannelInner {
     /// open state
-    is_open: AtomicBool,
+    is_open: Arc<AtomicBool>,
     /// channel id
     channel_id: AmqpChannelId,
     /// tx half to send message to `WriteHandler` task
@@ -121,24 +121,6 @@ pub(crate) struct SharedChannelInner {
     conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
     /// tx half to send management command to `ChannelDispatcher` task
     dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
-}
-
-impl SharedChannelInner {
-    pub(in crate::api) fn new(
-        is_open: AtomicBool,
-        channel_id: AmqpChannelId,
-        outgoing_tx: mpsc::Sender<OutgoingMessage>,
-        conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
-        dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
-    ) -> Self {
-        Self {
-            is_open,
-            channel_id,
-            outgoing_tx,
-            conn_mgmt_tx,
-            dispatcher_mgmt_tx,
-        }
-    }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -274,57 +256,79 @@ impl Channel {
 
             // if connection has been closed, no need to close channel
             if !self.is_connection_handler_closed() {
-                self.close_internal().await?;
+                self.shared.close_internal().await?;
             }
         }
         Ok(())
     }
-    async fn close_internal(&self) -> Result<()> {
-        let responder_rx = self.register_responder(CloseChannelOk::header()).await?;
+}
+impl SharedChannelInner {
+    fn new(
+        is_open: AtomicBool,
+        channel_id: AmqpChannelId,
+        outgoing_tx: mpsc::Sender<OutgoingMessage>,
+        conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
+        dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
+    ) -> Self {
+        Self {
+            is_open: Arc::new(is_open),
+            channel_id,
+            outgoing_tx,
+            conn_mgmt_tx,
+            dispatcher_mgmt_tx,
+        }
+    }
 
+    async fn close_internal(&self) -> Result<()> {
+        let (responder, responder_rx) = oneshot::channel();
+        let (acker, acker_rx) = oneshot::channel();
+        let cmd = RegisterOneshotResponder {
+            method_header: CloseChannelOk::header(),
+            responder,
+            acker,
+        };
+        self.dispatcher_mgmt_tx
+            .send(DispatcherManagementCommand::RegisterOneshotResponder(cmd))
+            .await?;
+        acker_rx.await?;
         synchronous_request!(
-            self.shared.outgoing_tx,
-            (self.shared.channel_id, CloseChannel::default().into_frame()),
+            self.outgoing_tx,
+            (self.channel_id, CloseChannel::default().into_frame()),
             responder_rx,
             Frame::CloseChannelOk,
             Error::ChannelCloseError
         )?;
+        // FIXME: the dispatcher will exit, no need to unregister resource.
         // let cmd = ConnManagementCommand::UnregisterChannelResource(self.channel_id());
         // self.shared.conn_mgmt_tx.send(cmd).await?;
-
         Ok(())
     }
 }
 
-impl Drop for Channel {
+impl Drop for SharedChannelInner {
     /// When drops, try to gracefully shutdown the channel if it is still open.
     /// It is not guaranteed to succeed in a clean way.
     ///
     /// User is recommended to explicitly close channel. See [module][`self`] documentation.    
     fn drop(&mut self) {
         if let Ok(true) =
-            self.shared
-                .is_open
+            self.is_open
                 .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
         {
             debug!(
                 "drop channel {}, spawn a task to close it.",
-                self.channel_id()
+                self.channel_id
             );
 
-            let channel = self.clone();
+            let inner = self.clone();
             tokio::spawn(async move {
-                if channel.is_connection_handler_closed() {
-                    return;
-                }
-                info!("close channel: {} at drop", channel.channel_id());
-                if let Err(err) = channel.close_internal().await {
+                info!("close channel: {} at drop", inner.channel_id);
+                if let Err(err) = inner.close_internal().await {
                     // check if handler has exited
-                    if !channel.is_connection_handler_closed() {
+                    if !inner.conn_mgmt_tx.is_closed() {
                         error!(
                             "'{}' occurred at closing channel {} after drop.",
-                            err,
-                            channel.channel_id(),
+                            err, inner.channel_id,
                         );
                     }
                 }

@@ -548,7 +548,7 @@ impl Channel {
     /// # Errors
     ///
     /// Returns error if any failure in comunication with server.  
-    pub async fn basic_cancel(&mut self, args: BasicCancelArguments) -> Result<String> {
+    pub async fn basic_cancel(&self, args: BasicCancelArguments) -> Result<String> {
         let BasicCancelArguments {
             consumer_tag,
             no_wait,
@@ -591,7 +591,7 @@ impl Channel {
     /// # Errors
     ///
     /// Returns error if any failure in comunication with server.      
-    pub async fn basic_get(&mut self, args: BasicGetArguments) -> Result<Option<GetMessage>> {
+    pub async fn basic_get(&self, args: BasicGetArguments) -> Result<Option<GetMessage>> {
         let get = Get::new(0, args.queue.try_into().unwrap(), args.no_ack);
 
         let (tx, mut rx) = mpsc::channel(3);
@@ -636,7 +636,7 @@ impl Channel {
     /// # Errors
     ///
     /// Returns error if any failure in comunication with server.       
-    pub async fn basic_recover(&mut self, requeue: bool) -> Result<()> {
+    pub async fn basic_recover(&self, requeue: bool) -> Result<()> {
         let recover = Recover::new(requeue);
 
         let responder_rx = self.register_responder(RecoverOk::header()).await?;
@@ -743,8 +743,7 @@ mod tests {
                 .unwrap();
             time::sleep(time::Duration::from_secs(1)).await;
         }
-
-        println!("connection and channel are dropped");
+        // channel and connection drop, wait for close task to fnish
         time::sleep(time::Duration::from_secs(1)).await;
     }
 
@@ -777,13 +776,12 @@ mod tests {
                 .unwrap();
             time::sleep(time::Duration::from_secs(1)).await;
         }
-
-        println!("connection and channel are dropped");
+        // channel and connection drop, wait for close task to fnish
         time::sleep(time::Duration::from_secs(1)).await;
     }
 
     #[tokio::test]
-    async fn test_basic_publish() {
+    async fn test_basic_publish() {        
         {
             let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
@@ -812,8 +810,7 @@ mod tests {
                 .unwrap();
             time::sleep(time::Duration::from_secs(1)).await;
         }
-
-        println!("connection and channel are dropped");
+        // channel and connection drop, wait for close task to fnish
         time::sleep(time::Duration::from_secs(1)).await;
     }
 }

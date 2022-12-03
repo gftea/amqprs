@@ -163,8 +163,12 @@ impl ChannelDispatcher {
 
                             },
                             DispatcherManagementCommand::UnregisterContentConsumer(cmd) => {
-                                // TODO: check remove result
-                                self.remove_consumer(&cmd.consumer_tag);
+                                if let Some(consumer) = self.remove_consumer(&cmd.consumer_tag) {
+                                    info!("consumer {} is cancelled with {} messages in buffer", 
+                                        cmd.consumer_tag,
+                                        consumer.fifo.len()
+                                    );
+                                }
 
                             },
                             DispatcherManagementCommand::RegisterGetContentResponder(cmd) => {
@@ -241,11 +245,11 @@ impl ChannelDispatcher {
                                         match consumer.get_tx() {
                                             Some(consumer_tx) => {
                                                 if let Err(_) = consumer_tx.send(consumer_message).await {
-                                                    debug!("failed to dispatch message to consumer {}.", consumer_tag);
+                                                    error!("failed to dispatch message to consumer {}.", consumer_tag);
                                                 }
                                             },
                                             None => {
-                                                debug!("can't find consumer '{}', buffering message.", consumer_tag);
+                                                info!("can't find consumer '{}', buffering message.", consumer_tag);
                                                 consumer.push(consumer_message);
                                                 // FIXME: try to yield for registering consumer
                                                 //      not sure if it is necessary
