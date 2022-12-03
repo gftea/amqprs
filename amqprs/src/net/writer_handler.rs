@@ -3,7 +3,7 @@
 use amqp_serde::types::ShortUint;
 use tokio::{
     sync::{broadcast, mpsc},
-    time,
+    time, task::yield_now,
 };
 use tracing::{debug, error, info, trace};
 
@@ -68,6 +68,8 @@ impl WriterHandler {
                 }
                 _ = self.shutdown.recv() => {
                     info!("received shutdown notification.");
+                    // try to give last chance for last message.
+                    yield_now().await;
                     break;
                 }
                 else => {

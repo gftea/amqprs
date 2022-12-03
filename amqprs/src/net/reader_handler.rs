@@ -4,7 +4,7 @@ use tokio::{
         broadcast,
         mpsc::{Receiver, Sender},
     },
-    time,
+    time, task::yield_now,
 };
 use tracing::{debug, error, info, trace};
 
@@ -210,6 +210,8 @@ impl ReaderHandler {
                             }
                             if !self.amqp_connection.is_open() {
                                 info!("client/server has requested to shutdown connection {}.", self.amqp_connection.connection_name());
+                                // Try to yield for last sent message to be scheduled.
+                                yield_now().await;
                                 break;
                             }
                         },
