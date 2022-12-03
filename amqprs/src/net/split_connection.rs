@@ -11,7 +11,7 @@ use tokio::{
         TcpStream,
     },
 };
-use tracing::trace;
+use tracing::{trace, info};
 
 use super::Error;
 type Result<T> = std::result::Result<T, Error>;

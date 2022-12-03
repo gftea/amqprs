@@ -69,10 +69,13 @@ use super::{
 };
 
 //  TODO: move below constants gto be part of static configuration of connection
+// per channel buffer
 const DISPATCHER_MESSAGE_BUFFER_SIZE: usize = 256;
-const DISPATCHER_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 64;
-const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 256;
-const CONNECTION_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 64;
+const DISPATCHER_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 8;
+
+// per connection buffer
+const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 8192; 
+const CONNECTION_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 256;
 
 const DEFAULT_LOCALE: &str = "en_US";
 
@@ -158,9 +161,13 @@ impl ServerProperties {
 /// See documentation of each method.
 /// See also documentation of [module][`self`] .
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Connection {
     shared: Arc<SharedConnectionInner>,
+    /// A master connection is the one created by user, when drop, it will request
+    /// to close the connection.
+    /// A cloned connection has master = `false`.
+    master: bool,
 }
 
 #[derive(Debug)]
@@ -368,7 +375,10 @@ impl Connection {
             conn_mgmt_tx,
         });
 
-        let new_amq_conn = Self { shared };
+        let new_amq_conn = Self {
+            shared,
+            master: true,
+        };
 
         // spawn handlers for reader and writer of network connection
         new_amq_conn
@@ -382,7 +392,7 @@ impl Connection {
             .ok_or_else(|| {
                 Error::ConnectionOpenError("failed to register channel resource".to_string())
             })?;
-        info!("open connection: {}", new_amq_conn.connection_name());
+        info!("open connection {}", new_amq_conn.connection_name());
         Ok(new_amq_conn)
     }
 
@@ -657,7 +667,7 @@ impl Connection {
     /// It spawns tasks for `WriterHandler` and `ReaderHandler` to handle outgoing/incoming messages cocurrently.
     pub(crate) async fn spawn_handlers(
         &self,
-        connection: SplitConnection,
+        io_conn: SplitConnection,
         outgoing_rx: mpsc::Receiver<OutgoingMessage>,
         conn_mgmt_rx: mpsc::Receiver<ConnManagementCommand>,
         heartbeat: ShortUint,
@@ -668,7 +678,7 @@ impl Connection {
 
         let (shutdown_notifer, shutdown_listener) = broadcast::channel::<()>(1);
 
-        let (reader, writer) = connection.into_split();
+        let (reader, writer) = io_conn.into_split();
 
         // spawn task for read connection handler
         let rh = ReaderHandler::new(
@@ -738,7 +748,7 @@ impl Connection {
         let dispatcher = ChannelDispatcher::new(channel.clone(), dispatcher_rx, dispatcher_mgmt_rx);
         dispatcher.spawn().await;
         info!(
-            "open channel: {} on connection {} ",
+            "open channel {} on connection {} ",
             channel.channel_id(),
             self.connection_name()
         );
@@ -789,19 +799,21 @@ impl Connection {
     /// # Errors
     ///
     /// Returns error if any failure in communication with server.
-    pub async fn close(self) -> Result<()> {
+    pub async fn close(mut self) -> Result<()> {
         if let Ok(true) =
             self.shared
                 .is_open
                 .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
         {
-            info!("close connection: {}", self.connection_name());
-            self.close_internal().await?;
+            info!("close connection {}", self.connection_name());
+            self.close_handshake().await?;
+            // not necessary, but to skip atomic compare at `drop`
+            self.master = false;
         }
         Ok(())
     }
 
-    async fn close_internal(&self) -> Result<()> {
+    async fn close_handshake(&self) -> Result<()> {
         // connection's close method , should use default channel id
         let responder_rx = self
             .register_responder(DEFAULT_CONN_CHANNEL, CloseOk::header())
@@ -820,36 +832,49 @@ impl Connection {
     }
 }
 
+impl Clone for Connection {
+    fn clone(&self) -> Self {
+        Self {
+            shared: self.shared.clone(),
+            master: false,
+        }
+    }
+}
+
 impl Drop for Connection {
     /// When drops, try to gracefully shutdown the connection if it is still open.
     /// It is not guaranteed to succeed in a clean way.
     ///
-    /// User is recommended to explicitly close connection. See [module][`self`] documentation.
+    /// User is recommended to explicitly close connection.
+    /// See [module][`self`] documentation.
+    ///
     fn drop(&mut self) {
-        if let Ok(true) =
-            self.shared
-                .is_open
-                .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
-        {
-            debug!(
-                "drop connection {}, spawn a task to close it.",
-                self.connection_name()
-            );
-            let conn = self.clone();
-            tokio::spawn(async move {
-                info!("close connection: {} at drop", conn.connection_name());
+        if self.master {
+            if let Ok(true) = self.shared.is_open.compare_exchange(
+                true,
+                false,
+                Ordering::Acquire,
+                Ordering::Relaxed,
+            ) {
+                debug!(
+                    "drop connection {}, spawn a task to close it.",
+                    self.connection_name()
+                );
+                let conn = self.clone();
+                tokio::spawn(async move {
+                    info!("close connection {} at drop", conn.connection_name());
 
-                if let Err(err) = conn.close_internal().await {
-                    // check if connection handler has exited
-                    if !conn.shared.conn_mgmt_tx.is_closed() {
+                    if let Err(err) = conn.close_handshake().await {
+                        // Compliance: A peer that detects a socket closure without having received a Close-Ok
+                        // handshake method SHOULD log the error.
                         error!(
-                            "{} occurred at closing connection {} after drop.",
+                            "'{}' occurred at closing connection {} after drop.",
                             err,
                             conn.connection_name()
                         );
                     }
-                }
-            });
+                });
+            }
         }
     }
 }

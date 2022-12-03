@@ -86,11 +86,11 @@ impl AsyncConsumer for DefaultConsumer {
         basic_properties: BasicProperties,
         content: Vec<u8>,
     ) {
-        // info!(">>>>> Consumer '{}' Start <<<<<.", deliver.consumer_tag());
-        // info!("{}.", deliver);
-        // info!("{}.", basic_properties,);
-        // info!("{}.", from_utf8(&content).unwrap());
-        // info!(">>>>> Consumer '{}' End <<<<<.", deliver.consumer_tag());
+        info!(">>>>> Consumer '{}' Start <<<<<.", deliver.consumer_tag());
+        info!("{}.", deliver);
+        info!("{}.", basic_properties,);
+        info!("{}.", from_utf8(&content).unwrap());
+        info!(">>>>> Consumer '{}' End <<<<<.", deliver.consumer_tag());
 
         // ack explicitly if manual ack
         if !self.no_ack {

@@ -175,24 +175,29 @@ async fn test_cancel_consumer() {
         .await
         .unwrap();
 
-    // publish messages first
-    let num_of_message = 1024;
-    publish_test_messages(&channel, exchange_name, routing_key, num_of_message).await;
-    // wait for publish is done.
-    time::sleep(time::Duration::from_secs(1)).await;
-
-    // start consumer 
+    // start consumer
+    // NOTE: use automatic ack, because if running both publisher and manual-ack consumer cocurrently,
+    // the ACK frames may interleave with the publish sequence which results in server exception to close
+    // the connection
     let consumer_tag = channel
         .basic_consume(
-            DefaultConsumer::new(false),
+            DefaultConsumer::new(true),
             BasicConsumeArguments::new(&queue_name, ""),
         )
         .await
         .unwrap();
+    // publish messages
+    let num_of_message = 1000;
+    publish_test_messages(&channel, exchange_name, routing_key, num_of_message).await;
 
-    // cancel consumer before consuming all messages
+    // cancel consumer 
     channel.basic_cancel(BasicCancelArguments::new(&consumer_tag)).await.unwrap();
-    // wait for publish and consume are done.
+    
+    // publish again
+    publish_test_messages(&channel, exchange_name, routing_key, num_of_message).await;
+
+    // wait for certain time, and the messages should not be consumed.
+    time::sleep(time::Duration::from_secs(1)).await;
 
     // verify not all messages are consumed
     let args = QueueDeclareArguments::new(&queue_name)
@@ -200,7 +205,9 @@ async fn test_cancel_consumer() {
         .finish();
     let (_, message_count, consumer_count) =
         channel.queue_declare(args.clone()).await.unwrap().unwrap();
+    // check messages remain in queue
     assert_ne!(0,  message_count);
+    // check no consumer in server
     assert_eq!(0, consumer_count);
 
     // explicitly close
@@ -218,7 +225,7 @@ async fn publish_test_messages(
     let content = String::from(
         r#"
             {
-                "data": "publish data for multi consumer test" 
+                "data": "publish data for consumer test" 
             }
         "#,
     )

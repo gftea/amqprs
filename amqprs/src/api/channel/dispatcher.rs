@@ -1,6 +1,3 @@
-//! API implementation of AMQP Channel
-//!
-
 use std::collections::{HashMap, VecDeque};
 
 use tokio::{
@@ -11,7 +8,7 @@ use tokio::{
 use crate::{
     api::{callbacks::ChannelCallback, channel::ReturnMessage},
     frame::{CancelOk, CloseChannelOk, FlowOk, Frame, MethodHeader},
-    net::{ConnManagementCommand, IncomingMessage},
+    net::IncomingMessage,
 };
 use tracing::{debug, error, info, trace};
 
@@ -135,13 +132,13 @@ impl ChannelDispatcher {
                 tokio::select! {
                     biased;
 
+                    // the dispatcher also holds a `Channel` instance, so this 
+                    // should never return `None`
                     command = self.dispatcher_mgmt_rx.recv() => {
                         // handle command channel error
                         let cmd = match command {
-                            None => {
-                                // exit
-                                debug!("channel {}: dispatcher command channel closed.", self.channel.channel_id());
-                                break;
+                            None => {                            
+                                unreachable!("channel {}: dispatcher command channel closed.", self.channel.channel_id());
                             },
                             Some(v) => v,
                         };
@@ -160,7 +157,6 @@ impl ChannelDispatcher {
                                         error!("failed to forward message to consumer {}", &cmd.consumer_tag);
                                     }
                                 }
-
                             },
                             DispatcherManagementCommand::UnregisterContentConsumer(cmd) => {
                                 if let Some(consumer) = self.remove_consumer(&cmd.consumer_tag) {
@@ -169,7 +165,6 @@ impl ChannelDispatcher {
                                         consumer.fifo.len()
                                     );
                                 }
-
                             },
                             DispatcherManagementCommand::RegisterGetContentResponder(cmd) => {
                                 self.get_content_responder.replace(cmd.tx);
@@ -183,6 +178,8 @@ impl ChannelDispatcher {
                             }
                         }
                     }
+                    // only one tx half held by connection handler, once the tx half dorp
+                    // it will return `None`, so exit the dispatcher
                     message = self.dispatcher_rx.recv() => {
                         // handle message channel error
                         let frame = match message {
@@ -195,6 +192,44 @@ impl ChannelDispatcher {
                         };
                         // handle frames
                         match frame {
+                            ////////////////////////////////////////////////
+                            // frames for closing channel
+                            // channel.close-ok response from server
+                            Frame::CloseChannelOk(method_header, close_channel_ok) => {
+                                self.responders.remove(method_header)
+                                .expect("responder must be registered for CloseChannelOk")
+                                .send(close_channel_ok.into_frame()).unwrap();
+
+                                self.channel.set_is_open(false);
+                                debug!("channel {}: receive close-ok response.", self.channel.channel_id());
+                                // exit
+                                break;
+                            }
+                            // channel.close request from server
+                            Frame::CloseChannel(_, close_channel) => {
+                                // callback
+                                if let Some(ref mut cb) = self.callback {
+                                    if let Err(err) = cb.close(&self.channel, close_channel).await {
+                                      error!("channel {} close callback error, cause: {}.", self.channel.channel_id(), err);
+                                      // exit immediately, no response to server
+                                      break;
+                                    };
+                                } else {
+                                    info!("channel {} callback not registered.", self.channel.channel_id());
+                                }
+
+                                // respond to server if no callback registered or callback succeed
+                                self.channel.set_is_open(false);
+
+                                self.channel.shared.outgoing_tx
+                                .send((self.channel.channel_id(), CloseChannelOk::default().into_frame()))
+                                .await.unwrap();
+                                info!("channel {}: receive close request.", self.channel.channel_id());
+                                // exit 
+                                break;
+                            }                            
+                            ////////////////////////////////////////////////
+                            // the method frames followed by content frames
                             Frame::GetEmpty(_, get_empty) => {
                                 self.state = State::GetEmpty;
                                 if let Err(err) = self.get_content_responder.take().expect("get responder must be registered").send(get_empty.into_frame()).await {
@@ -277,19 +312,10 @@ impl ChannelDispatcher {
                                     State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state"),
                                 }
                             }
-                            // Close channel response from server
-                            Frame::CloseChannelOk(method_header, close_channel_ok) => {
-                                self.responders.remove(method_header)
-                                .expect("responder must be registered for CloseChannelOk")
-                                .send(close_channel_ok.into_frame()).unwrap();
 
-                                self.channel.set_is_open(false);
-                                debug!("channel {}: receive close-ok response.", self.channel.channel_id());
-                                // exit
-                                break;
-                            }
-                            // TODO:
-                            | Frame::FlowOk(method_header, _)
+                            ////////////////////////////////////////////////
+                            // synchronous response frames
+                            Frame::FlowOk(method_header, _)
                             // | Frame::RequestOk(method_header, _) // Deprecated
                             | Frame::DeclareOk(method_header, _)
                             | Frame::DeleteOk(method_header, _)
@@ -327,32 +353,7 @@ impl ChannelDispatcher {
 
                             }
                             //////////////////////////////////////////////////////////
-                            // Method frames of asynchronous request
-
-                            // Server request to close channel
-                            Frame::CloseChannel(_, close_channel) => {
-                                // callback
-                                if let Some(ref mut cb) = self.callback {
-                                    if let Err(err) = cb.close(&self.channel, close_channel).await {
-                                      error!("channel {} close callback error, cause: {}.", self.channel.channel_id(), err);
-                                      // exit, no response to server
-                                      break;
-                                    };
-                                } else {
-                                    info!("channel {} callback not registered.", self.channel.channel_id());
-                                }
-
-                                // respond to server if no callback registered or callback succeed
-                                self.channel.set_is_open(false);
-
-                                self.channel.shared.outgoing_tx
-                                .send((self.channel.channel_id(), CloseChannelOk::default().into_frame()))
-                                .await.unwrap();
-                                info!("channel {}: receive close request.", self.channel.channel_id());
-
-                                break;
-                            }
-
+                            // asynchronous request frames
                             Frame::Flow(_, flow) => {
                                 // callback
                                 if let Some(ref mut cb) = self.callback {
@@ -421,14 +422,6 @@ impl ChannelDispatcher {
                     }
 
                 }
-            }
-            let cmd = ConnManagementCommand::UnregisterChannelResource(self.channel.channel_id());
-            debug!(
-                "request to unregister channel resource {}.",
-                self.channel.channel_id()
-            );
-            if let Err(err) = self.channel.shared.conn_mgmt_tx.send(cmd).await {
-                debug!("failed to unregister resource of channel {}, cause: {}. Connection may be already closed!", self.channel.channel_id(), err);
             }
             info!(
                 "exit dispatcher of channel {}, is open: {}",

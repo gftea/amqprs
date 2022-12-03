@@ -16,6 +16,7 @@
 //! See details in documentation of each method.
 //!
 //! [`Channel`]: struct.Channel.html
+//! [`close`]: struct.Channel.html#method.close
 //!
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -104,15 +105,19 @@ pub(crate) enum DispatcherManagementCommand {
 /// [`Connection::open_channel`]: ../connection/struct.Connection.html#method.open_channel
 /// [`Channel::register_callback`]: struct.Channel.html#method.register_callback
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Channel {
     shared: Arc<SharedChannelInner>,
+    /// A master channel is the one created by user, when drop, it will request 
+    /// to close the channel.
+    /// A cloned channel has master = `false`.
+    master: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct SharedChannelInner {
     /// open state
-    is_open: Arc<AtomicBool>,
+    is_open: AtomicBool,
     /// channel id
     channel_id: AmqpChannelId,
     /// tx half to send message to `WriteHandler` task
@@ -138,6 +143,7 @@ impl Channel {
         dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
     ) -> Self {
         Self {
+            master: true,
             shared: Arc::new(SharedChannelInner::new(
                 is_open,
                 channel_id,
@@ -194,11 +200,6 @@ impl Channel {
         Ok(responder_rx)
     }
 
-    /// Returns `true` if the channel's connection is already closed.
-    pub(crate) fn is_connection_handler_closed(&self) -> bool {
-        self.shared.conn_mgmt_tx.is_closed()
-    }
-
     pub fn channel_id(&self) -> AmqpChannelId {
         self.shared.channel_id
     }
@@ -246,22 +247,92 @@ impl Channel {
     ///
     /// Returns error if any failure in communication with server.
     /// Fail to close the channel may result in `channel leak` in server.
-    pub async fn close(self) -> Result<()> {
-        if let Ok(true) =
-            self.shared
-                .is_open
-                .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
-        {
-            info!("close channel: {}", self.channel_id());
-
-            // if connection has been closed, no need to close channel
-            if !self.is_connection_handler_closed() {
-                self.shared.close_internal().await?;
+    pub async fn close(mut self) -> Result<()> {
+        // if connection handler has been closed, no need to close
+        if !self.shared.conn_mgmt_tx.is_closed() {
+            // check if channel is open
+            if let Ok(true) = self.shared.is_open.compare_exchange(
+                true,
+                false,
+                Ordering::Acquire,
+                Ordering::Relaxed,
+            ) {
+                info!("close channel {}", self.channel_id());
+                self.close_handshake().await?;
+                // not necessary, but to skip atomic compare at `drop`
+                self.master = false;
             }
         }
         Ok(())
     }
+
+    async fn close_handshake(&self) -> Result<()> {
+        let responder_rx = self.register_responder(CloseChannelOk::header()).await?;
+        synchronous_request!(
+            self.shared.outgoing_tx,
+            (self.shared.channel_id, CloseChannel::default().into_frame()),
+            responder_rx,
+            Frame::CloseChannelOk,
+            Error::ChannelCloseError
+        )?;
+        // unregister channel resource from connection handler,
+        // so that dispatcher will exit automatically.
+        let cmd = ConnManagementCommand::UnregisterChannelResource(self.channel_id());
+        self.shared.conn_mgmt_tx.send(cmd).await?;
+        Ok(())
+    }
 }
+
+impl Clone for Channel {
+    fn clone(&self) -> Self {
+        Self {
+            shared: self.shared.clone(),
+            master: false,
+        }
+    }
+}
+
+impl Drop for Channel {
+    /// When drops, try to gracefully shutdown the channel if it is still open.
+    /// It is not guaranteed to succeed in a clean way because the connection
+    /// may already be closed.
+    /// 
+    /// User is recommended to explictly call the [`close`] method.
+    /// 
+    /// [`close`]: struct.Channel.html#method.close
+    fn drop(&mut self) {
+        // only master channel will spawn task to close channel
+        if self.master {
+            // check if channel is open
+            if let Ok(true) = self.shared.is_open.compare_exchange(
+                true,
+                false,
+                Ordering::Acquire,
+                Ordering::Relaxed,
+            ) {
+                debug!(
+                    "drop channel {}, spawn a task to close it.",
+                    self.shared.channel_id
+                );
+
+                let channel = self.clone();
+                tokio::spawn(async move {
+                    info!("close channel {} at drop", channel.channel_id());
+                    if let Err(err) = channel.close_handshake().await {
+                        // Compliance: A peer that detects a socket closure without having received a Channel.Close-Ok
+                        // handshake method SHOULD log the error.
+                        error!(
+                            "'{}' occurred at closing channel {} after drop.",
+                            err,
+                            channel.channel_id(),
+                        );
+                    }
+                });
+            }
+        }
+    }
+}
+
 impl SharedChannelInner {
     fn new(
         is_open: AtomicBool,
@@ -271,7 +342,7 @@ impl SharedChannelInner {
         dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
     ) -> Self {
         Self {
-            is_open: Arc::new(is_open),
+            is_open,
             channel_id,
             outgoing_tx,
             conn_mgmt_tx,
@@ -279,63 +350,9 @@ impl SharedChannelInner {
         }
     }
 
-    async fn close_internal(&self) -> Result<()> {
-        let (responder, responder_rx) = oneshot::channel();
-        let (acker, acker_rx) = oneshot::channel();
-        let cmd = RegisterOneshotResponder {
-            method_header: CloseChannelOk::header(),
-            responder,
-            acker,
-        };
-        self.dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::RegisterOneshotResponder(cmd))
-            .await?;
-        acker_rx.await?;
-        synchronous_request!(
-            self.outgoing_tx,
-            (self.channel_id, CloseChannel::default().into_frame()),
-            responder_rx,
-            Frame::CloseChannelOk,
-            Error::ChannelCloseError
-        )?;
-        // FIXME: the dispatcher will exit, no need to unregister resource.
-        // let cmd = ConnManagementCommand::UnregisterChannelResource(self.channel_id());
-        // self.shared.conn_mgmt_tx.send(cmd).await?;
-        Ok(())
-    }
+
 }
 
-impl Drop for SharedChannelInner {
-    /// When drops, try to gracefully shutdown the channel if it is still open.
-    /// It is not guaranteed to succeed in a clean way.
-    ///
-    /// User is recommended to explicitly close channel. See [module][`self`] documentation.    
-    fn drop(&mut self) {
-        if let Ok(true) =
-            self.is_open
-                .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
-        {
-            debug!(
-                "drop channel {}, spawn a task to close it.",
-                self.channel_id
-            );
-
-            let inner = self.clone();
-            tokio::spawn(async move {
-                info!("close channel: {} at drop", inner.channel_id);
-                if let Err(err) = inner.close_internal().await {
-                    // check if handler has exited
-                    if !inner.conn_mgmt_tx.is_closed() {
-                        error!(
-                            "'{}' occurred at closing channel {} after drop.",
-                            err, inner.channel_id,
-                        );
-                    }
-                }
-            });
-        }
-    }
-}
 
 /////////////////////////////////////////////////////////////////////////////
 mod dispatcher;

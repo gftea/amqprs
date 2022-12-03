@@ -700,6 +700,7 @@ impl Channel {
 #[cfg(test)]
 mod tests {
     use tokio::time;
+    use tracing::Level;
 
     use crate::{
         api::{
@@ -714,11 +715,15 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
     async fn test_basic_consume_auto_ack() {
-        {
-            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
-            let client = Connection::open(&args).await.unwrap();
+        let subscriber = tracing_subscriber::fmt().with_max_level(Level::INFO).finish();
+        // use that subscriber to process traces emitted after this point
+        let _ = tracing::subscriber::set_global_default(subscriber);
 
-            let channel = client.open_channel(None).await.unwrap();
+        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+        let connection = Connection::open(&args).await.unwrap();
+
+        {
+            let channel = connection.open_channel(None).await.unwrap();
             let (queue_name, ..) = channel
                 .queue_declare(QueueDeclareArguments::default())
                 .await
@@ -743,8 +748,9 @@ mod tests {
                 .unwrap();
             time::sleep(time::Duration::from_secs(1)).await;
         }
-        // channel and connection drop, wait for close task to fnish
+        // channel drops, wait for close handshake done.
         time::sleep(time::Duration::from_secs(1)).await;
+        // connection drops
     }
 
     #[tokio::test]
@@ -752,9 +758,9 @@ mod tests {
         {
             let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
-            let client = Connection::open(&args).await.unwrap();
+            let connection = Connection::open(&args).await.unwrap();
 
-            let channel = client.open_channel(None).await.unwrap();
+            let channel = connection.open_channel(None).await.unwrap();
             let (queue_name, ..) = channel
                 .queue_declare(QueueDeclareArguments::default())
                 .await
@@ -785,9 +791,9 @@ mod tests {
         {
             let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
-            let client = Connection::open(&args).await.unwrap();
+            let connection = Connection::open(&args).await.unwrap();
 
-            let channel = client.open_channel(None).await.unwrap();
+            let channel = connection.open_channel(None).await.unwrap();
 
             let args = BasicPublishArguments::new("amq.topic", "eiffel._.amqprs._.tester");
 
