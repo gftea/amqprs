@@ -1,6 +1,6 @@
 [package]
 name = "amqprs"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 license = "MIT"
 readme = "README.md"
@@ -8,7 +8,7 @@ description = "AMQP 0-9-1 client implementation for RabbitMQ"
 repository = "https://github.com/gftea/amqprs"
 keywords = ["amqp", "rabbitmq", "async", "tokio", "lock-free"]
 categories = ["network-programming", "asynchronous"]
-# documentation = "https://docs.rs/amqprs/latest/amqprs/"
+documentation = "https://docs.rs/amqprs/latest/amqprs/"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
