@@ -21,9 +21,13 @@ async fn main() {
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
     // open a connection to RabbitMQ server
-    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
-
-    let connection = Connection::open(&args).await.unwrap();
+    let connection = Connection::open(&OpenConnectionArguments::new(
+        "localhost:5672",
+        "user",
+        "bitnami",
+    ))
+    .await
+    .unwrap();
     connection
         .register_callback(DefaultConnectionCallback)
         .await
@@ -44,12 +48,13 @@ async fn main() {
         .unwrap();
 
     // bind the queue to exchange
+    let rounting_key = "amqprs.example";
     let exchange_name = "amq.topic";
     channel
         .queue_bind(QueueBindArguments::new(
             &queue_name,
             exchange_name,
-            "eiffel.#",
+            rounting_key,
         ))
         .await
         .unwrap();
@@ -68,22 +73,23 @@ async fn main() {
     let content = String::from(
         r#"
             {
-                "meta": {"id": "f9d42464-fceb-4282-be95-0cd98f4741b0", "type": "PublishTester", "version": "4.0.0", "time": 1640035100149},
-                "data": { "customData": []}, 
-                "links": [{"type": "BASE", "target": "fa321ff0-faa6-474e-aa1d-45edf8c99896"}]
+                "publisher": "example"
+                "data": "Hello, amqprs!"
             }
-        "#).into_bytes();
+        "#,
+    )
+    .into_bytes();
 
     // create arguments for basic_publish
-    let args = BasicPublishArguments::new(exchange_name, "eiffel.a.b.c.d");
+    let args = BasicPublishArguments::new(exchange_name, rounting_key);
 
     channel
         .basic_publish(BasicProperties::default(), content, args)
         .await
         .unwrap();
 
-    // keep the `channel` and `connection` object from dropping
-    // NOTE: channel/connection will be closed when drop
+    // keep the `channel` and `connection` object from dropping before pub/sub is done.
+    // channel/connection will be closed when drop.
     time::sleep(time::Duration::from_secs(1)).await;
     // explicitly close
     channel.close().await.unwrap();
