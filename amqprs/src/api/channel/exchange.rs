@@ -424,6 +424,9 @@ mod tests {
             .passive(true)
             .finish();
         channel.exchange_declare(args).await.unwrap();
+
+        channel.close().await.unwrap();
+        connection.close().await.unwrap();
     }
 
     #[tokio::test]

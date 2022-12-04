@@ -4,7 +4,8 @@ use tokio::{
         broadcast,
         mpsc::{Receiver, Sender},
     },
-    time, task::yield_now,
+    task::yield_now,
+    time,
 };
 use tracing::{debug, error, info, trace};
 
@@ -74,7 +75,7 @@ impl ReaderHandler {
             // any received frame can be considered as heartbeat
             // nothing to handle with heartbeat frame.
             Frame::HeartBeat(_) => {
-                debug!("heartbeat received ...");
+                debug!("received heartbeat on connection {}", self.amqp_connection);
                 Ok(())
             }
 
@@ -83,14 +84,14 @@ impl ReaderHandler {
                 let responder = self
                     .channel_manager
                     .remove_responder(&channel_id, method_header)
-                    .expect("responder should be registered before receiving response");
+                    .expect("responder must be registered");
 
                 responder
                     .send(open_channel_ok.into_frame())
                     .map_err(|err_frame| {
                         Error::InternalChannelError(format!(
-                            "failed to forward {} to client",
-                            err_frame
+                            "failed to forward {} to connection {}",
+                            err_frame, self.amqp_connection
                         ))
                     })
             }
@@ -100,16 +101,12 @@ impl ReaderHandler {
                 let responder = self
                     .channel_manager
                     .remove_responder(&channel_id, method_header)
-                    .ok_or_else(|| {
-                        Error::InternalChannelError(format!(
-                            "No responder to forward frame {:?} to channel {}",
-                            close_ok, channel_id
-                        ))
-                    })?;
+                    .expect("responder must be registered");
+
                 responder
                     .send(close_ok.into_frame())
                     .map_err(|response| Error::InternalChannelError(response.to_string()))?;
-                info!("client has requested to shutdown connection {}.", self.amqp_connection.connection_name());                                
+                info!("close connection {} by client", self.amqp_connection);
 
                 // Try to yield for last sent message to be scheduled.
                 yield_now().await;
@@ -121,16 +118,27 @@ impl ReaderHandler {
             Frame::Close(_, close) => {
                 if let Some(ref mut callback) = self.callback {
                     if let Err(err) = callback.close(&self.amqp_connection, close).await {
-                        debug!("connection close callback error, cause: {}.", err);
+                        error!(
+                            "close callback error on connection {}, cause: {}",
+                            self.amqp_connection, err
+                        );
                         return Err(Error::CloseCallbackError);
                     }
+                } else {
+                    error!(
+                        "callback not registered on connection {}",
+                        self.amqp_connection
+                    );
                 }
                 // respond to server if no callback registered or callback succeed
                 self.amqp_connection.set_is_open(false);
                 self.outgoing_tx
                     .send((DEFAULT_CONN_CHANNEL, CloseOk::default().into_frame()))
                     .await?;
-                info!("server has requested to shutdown connection {}.", self.amqp_connection.connection_name());                                
+                info!(
+                    "server requests to shutdown connection {}",
+                    self.amqp_connection
+                );
 
                 // Try to yield for last sent message to be scheduled.
                 yield_now().await;
@@ -142,15 +150,26 @@ impl ReaderHandler {
                     callback
                         .blocked(&self.amqp_connection, blocked.reason.into())
                         .await;
+                } else {
+                    error!(
+                        "callback not registered on connection {}",
+                        self.amqp_connection
+                    );
                 }
                 Ok(())
             }
             Frame::Unblocked(_, _unblocked) => {
                 if let Some(ref mut callback) = self.callback {
                     callback.unblocked(&self.amqp_connection).await;
+                } else {
+                    error!(
+                        "callback not registered on connection {}",
+                        self.amqp_connection
+                    );
                 }
                 Ok(())
             }
+            // dispatch other frames to channel dispatcher
             _ => {
                 let dispatcher = self.channel_manager.get_dispatcher(&channel_id);
                 match dispatcher {
@@ -159,11 +178,10 @@ impl ReaderHandler {
                         Ok(())
                     }
                     None => {
-                        error!(
-                            "No dispatcher registered  for channel {}, discard frame: {}",
-                            channel_id, frame
+                        unreachable!(
+                            "dispatcher must be registered for channel {} of {}",
+                            channel_id, self.amqp_connection,
                         );
-                        Ok(())
                     }
                 }
             }
@@ -181,28 +199,30 @@ impl ReaderHandler {
                 command = self.conn_mgmt_rx.recv() => {
                     let command = match command {
                         None => {
-                            // should never happen because `ReadHandler` holds 
+                            // should never happen because `ReadHandler` holds
                             // a `Connection` itself
-                            unreachable!("connection management channel is closed")
+                            unreachable!("connection command channel is closed, {}", self.amqp_connection)
                         },
                         Some(v) => v,
                     };
                     match command {
                         ConnManagementCommand::RegisterChannelResource(cmd) => {
                             let id = self.channel_manager.insert_resource(cmd.channel_id, cmd.resource);
-                            cmd.acker.send(id).expect("acknowledge to command RegisterChannelResource should succeed");
+                            cmd.acker.send(id).expect("ack to command RegisterChannelResource must succeed");
+                            debug!("register channel resource on connection {}", self.amqp_connection);
+
                         },
-                        ConnManagementCommand::UnregisterChannelResource(channel_id) => {
+                        ConnManagementCommand::DeregisterChannelResource(channel_id) => {
                             self.channel_manager.remove_resource(&channel_id);
-                            debug!("channel {} resource unregistered from connection.", channel_id);
+                            debug!("deregister channel {} from connection {}", channel_id, self.amqp_connection);
                         },
                         ConnManagementCommand::RegisterResponder(cmd) => {
                             self.channel_manager.insert_responder(&cmd.channel_id, cmd.method_header, cmd.responder);
-                            cmd.acker.send(()).expect("acknowledge to command RegisterResponder should succeed");
+                            cmd.acker.send(()).expect("ack to command RegisterResponder must succeed");
                         },
                         ConnManagementCommand::RegisterConnectionCallback(cmd) => {
                             self.callback.replace(cmd.callback);
-                            debug!("connection callback registered.");
+                            debug!("callback registered on connection {}", self.amqp_connection);
                         },
                     }
                 }
@@ -214,16 +234,16 @@ impl ReaderHandler {
                     match res {
                         Ok((channel_id, frame)) => {
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
-                                error!("failed to handle frame, cause: {}!", err);
+                                error!("failed to handle frame, cause: {}", err);
                                 break;
                             }
                             if !self.amqp_connection.is_open() {
-                                info!("connection {} is closed, shutdown handler.", self.amqp_connection.connection_name());                                
+                                info!("connection {} is closed, shutdown handler", self.amqp_connection);
                                 break;
                             }
                         },
                         Err(err) => {
-                            error!("failed to read frame, cause: {}!", err);
+                            error!("failed to read frame, cause: {}", err);
                             break;
                         },
                     }
@@ -234,7 +254,7 @@ impl ReaderHandler {
                     // in normal case, expiration is always in the future due to received frame or heartbeats.
                     if expiration <= time::Instant::now() {
                         expiration = time::Instant::now() + time::Duration::from_secs(max_interval);
-                        error!("missing heartbeat from server for connection {}", self.amqp_connection.connection_name());
+                        error!("missing heartbeat from server for {}", self.amqp_connection);
                     }
 
                 }

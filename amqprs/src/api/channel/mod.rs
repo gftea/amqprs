@@ -18,9 +18,12 @@
 //! [`Channel`]: struct.Channel.html
 //! [`close`]: struct.Channel.html#method.close
 //!
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
+use std::{
+    fmt,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 
 use amqp_serde::types::AmqpChannelId;
@@ -29,6 +32,7 @@ use tokio::sync::{mpsc, oneshot};
 use super::callbacks::ChannelCallback;
 use crate::{
     api::{error::Error, Result},
+    connection::Connection,
     frame::{CloseChannel, CloseChannelOk, Deliver, Flow, FlowOk, Frame, MethodHeader, Return},
     net::{ConnManagementCommand, IncomingMessage, OutgoingMessage},
     BasicProperties,
@@ -56,10 +60,10 @@ pub(crate) struct RegisterContentConsumer {
     consumer_tx: mpsc::Sender<ConsumerMessage>,
 }
 
-/// Command to unregister consumer of asynchronous delivered contents.
+/// Command to deregister consumer of asynchronous delivered contents.
 ///
-/// Consumer should be unregistered when it is cancelled or the channel is closed.
-pub(crate) struct UnregisterContentConsumer {
+/// Consumer should be deregistered when it is cancelled or the channel is closed.
+pub(crate) struct DeregisterContentConsumer {
     consumer_tag: String,
 }
 
@@ -88,7 +92,7 @@ pub(crate) struct RegisterChannelCallback {
 /// List of management commands for channel dispatcher.
 pub(crate) enum DispatcherManagementCommand {
     RegisterContentConsumer(RegisterContentConsumer),
-    UnregisterContentConsumer(UnregisterContentConsumer),
+    DeregisterContentConsumer(DeregisterContentConsumer),
     RegisterGetContentResponder(RegisterGetContentResponder),
     RegisterOneshotResponder(RegisterOneshotResponder),
     RegisterChannelCallback(RegisterChannelCallback),
@@ -105,16 +109,16 @@ pub(crate) enum DispatcherManagementCommand {
 /// [`Connection::open_channel`]: ../connection/struct.Connection.html#method.open_channel
 /// [`Channel::register_callback`]: struct.Channel.html#method.register_callback
 ///
-#[derive(Debug)]
 pub struct Channel {
     shared: Arc<SharedChannelInner>,
-    /// A master channel is the one created by user, when drop, it will request 
+    /// A master channel is the one created by user, when drop, it will request
     /// to close the channel.
     /// A cloned channel has master = `false`.
     master: bool,
+    /// associated connection
+    connection: Connection,
 }
 
-#[derive(Debug)]
 pub(crate) struct SharedChannelInner {
     /// open state
     is_open: AtomicBool,
@@ -137,6 +141,7 @@ impl Channel {
     /// [`Connection::open_channel`]: ../connection/struct.Connection.html#method.open_channel
     pub(in crate::api) fn new(
         is_open: AtomicBool,
+        connection: Connection,
         channel_id: AmqpChannelId,
         outgoing_tx: mpsc::Sender<OutgoingMessage>,
         conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
@@ -144,6 +149,7 @@ impl Channel {
     ) -> Self {
         Self {
             master: true,
+            connection,
             shared: Arc::new(SharedChannelInner::new(
                 is_open,
                 channel_id,
@@ -203,14 +209,18 @@ impl Channel {
     pub fn channel_id(&self) -> AmqpChannelId {
         self.shared.channel_id
     }
-
-    pub(crate) fn set_is_open(&self, is_open: bool) {
-        self.shared.is_open.store(is_open, Ordering::Relaxed);
+    pub fn connection_name(&self) -> &str {
+        self.connection.connection_name()
     }
-
+    pub fn is_connection_open(&self) -> bool {
+        self.connection.is_open()
+    }
     /// Returns `true` if channel is open.
     pub fn is_open(&self) -> bool {
         self.shared.is_open.load(Ordering::Relaxed)
+    }
+    pub(crate) fn set_is_open(&self, is_open: bool) {
+        self.shared.is_open.store(is_open, Ordering::Relaxed);
     }
 
     /// Asks the server to pause or restart the flow of content data.
@@ -257,7 +267,7 @@ impl Channel {
                 Ordering::Acquire,
                 Ordering::Relaxed,
             ) {
-                info!("close channel {}", self.channel_id());
+                info!("close channel {}", self);
                 self.close_handshake().await?;
                 // not necessary, but to skip atomic compare at `drop`
                 self.master = false;
@@ -275,9 +285,9 @@ impl Channel {
             Frame::CloseChannelOk,
             Error::ChannelCloseError
         )?;
-        // unregister channel resource from connection handler,
+        // deregister channel resource from connection handler,
         // so that dispatcher will exit automatically.
-        let cmd = ConnManagementCommand::UnregisterChannelResource(self.channel_id());
+        let cmd = ConnManagementCommand::DeregisterChannelResource(self.channel_id());
         self.shared.conn_mgmt_tx.send(cmd).await?;
         Ok(())
     }
@@ -287,6 +297,7 @@ impl Clone for Channel {
     fn clone(&self) -> Self {
         Self {
             shared: self.shared.clone(),
+            connection: self.connection.clone(),
             master: false,
         }
     }
@@ -296,9 +307,9 @@ impl Drop for Channel {
     /// When drops, try to gracefully shutdown the channel if it is still open.
     /// It is not guaranteed to succeed in a clean way because the connection
     /// may already be closed.
-    /// 
+    ///
     /// User is recommended to explictly call the [`close`] method.
-    /// 
+    ///
     /// [`close`]: struct.Channel.html#method.close
     fn drop(&mut self) {
         // only master channel will spawn task to close channel
@@ -310,24 +321,20 @@ impl Drop for Channel {
                 Ordering::Acquire,
                 Ordering::Relaxed,
             ) {
-                debug!(
-                    "drop channel {}, spawn a task to close it.",
-                    self.shared.channel_id
-                );
+                debug!("drop channel {}", self);
 
                 let channel = self.clone();
                 tokio::spawn(async move {
-                    info!("close channel {} at drop", channel.channel_id());
+                    info!("close channel {} at drop", channel);
                     if let Err(err) = channel.close_handshake().await {
                         // Compliance: A peer that detects a socket closure without having received a Channel.Close-Ok
                         // handshake method SHOULD log the error.
                         error!(
-                            "'{}' occurred at closing channel {} after drop.",
-                            err,
-                            channel.channel_id(),
+                            "'{}' occurred at closing channel {} after drop",
+                            err, channel,
                         );
                     } else {
-                        info!("channel {} is closed OK at drop.", channel.channel_id());
+                        info!("channel {} is closed OK after drop", channel);
                     }
                 });
             }
@@ -335,6 +342,18 @@ impl Drop for Channel {
     }
 }
 
+impl fmt::Display for Channel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "(id={}, open={}, connection={})",
+            self.channel_id(),
+            self.is_open(),
+            self.connection,
+        )
+    }
+}
+///////////////////////////////////////////////////////////////////////////////
 impl SharedChannelInner {
     fn new(
         is_open: AtomicBool,
@@ -351,10 +370,7 @@ impl SharedChannelInner {
             dispatcher_mgmt_tx,
         }
     }
-
-
 }
-
 
 /////////////////////////////////////////////////////////////////////////////
 mod dispatcher;

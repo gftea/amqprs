@@ -20,7 +20,7 @@
 //! [`Channel`]: ../channel/struct.Channel.html
 //! [`Channel::register_callback`]: ../channel/struct.Channel.html#method.register_callback
 
-use std::str::from_utf8;
+
 
 use super::{channel::Channel, connection::Connection};
 use crate::api::Result;
@@ -64,16 +64,26 @@ pub struct DefaultConnectionCallback;
 
 #[async_trait]
 impl ConnectionCallback for DefaultConnectionCallback {
-    async fn close(&mut self, _connection: &Connection, close: Close) -> Result<()> {
-        error!("{}!", close);
+    async fn close(&mut self, connection: &Connection, close: Close) -> Result<()> {
+        error!(
+            "handle close request for connection {}, cause: {}",
+            connection, close
+        );
         Ok(())
     }
 
-    async fn blocked(&mut self, _connection: &Connection, reason: String) {
-        info!("connection blocked by server, reason: {}.", reason);
+    async fn blocked(&mut self, connection: &Connection, reason: String) {
+        info!(
+            "handle blocked notification for connection {}, reason: {}",
+            connection, reason
+        );
     }
-    async fn unblocked(&mut self, _connection: &Connection) {
-        info!("connection unblocked by server.");
+
+    async fn unblocked(&mut self, connection: &Connection) {
+        info!(
+            "handle unblocked notification for connection {}",
+            connection
+        );
     }
 }
 
@@ -153,35 +163,49 @@ pub struct DefaultChannelCallback;
 
 #[async_trait]
 impl ChannelCallback for DefaultChannelCallback {
-    async fn close(&mut self, _channel: &Channel, close: CloseChannel) -> Result<()> {
-        error!("{}!", close);
+    async fn close(&mut self, channel: &Channel, close: CloseChannel) -> Result<()> {
+        error!(
+            "handle close request for channel {}, cause: {}",
+            channel, close
+        );
         Ok(())
     }
-    async fn cancel(&mut self, _channel: &Channel, cancel: Cancel) -> Result<()> {
-        info!("receive cancel for consumer: {}.", cancel.consumer_tag());
+    async fn cancel(&mut self, channel: &Channel, cancel: Cancel) -> Result<()> {
+        info!(
+            "handle cancel request for consumer {} on channel {}",
+            cancel.consumer_tag(),
+            channel
+        );
         Ok(())
     }
-    async fn flow(&mut self, _channel: &Channel, active: bool) -> Result<bool> {
-        info!("channel flow request from server, {}.", active);
+    async fn flow(&mut self, channel: &Channel, active: bool) -> Result<bool> {
+        info!(
+            "handle flow request active={} for channel {}",
+            active, channel
+        );
         Ok(true)
     }
-    async fn publish_ack(&mut self, _channel: &Channel, ack: Ack) {
-        info!("channel publish ack from server, {}.", ack.delivery_tag());
+    async fn publish_ack(&mut self, channel: &Channel, ack: Ack) {
+        info!(
+            "handle publish ack delivery_tag={} on channel {}",
+            ack.delivery_tag(),
+            channel
+        );
     }
-    async fn publish_nack(&mut self, _channel: &Channel, nack: Nack) {
-        info!("channel publish nack from server, {}.", nack.delivery_tag());
+    async fn publish_nack(&mut self, channel: &Channel, nack: Nack) {
+        info!(
+            "handle publish nack delivery_tag={} on channel {}",
+            nack.delivery_tag(),
+            channel
+        );
     }
     async fn publish_return(
         &mut self,
-        _channel: &Channel,
+        channel: &Channel,
         ret: Return,
-        basic_properties: BasicProperties,
-        content: Vec<u8>,
+        _basic_properties: BasicProperties,
+        _content: Vec<u8>,
     ) {
-        info!(">>>>> Publish Return Start <<<<<.");
-        info!("{}.", ret);
-        info!("{}.", basic_properties,);
-        info!("{}.", from_utf8(&content).unwrap());
-        info!(">>>>> Publish Return End <<<<<.");
+        info!("handle publish return {} on channel {}", ret, channel);
     }
 }

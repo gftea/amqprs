@@ -43,7 +43,7 @@ pub(crate) struct RegisterConnectionCallback {
 
 pub(crate) enum ConnManagementCommand {
     RegisterChannelResource(RegisterChannelResource),
-    UnregisterChannelResource(AmqpChannelId),
+    DeregisterChannelResource(AmqpChannelId),
 
     RegisterResponder(RegisterResponder),
     RegisterConnectionCallback(RegisterConnectionCallback),

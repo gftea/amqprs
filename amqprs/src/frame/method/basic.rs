@@ -201,7 +201,7 @@ pub struct Return {
 impl fmt::Display for Return {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!(
-            "Return published message due to '{}: {}', (exchange = {}, routing_key = {})",
+            "'{}: {}', (exchange = {}, routing_key = {})",
             self.reply_code(),
             self.reply_text(),
             self.exchange(),

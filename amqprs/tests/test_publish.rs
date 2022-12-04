@@ -1,6 +1,6 @@
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
-    channel::{BasicPublishArguments, ExchangeDeclareArguments, QueueDeclareArguments},
+    channel::{BasicPublishArguments, ExchangeDeclareArguments},
     connection::{Connection, OpenConnectionArguments},
     BasicProperties,
 };

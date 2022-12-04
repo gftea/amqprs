@@ -71,7 +71,7 @@ impl CloseChannel {
 impl fmt::Display for CloseChannel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!(
-            "Close channel due to '{}: {}', (class_id = {}, method_id = {})",
+            "'{}: {}', (class_id = {}, method_id = {})",
             self.reply_code(),
             self.reply_text(),
             self.class_id(),

@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-use super::{Channel, RegisterGetContentResponder, UnregisterContentConsumer};
+use super::{Channel, DeregisterContentConsumer, RegisterGetContentResponder};
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`basic_qos`]
 ///
@@ -460,11 +460,7 @@ impl Channel {
         let channel = self.clone();
         // spawn consumer task
         tokio::spawn(async move {
-            trace!(
-                "AsyncConsumer task starts for '{}' on channel {}!",
-                ctag,
-                channel.shared.channel_id
-            );
+            trace!("starts task for consumer {} on channel {}", ctag, channel);
 
             loop {
                 match consumer_rx.recv().await {
@@ -479,7 +475,7 @@ impl Channel {
                             .await;
                     }
                     None => {
-                        debug!("exit consumer: {}.", ctag);
+                        debug!("exit task of consumer {}", ctag);
                         break;
                     }
                 }
@@ -496,7 +492,6 @@ impl Channel {
                 },
             ))
             .await?;
-        trace!("command 'RegisterConsumer' is sent.");
         Ok(())
     }
 
@@ -576,10 +571,10 @@ impl Channel {
         };
 
         let consumer_tag2 = consumer_tag.clone();
-        let cmd = UnregisterContentConsumer { consumer_tag };
+        let cmd = DeregisterContentConsumer { consumer_tag };
         self.shared
             .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::UnregisterContentConsumer(cmd))
+            .send(DispatcherManagementCommand::DeregisterContentConsumer(cmd))
             .await?;
         Ok(consumer_tag2)
     }
@@ -715,11 +710,15 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
     async fn test_basic_consume_auto_ack() {
-        let subscriber = tracing_subscriber::fmt().with_max_level(Level::INFO).finish();
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(Level::INFO)
+            .finish();
         // use that subscriber to process traces emitted after this point
         let _ = tracing::subscriber::set_global_default(subscriber);
 
-        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+            .connection_name("test_basic_consume_auto_ack")
+            .finish();
         let connection = Connection::open(&args).await.unwrap();
 
         {
@@ -756,7 +755,9 @@ mod tests {
     #[tokio::test]
     async fn test_basic_consume_manual_ack() {
         {
-            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+                .connection_name("test_basic_consume_manual_ack")
+                .finish();
 
             let connection = Connection::open(&args).await.unwrap();
 
@@ -787,9 +788,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_basic_publish() {        
+    async fn test_basic_publish() {
         {
-            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+                .connection_name("test_basic_publish")
+                .finish();
 
             let connection = Connection::open(&args).await.unwrap();
 

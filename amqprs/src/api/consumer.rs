@@ -11,7 +11,7 @@
 //!
 use super::channel::{BasicAckArguments, Channel};
 use crate::frame::{BasicProperties, Deliver};
-use std::str::from_utf8;
+
 
 use async_trait::async_trait;
 use tracing::info;
@@ -83,17 +83,14 @@ impl AsyncConsumer for DefaultConsumer {
         &mut self,
         channel: &Channel,
         deliver: Deliver,
-        basic_properties: BasicProperties,
-        content: Vec<u8>,
+        _basic_properties: BasicProperties,
+        _content: Vec<u8>,
     ) {
-        info!(">>>>> Consumer '{}' Start <<<<<.", deliver.consumer_tag());
-        info!("{}.", deliver);
-        info!("{}.", basic_properties,);
-        info!("{}.", from_utf8(&content).unwrap());
-        info!(">>>>> Consumer '{}' End <<<<<.", deliver.consumer_tag());
+        info!("consume delivery {} on channel {}", deliver, channel);
 
         // ack explicitly if manual ack
         if !self.no_ack {
+            info!("ack to delivery {} on channel {}", deliver, channel);
             let args = BasicAckArguments::new(deliver.delivery_tag(), false);
             channel.basic_ack(args).await.unwrap();
         }

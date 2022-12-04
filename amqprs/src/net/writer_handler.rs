@@ -1,13 +1,15 @@
-
-
 use amqp_serde::types::ShortUint;
 use tokio::{
     sync::{broadcast, mpsc},
-    time, task::yield_now,
+    task::yield_now,
+    time,
 };
 use tracing::{debug, error, info, trace};
 
-use crate::frame::{Frame, HeartBeat, DEFAULT_CONN_CHANNEL};
+use crate::{
+    connection::Connection,
+    frame::{Frame, HeartBeat, DEFAULT_CONN_CHANNEL},
+};
 
 use super::{BufWriter, OutgoingMessage};
 
@@ -17,6 +19,8 @@ pub(crate) struct WriterHandler {
     outgoing_rx: mpsc::Receiver<OutgoingMessage>,
     /// listener of shutdown signal
     shutdown: broadcast::Receiver<()>,
+    /// connection
+    amqp_connection: Connection,
 }
 
 impl WriterHandler {
@@ -24,11 +28,13 @@ impl WriterHandler {
         stream: BufWriter,
         outgoing_rx: mpsc::Receiver<OutgoingMessage>,
         shutdown: broadcast::Receiver<()>,
+        amqp_connection: Connection,
     ) -> Self {
         Self {
             stream,
             outgoing_rx,
             shutdown,
+            amqp_connection,
         }
     }
 
@@ -48,26 +54,26 @@ impl WriterHandler {
                         Some(v) => v,
                     };
                     if let Err(err) = self.stream.write_frame(channel_id, frame).await {
-                        error!("failed to send frame over network, cause: {}!", err);
+                        error!("failed to send frame over connection {}, cause: {}", self.amqp_connection, err);
                         break;
                     }
                     expiration = time::Instant::now() + time::Duration::from_secs(interval);
-                    trace!("client heartbeat deadline is updated to {:?}", expiration);
+                    trace!("connection {} heartbeat deadline is updated to {:?}", self.amqp_connection, expiration);
                 }
                 _ = time::sleep_until(expiration) => {
                     if expiration <= time::Instant::now() {
                         expiration = time::Instant::now() + time::Duration::from_secs(interval);
 
                         if let Err(err) = self.stream.write_frame(DEFAULT_CONN_CHANNEL, Frame::HeartBeat(HeartBeat)).await {
-                            error!("failed to send heartbeat over network, cause: {}!", err);
+                            error!("failed to send heartbeat over connection {}, cause: {}", self.amqp_connection, err);
                             break;
                         }
-                        debug!("sent heartbeat ...");
+                        debug!("sent heartbeat over connection {}", self.amqp_connection,);
                     }
 
                 }
                 _ = self.shutdown.recv() => {
-                    info!("received shutdown notification.");
+                    info!("received shutdown notification for connection {}", self.amqp_connection);
                     // try to give last chance for last message.
                     yield_now().await;
                     break;
@@ -78,7 +84,10 @@ impl WriterHandler {
             }
         }
         if let Err(err) = self.stream.close().await {
-            error!("failed to close writer cleanly, cause: {}", err);
+            error!(
+                "failed to close i/o writer of connection {}, cause: {}",
+                self.amqp_connection, err
+            );
         }
     }
 }

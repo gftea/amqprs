@@ -11,7 +11,7 @@ use tokio::{
         TcpStream,
     },
 };
-use tracing::{trace, info};
+use tracing::{trace};
 
 use super::Error;
 type Result<T> = std::result::Result<T, Error>;
@@ -92,7 +92,7 @@ impl BufWriter {
     // write a AMQP frame over a specific channel
     pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
         // TODO: tracing
-        trace!("SENT on channel {}: {:?}.", channel, frame);
+        trace!("SENT on channel {}: {}", channel, frame);
 
         // reserve bytes for frame header, which to be updated after encoding payload
         let header = FrameHeader {
@@ -143,7 +143,7 @@ impl BufReader {
                 // discard parsed data in read buffer
                 self.buffer.advance(len);
                 // TODO: tracing
-                trace!("RECV on channel {}: {:?}.", channel_id, frame);
+                trace!("RECV on channel {}: {}", channel_id, frame);
                 Ok(Some((channel_id, frame)))
             }
             None => Ok(None),
@@ -168,7 +168,7 @@ impl BufReader {
                 }
             }
             // TODO:  tracing
-            trace!("number of bytes read from network {len}.");
+            trace!("{len} bytes read from network");
             let result = self.decode()?;
             match result {
                 Some(frame) => return Ok(frame),

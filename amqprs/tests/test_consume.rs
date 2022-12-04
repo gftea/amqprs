@@ -1,12 +1,13 @@
 use amqp_serde::types::FieldTable;
 use amqprs::{
+    callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
     channel::{
-        BasicConsumeArguments, BasicPublishArguments, Channel, QueueBindArguments,
-        QueueDeclareArguments, BasicCancelArguments,
+        BasicCancelArguments, BasicConsumeArguments, BasicPublishArguments, Channel,
+        QueueBindArguments, QueueDeclareArguments,
     },
     connection::{Connection, OpenConnectionArguments},
     consumer::DefaultConsumer,
-    BasicProperties, DELIVERY_MODE_TRANSIENT, callbacks::{DefaultConnectionCallback, DefaultChannelCallback},
+    BasicProperties, DELIVERY_MODE_TRANSIENT,
 };
 use tokio::time;
 use tracing::Level;
@@ -150,11 +151,17 @@ async fn test_cancel_consumer() {
     let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
 
     let connection = Connection::open(&args).await.unwrap();
-    connection.register_callback(DefaultConnectionCallback).await.unwrap();
+    connection
+        .register_callback(DefaultConnectionCallback)
+        .await
+        .unwrap();
 
     // open a channel on the connection
     let channel = connection.open_channel(None).await.unwrap();
-    channel.register_callback(DefaultChannelCallback).await.unwrap();
+    channel
+        .register_callback(DefaultChannelCallback)
+        .await
+        .unwrap();
 
     let exchange_name = "amq.topic";
     // declare a queue
@@ -190,9 +197,12 @@ async fn test_cancel_consumer() {
     let num_of_message = 1000;
     publish_test_messages(&channel, exchange_name, routing_key, num_of_message).await;
 
-    // cancel consumer 
-    channel.basic_cancel(BasicCancelArguments::new(&consumer_tag)).await.unwrap();
-    
+    // cancel consumer
+    channel
+        .basic_cancel(BasicCancelArguments::new(&consumer_tag))
+        .await
+        .unwrap();
+
     // publish again
     publish_test_messages(&channel, exchange_name, routing_key, num_of_message).await;
 
@@ -206,7 +216,7 @@ async fn test_cancel_consumer() {
     let (_, message_count, consumer_count) =
         channel.queue_declare(args.clone()).await.unwrap().unwrap();
     // check messages remain in queue
-    assert_ne!(0,  message_count);
+    assert_ne!(0, message_count);
     // check no consumer in server
     assert_eq!(0, consumer_count);
 

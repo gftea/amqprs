@@ -36,6 +36,7 @@
 
 use std::{
     cell::RefCell,
+    fmt,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
@@ -74,13 +75,13 @@ const DISPATCHER_MESSAGE_BUFFER_SIZE: usize = 256;
 const DISPATCHER_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 8;
 
 // per connection buffer
-const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 8192; 
+const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 8192;
 const CONNECTION_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 256;
 
 const DEFAULT_LOCALE: &str = "en_US";
 
 /////////////////////////////////////////////////////////////////////////////
-/// Capabilities reported by the server when openning an AMQP connection.
+/// Capabilities reported by the server when openning an connection.
 ///
 /// It is part of [`ServerProperties`] reported from server.
 #[derive(Debug, Clone)]
@@ -134,7 +135,7 @@ impl ServerCapabilities {
     }
 }
 
-/// Propertities reported by the server when openning an AMQP connection.
+/// Propertities reported by the server when openning an connection.
 #[derive(Debug, Clone)]
 pub struct ServerProperties {
     capabilities: ServerCapabilities,
@@ -156,12 +157,11 @@ impl ServerProperties {
     }
 }
 
-/// Type represents an AMQP connection.
+/// Type represents an connection.
 ///
 /// See documentation of each method.
 /// See also documentation of [module][`self`] .
 ///
-#[derive(Debug)]
 pub struct Connection {
     shared: Arc<SharedConnectionInner>,
     /// A master connection is the one created by user, when drop, it will request
@@ -313,11 +313,11 @@ impl OpenConnectionArguments {
 /////////////////////////////////////////////////////////////////////////////
 
 impl Connection {
-    /// Open and returns a new AMQP connection.
+    /// Open and returns a new connection.
     ///
     /// # Errors
     ///
-    /// Returns [`Err`] if any step goes wrong during openning an AMQP connection.
+    /// Returns [`Err`] if any step goes wrong during openning an connection.
     pub async fn open(args: &OpenConnectionArguments) -> Result<Self> {
         // TODO: uri parsing
         let mut io_conn = SplitConnection::open(&args.uri).await?;
@@ -375,25 +375,25 @@ impl Connection {
             conn_mgmt_tx,
         });
 
-        let new_amq_conn = Self {
+        let new_amqp_conn = Self {
             shared,
             master: true,
         };
 
         // spawn handlers for reader and writer of network connection
-        new_amq_conn
+        new_amqp_conn
             .spawn_handlers(io_conn, outgoing_rx, conn_mgmt_rx, heartbeat)
             .await;
 
         // register channel resource for connection's default channel
-        new_amq_conn
+        new_amqp_conn
             .register_channel_resource(Some(DEFAULT_CONN_CHANNEL), ChannelResource::new(None))
             .await
             .ok_or_else(|| {
                 Error::ConnectionOpenError("failed to register channel resource".to_string())
             })?;
-        info!("open connection {}", new_amq_conn.connection_name());
-        Ok(new_amq_conn)
+        info!("open connection {}", new_amqp_conn);
+        Ok(new_amqp_conn)
     }
 
     /// Protocol negotiation according to AMQP 0-9-1
@@ -645,7 +645,10 @@ impl Connection {
         // If no channel id is given, it will be allocated by management task and included in acker response
         // otherwise same id will be received in response
         if let Err(err) = self.shared.conn_mgmt_tx.send(cmd).await {
-            debug!("failed to register channel resource, cause: {}.", err);
+            debug!(
+                "failed to register channel resource on connection {}, cause: {}",
+                self, err
+            );
             return None;
         }
 
@@ -653,12 +656,18 @@ impl Connection {
         match acker_rx.await {
             Ok(res) => {
                 if let None = res {
-                    debug!("failed to register channel resource, error in channel id allocation.");
+                    debug!(
+                        "failed to allocate/reserve channel id on connection {}",
+                        self
+                    );
                 }
                 res
             }
             Err(err) => {
-                debug!("failed to register channel resource, cause: {}.", err);
+                debug!(
+                    "failed to register channel resource on connection {}, cause: {}",
+                    self, err
+                );
                 None
             }
         }
@@ -694,13 +703,13 @@ impl Connection {
         });
 
         // spawn task for write connection handler
-        let wh = WriterHandler::new(writer, outgoing_rx, shutdown_listener);
+        let wh = WriterHandler::new(writer, outgoing_rx, shutdown_listener, self.clone());
         tokio::spawn(async move {
             wh.run_until_shutdown(heartbeat).await;
         });
     }
 
-    /// Open and return a new AMQP channel.
+    /// Open and return a new channel.
     ///
     /// Automatically generate channel id if input `channel_id` is [`None`],
     /// otherwise, use the given `channel_id` if it is not occupied.
@@ -739,6 +748,7 @@ impl Connection {
         // create channel instance
         let channel = Channel::new(
             AtomicBool::new(true),
+            self.clone(),
             channel_id,
             self.shared.outgoing_tx.clone(),
             self.shared.conn_mgmt_tx.clone(),
@@ -747,11 +757,7 @@ impl Connection {
 
         let dispatcher = ChannelDispatcher::new(channel.clone(), dispatcher_rx, dispatcher_mgmt_rx);
         dispatcher.spawn().await;
-        info!(
-            "open channel {} on connection {} ",
-            channel.channel_id(),
-            self.connection_name()
-        );
+        info!("open channel {}", channel);
 
         Ok(channel)
     }
@@ -805,7 +811,7 @@ impl Connection {
                 .is_open
                 .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
         {
-            info!("close connection {}", self.connection_name());
+            info!("close connection {}", self);
             self.close_handshake().await?;
             // not necessary, but to skip atomic compare at `drop`
             self.master = false;
@@ -856,24 +862,20 @@ impl Drop for Connection {
                 Ordering::Acquire,
                 Ordering::Relaxed,
             ) {
-                debug!(
-                    "drop connection {}, spawn a task to close it.",
-                    self.connection_name()
-                );
+                debug!("drop connection {}", self);
                 let conn = self.clone();
                 tokio::spawn(async move {
-                    info!("close connection {} at drop", conn.connection_name());
+                    info!("close connection {} at drop", conn);
 
                     if let Err(err) = conn.close_handshake().await {
                         // Compliance: A peer that detects a socket closure without having received a Close-Ok
                         // handshake method SHOULD log the error.
                         error!(
-                            "'{}' occurred at closing connection {} after drop.",
-                            err,
-                            conn.connection_name()
+                            "'{}' occurred at closing connection {} after drop",
+                            err, conn
                         );
                     } else {
-                        info!("connection {} is closed OK at drop.", conn.connection_name());
+                        info!("connection {} is closed OK after drop", conn);
                     }
                 });
             }
@@ -881,6 +883,16 @@ impl Drop for Connection {
     }
 }
 
+impl fmt::Display for Connection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "(name={}, open={})",
+            self.connection_name(),
+            self.is_open()
+        )
+    }
+}
 /// It is uncommon to have many connections for one client
 /// We only need a simple algorithm to generate large enough number of unique names.
 /// To avoid using any external crate
@@ -950,10 +962,10 @@ mod tests {
                 // test close on drop
                 let _channel = connection.open_channel(None).await.unwrap();
             }
-            time::sleep(time::Duration::from_millis(10000)).await;
+            time::sleep(time::Duration::from_millis(100)).await;
         }
         // wait for finished, otherwise runtime exit before all tasks are done
-        time::sleep(time::Duration::from_millis(10000)).await;
+        time::sleep(time::Duration::from_millis(100)).await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
@@ -982,7 +994,9 @@ mod tests {
     async fn test_multi_channel_open_close() {
         setup_logging(Level::INFO).ok();
         {
-            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+                .connection_name("test_multi_channel_open_close")
+                .finish();
 
             let connection = Connection::open(&args).await.unwrap();
             let mut handles = vec![];
