@@ -17,7 +17,7 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 
 ## Example: Consume and Publish
 
-[See full source code in examples](examples/basic_pub_sub.rs) 
+### [Link to full example code](https://github.com/gftea/amqprs/blob/HEAD/amqprs/examples/basic_pub_sub.rs) 
 
 ```rust
 // open a connection to RabbitMQ server
