@@ -12,7 +12,8 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 
 
 ## Design Architecture
-[![Lock-free Design](https://github.com/gftea/amqprs/blob/main/amqprs/amqp-chosen_design.drawio.png)](https://github.com/gftea/amqprs/blob/main/amqprs)
+![Lock-free Design](amqp-chosen_design.drawio.png)
+
 
 ## Example: Consume and Publish
 
