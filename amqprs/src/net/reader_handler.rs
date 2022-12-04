@@ -109,6 +109,10 @@ impl ReaderHandler {
                 responder
                     .send(close_ok.into_frame())
                     .map_err(|response| Error::InternalChannelError(response.to_string()))?;
+                info!("client has requested to shutdown connection {}.", self.amqp_connection.connection_name());                                
+
+                // Try to yield for last sent message to be scheduled.
+                yield_now().await;
                 Ok(())
             }
 
@@ -123,11 +127,13 @@ impl ReaderHandler {
                 }
                 // respond to server if no callback registered or callback succeed
                 self.amqp_connection.set_is_open(false);
-
                 self.outgoing_tx
                     .send((DEFAULT_CONN_CHANNEL, CloseOk::default().into_frame()))
                     .await?;
+                info!("server has requested to shutdown connection {}.", self.amqp_connection.connection_name());                                
 
+                // Try to yield for last sent message to be scheduled.
+                yield_now().await;
                 Ok(())
             }
 
@@ -174,7 +180,11 @@ impl ReaderHandler {
 
                 command = self.conn_mgmt_rx.recv() => {
                     let command = match command {
-                        None => break,
+                        None => {
+                            // should never happen because `ReadHandler` holds 
+                            // a `Connection` itself
+                            unreachable!("connection management channel is closed")
+                        },
                         Some(v) => v,
                     };
                     match command {
@@ -194,7 +204,6 @@ impl ReaderHandler {
                             self.callback.replace(cmd.callback);
                             debug!("connection callback registered.");
                         },
-
                     }
                 }
                 res = self.stream.read_frame() => {
@@ -209,9 +218,7 @@ impl ReaderHandler {
                                 break;
                             }
                             if !self.amqp_connection.is_open() {
-                                info!("client/server has requested to shutdown connection {}.", self.amqp_connection.connection_name());
-                                // Try to yield for last sent message to be scheduled.
-                                yield_now().await;
+                                info!("connection {} is closed, shutdown handler.", self.amqp_connection.connection_name());                                
                                 break;
                             }
                         },

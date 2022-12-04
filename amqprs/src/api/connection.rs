@@ -872,6 +872,8 @@ impl Drop for Connection {
                             err,
                             conn.connection_name()
                         );
+                    } else {
+                        info!("connection {} is closed OK at drop.", conn.connection_name());
                     }
                 });
             }

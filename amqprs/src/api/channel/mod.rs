@@ -326,6 +326,8 @@ impl Drop for Channel {
                             err,
                             channel.channel_id(),
                         );
+                    } else {
+                        info!("channel {} is closed OK at drop.", channel.channel_id());
                     }
                 });
             }
