@@ -14,6 +14,7 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 ## Design Architecture
 <img src="amqprs/amqp-chosen_design.drawio.png" />
 
-## [Example: Consume and Publish](amqprs/examples/basic_pub_sub.rs) 
 
-## [README](amqprs/README.md)
+## [Readme](amqprs/README.md)
+
+## [Example](amqprs/examples/basic_pub_sub.rs) 
