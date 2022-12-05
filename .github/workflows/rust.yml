@@ -23,16 +23,16 @@ jobs:
       run:  docker-compose up -d
 
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --all-features --verbose
 
     - name: Run doc tests
-      run: cargo test --doc --verbose
+      run: cargo test  --all-features --doc --verbose
 
     - name: Run lib unit tests
-      run: cargo test --lib --verbose
+      run: cargo test  --all-features --lib --verbose
     
     - name: Run integration tests
-      run: cargo test --test '*'
+      run: cargo test  --all-features --test '*'
 
     - name: Run examples
-      run: cargo run --example 2>&1 | grep -E '^ ' | xargs -n1 cargo run --example
+      run: cargo run --example 2>&1 | grep -E '^ ' | xargs -n1 cargo run --all-features --example

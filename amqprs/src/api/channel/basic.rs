@@ -19,6 +19,9 @@ use crate::{
     },
 };
 
+#[cfg(feature="compilance_assert")]
+use crate::api::compilance_asserts::*;
+
 use super::{Channel, DeregisterContentConsumer, RegisterGetContentResponder};
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`basic_qos`]
@@ -331,14 +334,18 @@ pub struct BasicPublishArguments {
 }
 
 impl BasicPublishArguments {
+
     /// Create new arguments with defaults.
     pub fn new(exchange: &str, routing_key: &str) -> Self {
-        Self {
+        let arg = Self {
             exchange: exchange.to_owned(),
             routing_key: routing_key.to_owned(),
             mandatory: false,
             immediate: false,
-        }
+        };
+        #[cfg(feature="compilance_assert")]
+        assert_amqp_exchange_name(exchange);
+        arg
     }
     impl_chainable_setter! {
         /// Chainable setter method.
@@ -358,6 +365,8 @@ impl BasicPublishArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
+        #[cfg(feature="compilance_assert")]
+        assert_amqp_exchange_name(&self.exchange);        
         self.clone()
     }
 }

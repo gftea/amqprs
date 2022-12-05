@@ -41,6 +41,9 @@ pub(crate) mod helpers {
 }
 
 /////////////////////////////////////////////////////////////////////////////
+#[cfg(feature="compilance_assert")]
+mod compilance_asserts;
+
 pub mod callbacks;
 pub mod channel;
 pub mod connection;

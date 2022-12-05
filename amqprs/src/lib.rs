@@ -43,7 +43,10 @@
 //! connection.close().await.unwrap();
 //! # }
 //! ```
-//!
+//! # Optional Features
+//! - "tracing": enable `tracing` in the library.
+//! - "compilance_assert": enable assertion of AMQP compilance.
+//! 
 //! [`Connection`]: connection/struct.Connection.html
 //! [`Channel`]: channel/struct.Channel.html
 //! [`callbacks`]: callbacks/index.html
