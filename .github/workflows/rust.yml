@@ -40,8 +40,8 @@ jobs:
     - name: default feature test
       run: cargo test
 
-    - name: "tracing" feature test
+    - name: tracing feature test
       run: cargo test -F tracing
 
-    - name: "compliance_assert" feature test
+    - name: compliance_assert feature test
       run: cargo test -F compliance_assert
