@@ -1,5 +1,6 @@
 use amqp_serde::types::AmqpDeliveryTag;
 use tokio::sync::mpsc;
+#[cfg(feature="tracing")]
 use tracing::{debug, trace};
 
 use crate::{
@@ -20,7 +21,7 @@ use crate::{
 };
 
 #[cfg(feature="compilance_assert")]
-use crate::api::compilance_asserts::*;
+use crate::api::compilance_asserts::{assert_exchange_name, assert_queue_name};
 
 use super::{Channel, DeregisterContentConsumer, RegisterGetContentResponder};
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +84,7 @@ impl BasicQosArguments {
 /// [`basic_consume`]: struct.Channel.html#method.basic_consume
 #[derive(Debug, Clone, Default)]
 pub struct BasicConsumeArguments {
-    /// Default: "".
+    /// Queue Name. Default: "".
     pub queue: String,
     /// Default: "".
     pub consumer_tag: String,
@@ -102,6 +103,9 @@ pub struct BasicConsumeArguments {
 impl BasicConsumeArguments {
     /// Create new arguments with defaults.
     pub fn new(queue: &str, consumer_tag: &str) -> Self {
+        #[cfg(feature="compilance_assert")]
+        assert_queue_name(queue);
+
         Self {
             queue: queue.to_owned(),
             consumer_tag: consumer_tag.to_owned(),
@@ -145,6 +149,9 @@ impl BasicConsumeArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
+        #[cfg(feature="compilance_assert")]
+        assert_queue_name(&self.queue);
+
         self.clone()
     }
 }
@@ -200,6 +207,9 @@ pub struct BasicGetArguments {
 impl BasicGetArguments {
     /// Create new arguments with defaults.
     pub fn new(queue: &str) -> Self {
+        #[cfg(feature="compilance_assert")]
+        assert_queue_name(queue);
+
         Self {
             queue: queue.to_owned(),
             no_ack: false,
@@ -215,6 +225,9 @@ impl BasicGetArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
+        #[cfg(feature="compilance_assert")]
+        assert_queue_name(&self.queue);
+
         self.clone()
     }
 }
@@ -323,7 +336,7 @@ impl BasicRejectArguments {
 /// [`basic_publish`]: struct.Channel.html#method.basic_publish
 #[derive(Debug, Clone, Default)]
 pub struct BasicPublishArguments {
-    /// Default: "".
+    /// Exchange name. Default: "".
     pub exchange: String,
     /// Default: "".
     pub routing_key: String,
@@ -337,15 +350,15 @@ impl BasicPublishArguments {
 
     /// Create new arguments with defaults.
     pub fn new(exchange: &str, routing_key: &str) -> Self {
-        let arg = Self {
+        #[cfg(feature="compilance_assert")]
+        assert_exchange_name(exchange);
+
+        Self {
             exchange: exchange.to_owned(),
             routing_key: routing_key.to_owned(),
             mandatory: false,
             immediate: false,
-        };
-        #[cfg(feature="compilance_assert")]
-        assert_amqp_exchange_name(exchange);
-        arg
+        }
     }
     impl_chainable_setter! {
         /// Chainable setter method.
@@ -366,7 +379,8 @@ impl BasicPublishArguments {
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
         #[cfg(feature="compilance_assert")]
-        assert_amqp_exchange_name(&self.exchange);        
+        assert_exchange_name(&self.exchange);
+
         self.clone()
     }
 }
@@ -469,6 +483,7 @@ impl Channel {
         let channel = self.clone();
         // spawn consumer task
         tokio::spawn(async move {
+            #[cfg(feature="tracing")]
             trace!("starts task for consumer {} on channel {}", ctag, channel);
 
             loop {
@@ -484,6 +499,7 @@ impl Channel {
                             .await;
                     }
                     None => {
+                        #[cfg(feature="tracing")]
                         debug!("exit task of consumer {}", ctag);
                         break;
                     }

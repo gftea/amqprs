@@ -11,6 +11,7 @@ use tokio::{
         TcpStream,
     },
 };
+#[cfg(feature="tracing")]
 use tracing::{trace};
 
 use super::Error;
@@ -92,6 +93,7 @@ impl BufWriter {
     // write a AMQP frame over a specific channel
     pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
         // TODO: tracing
+        #[cfg(feature="tracing")]
         trace!("SENT on channel {}: {}", channel, frame);
 
         // reserve bytes for frame header, which to be updated after encoding payload
@@ -143,6 +145,7 @@ impl BufReader {
                 // discard parsed data in read buffer
                 self.buffer.advance(len);
                 // TODO: tracing
+                #[cfg(feature="tracing")]
                 trace!("RECV on channel {}: {}", channel_id, frame);
                 Ok(Some((channel_id, frame)))
             }
@@ -168,6 +171,7 @@ impl BufReader {
                 }
             }
             // TODO:  tracing
+            #[cfg(feature="tracing")]
             trace!("{len} bytes read from network");
             let result = self.decode()?;
             match result {

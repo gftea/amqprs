@@ -48,6 +48,7 @@ async fn test_multi_consumer() {
         .basic_consume(DefaultConsumer::new(args.no_ack), args)
         .await
         .unwrap();
+    
     info!("-------------no heartbeat required--------------------");
 
     // normal interval is the heartbeat timeout / 2
@@ -60,6 +61,7 @@ async fn test_multi_consumer() {
         // during this loop, do not expect any heartbeat sent
         channel.flow(true).await.unwrap();
     }
+    
     info!("------------------now heartbeat should be sent as required interval------------------");
 
     // now heartbeat should be sent as required interval

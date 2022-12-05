@@ -22,7 +22,7 @@ jobs:
     - name: Start RabbitMQ
       run:  docker-compose up -d
 
-    - name: Build
+    - name: Build 
       run: cargo build --all-features --verbose
 
     - name: Run doc tests
@@ -36,3 +36,12 @@ jobs:
 
     - name: Run examples
       run: cargo run --example 2>&1 | grep -E '^ ' | xargs -n1 cargo run --all-features --example
+
+    - name: default feature test
+      run: cargo test
+
+    - name: "tracing" feature test
+      run: cargo test -F tracing
+
+    - name: "compliance_assert" feature test
+      run: cargo test -F compliance_assert

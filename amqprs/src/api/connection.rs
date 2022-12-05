@@ -47,12 +47,13 @@ use amqp_serde::types::{
     AmqpChannelId, AmqpPeerProperties, FieldTable, FieldValue, LongStr, LongUint, ShortUint,
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
+#[cfg(feature="tracing")]
 use tracing::{debug, error, info};
 
 use crate::{
     frame::{
         Blocked, Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, OpenChannelOk,
-        ProtocolHeader, StartOk, TuneOk, Unblocked, DEFAULT_CONN_CHANNEL,
+        ProtocolHeader, StartOk, TuneOk, Unblocked, DEFAULT_CONN_CHANNEL, FRAME_MIN_SIZE,
     },
     net::{
         ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage, ReaderHandler,
@@ -68,6 +69,9 @@ use super::{
     security::SecurityCredentials,
     Result,
 };
+
+#[cfg(feature = "compilance_assert")]
+use crate::api::compilance_asserts::assert_path;
 
 //  TODO: move below constants gto be part of static configuration of connection
 // per channel buffer
@@ -271,6 +275,8 @@ impl OpenConnectionArguments {
     ///
     /// "/"
     pub fn virtual_host(&mut self, virtual_host: &str) -> &mut Self {
+        #[cfg(feature = "compilance_assert")]
+        assert_path(virtual_host);
         self.virtual_host = virtual_host.to_owned();
         self
     }
@@ -392,6 +398,7 @@ impl Connection {
             .ok_or_else(|| {
                 Error::ConnectionOpenError("failed to register channel resource".to_string())
             })?;
+        #[cfg(feature="tracing")]
         info!("open connection {}", new_amqp_conn);
         Ok(new_amqp_conn)
     }
@@ -543,9 +550,17 @@ impl Connection {
         } else {
             std::cmp::min(tune.heartbeat(), heartbeat)
         };
+
         // No tunning of channel_max and frame_max
+        #[cfg(feature = "compilance_assert")]
+        {
+            assert_ne!(0, tune.channel_max());
+            assert!(tune.frame_max() >= FRAME_MIN_SIZE);
+        }
+        // just accept the values from server
         let new_channel_max = tune.channel_max();
         let new_frame_max = tune.frame_max();
+
         // C: TuneOk
         let tune_ok = TuneOk::new(new_channel_max, new_frame_max, new_heartbeat);
 
@@ -645,6 +660,7 @@ impl Connection {
         // If no channel id is given, it will be allocated by management task and included in acker response
         // otherwise same id will be received in response
         if let Err(err) = self.shared.conn_mgmt_tx.send(cmd).await {
+            #[cfg(feature="tracing")]
             debug!(
                 "failed to register channel resource on connection {}, cause: {}",
                 self, err
@@ -656,6 +672,7 @@ impl Connection {
         match acker_rx.await {
             Ok(res) => {
                 if let None = res {
+                    #[cfg(feature="tracing")]
                     debug!(
                         "failed to allocate/reserve channel id on connection {}",
                         self
@@ -664,6 +681,7 @@ impl Connection {
                 res
             }
             Err(err) => {
+                #[cfg(feature="tracing")]
                 debug!(
                     "failed to register channel resource on connection {}, cause: {}",
                     self, err
@@ -757,6 +775,7 @@ impl Connection {
 
         let dispatcher = ChannelDispatcher::new(channel.clone(), dispatcher_rx, dispatcher_mgmt_rx);
         dispatcher.spawn().await;
+        #[cfg(feature="tracing")]
         info!("open channel {}", channel);
 
         Ok(channel)
@@ -811,6 +830,7 @@ impl Connection {
                 .is_open
                 .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
         {
+            #[cfg(feature="tracing")]
             info!("close connection {}", self);
             self.close_handshake().await?;
             // not necessary, but to skip atomic compare at `drop`
@@ -862,19 +882,23 @@ impl Drop for Connection {
                 Ordering::Acquire,
                 Ordering::Relaxed,
             ) {
+                #[cfg(feature="tracing")]
                 debug!("drop connection {}", self);
                 let conn = self.clone();
                 tokio::spawn(async move {
+                    #[cfg(feature="tracing")]
                     info!("close connection {} at drop", conn);
 
                     if let Err(err) = conn.close_handshake().await {
                         // Compliance: A peer that detects a socket closure without having received a Close-Ok
                         // handshake method SHOULD log the error.
+                        #[cfg(feature="tracing")]
                         error!(
                             "'{}' occurred at closing connection {} after drop",
                             err, conn
                         );
                     } else {
+                        #[cfg(feature="tracing")]
                         info!("connection {} is closed OK after drop", conn);
                     }
                 });

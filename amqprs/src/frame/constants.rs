@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use amqp_serde::types::{Octect, ShortUint};
+use amqp_serde::types::{Octect, ShortUint, LongUint};
 
 pub const FRAME_HEADER_SIZE: usize = 7;
 pub const DEFAULT_CONN_CHANNEL: ShortUint = 0;
@@ -11,6 +11,8 @@ pub const FRAME_CONTENT_BODY: Octect = 3;
 pub const FRAME_HEARTBEAT: Octect = 8;
 
 pub const FRAME_END: Octect = 206;
+
+pub const FRAME_MIN_SIZE: LongUint = 4096;
 
 /// all reply code are unsigned 16bit integer
 pub const REPLY_SUCCESS: ShortUint = 200; //This reply code is reserved for future use

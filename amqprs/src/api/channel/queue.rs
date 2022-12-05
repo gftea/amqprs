@@ -9,6 +9,9 @@ use crate::{
     },
 };
 
+#[cfg(feature = "compilance_assert")]
+use crate::api::compilance_asserts::{assert_exchange_name, assert_queue_name};
+
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`queue_declare`]
 ///
@@ -46,6 +49,9 @@ pub struct QueueDeclareArguments {
 impl QueueDeclareArguments {
     /// Create new arguments with defaults.
     pub fn new(queue: &str) -> Self {
+        #[cfg(feature = "compilance_assert")]
+        assert_queue_name(queue);
+
         Self {
             queue: queue.to_owned(),
             passive: false,
@@ -87,6 +93,9 @@ impl QueueDeclareArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
+        #[cfg(feature = "compilance_assert")]
+        assert_queue_name(&self.queue);
+
         self.clone()
     }
 }
@@ -113,6 +122,12 @@ pub struct QueueBindArguments {
 impl QueueBindArguments {
     /// Create new arguments with defaults.
     pub fn new(queue: &str, exchange: &str, routing_key: &str) -> Self {
+        #[cfg(feature = "compilance_assert")]
+        {
+            assert_queue_name(queue);
+            assert_exchange_name(exchange);
+        }
+
         Self {
             queue: queue.to_owned(),
             exchange: exchange.to_owned(),
@@ -144,6 +159,12 @@ impl QueueBindArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
+        #[cfg(feature = "compilance_assert")]
+        {
+            assert_queue_name(&self.queue);
+            assert_exchange_name(&self.exchange);
+        }
+
         self.clone()
     }
 }
@@ -164,6 +185,9 @@ pub struct QueuePurgeArguments {
 impl QueuePurgeArguments {
     /// Create new arguments with defaults.
     pub fn new(queue: &str) -> Self {
+        #[cfg(feature = "compilance_assert")]
+        assert_queue_name(queue);
+
         Self {
             queue: queue.to_owned(),
             no_wait: false,
@@ -191,6 +215,9 @@ pub struct QueueDeleteArguments {
 impl QueueDeleteArguments {
     /// Create new arguments with defaults.
     pub fn new(queue: &str) -> Self {
+        #[cfg(feature = "compilance_assert")]
+        assert_queue_name(queue);
+
         Self {
             queue: queue.to_owned(),
             if_unused: false,
@@ -216,6 +243,9 @@ impl QueueDeleteArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
+        #[cfg(feature = "compilance_assert")]
+        assert_queue_name(&self.queue);
+
         self.clone()
     }
 }
@@ -229,7 +259,7 @@ impl QueueDeleteArguments {
 pub struct QueueUnbindArguments {
     /// Queue name. Default: "".
     pub queue: String,
-    /// Queue name. Default: "".
+    /// Exchange name. Default: "".
     pub exchange: String,
     /// Default: "".
     pub routing_key: String,
@@ -240,6 +270,12 @@ pub struct QueueUnbindArguments {
 impl QueueUnbindArguments {
     /// Create new arguments with defaults.
     pub fn new(queue: &str, exchange: &str, routing_key: &str) -> Self {
+        #[cfg(feature = "compilance_assert")]
+        {
+            assert_queue_name(queue);
+            assert_exchange_name(exchange);
+        }
+
         Self {
             queue: queue.to_owned(),
             exchange: exchange.to_owned(),
@@ -265,6 +301,12 @@ impl QueueUnbindArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
+        #[cfg(feature = "compilance_assert")]
+        {
+            assert_queue_name(&self.queue);
+            assert_exchange_name(&self.exchange);
+        }
+
         self.clone()
     }
 }

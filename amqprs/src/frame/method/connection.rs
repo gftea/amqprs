@@ -178,7 +178,7 @@ impl Close {
     }
 }
 impl Default for Close {
-    // Compilance:
+    // compliance:
     // Indicates that the method completed successfully. This reply code is
     // reserved for future use - the current protocol design does not use positive
     // confirmation and reply codes are sent only in case of an error.    
