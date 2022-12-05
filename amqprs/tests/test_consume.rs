@@ -13,7 +13,7 @@ use tokio::time;
 use tracing::Level;
 mod common;
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 5)]
 async fn test_multi_consumer() {
     let _guard = common::setup_logging(Level::INFO);
 
@@ -71,7 +71,7 @@ async fn test_multi_consumer() {
     connection.close().await.unwrap();
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 5)]
 async fn test_consume_redelivered_messages() {
     let _guard = common::setup_logging(Level::INFO);
 
@@ -143,7 +143,7 @@ async fn test_consume_redelivered_messages() {
     connection.close().await.unwrap();
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 5)]
 async fn test_cancel_consumer() {
     let _guard = common::setup_logging(Level::INFO);
 
