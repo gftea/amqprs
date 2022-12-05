@@ -52,7 +52,7 @@ use tracing::{debug, error, info};
 use crate::{
     frame::{
         Blocked, Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, OpenChannelOk,
-        ProtocolHeader, StartOk, TuneOk, Unblocked, DEFAULT_CONN_CHANNEL, FRAME_MIN_SIZE,
+        ProtocolHeader, StartOk, TuneOk, Unblocked, DEFAULT_CONN_CHANNEL,
     },
     net::{
         ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage, ReaderHandler,
@@ -71,6 +71,8 @@ use super::{
 
 #[cfg(feature = "compilance_assert")]
 use crate::api::compilance_asserts::assert_path;
+#[cfg(feature = "compilance_assert")]
+use crate::frame::FRAME_MIN_SIZE;
 
 //  TODO: move below constants gto be part of static configuration of connection
 // per channel buffer
