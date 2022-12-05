@@ -37,7 +37,7 @@ use crate::{
     net::{ConnManagementCommand, IncomingMessage, OutgoingMessage},
     BasicProperties,
 };
-#[cfg(feature="tracing")]
+#[cfg(feature = "tracing")]
 use tracing::{debug, error, info};
 
 pub(crate) const CONSUMER_MESSAGE_BUFFER_SIZE: usize = 32;
@@ -268,7 +268,7 @@ impl Channel {
                 Ordering::Acquire,
                 Ordering::Relaxed,
             ) {
-                #[cfg(feature="tracing")]
+                #[cfg(feature = "tracing")]
                 info!("close channel {}", self);
                 self.close_handshake().await?;
                 // not necessary, but to skip atomic compare at `drop`
@@ -323,23 +323,23 @@ impl Drop for Channel {
                 Ordering::Acquire,
                 Ordering::Relaxed,
             ) {
-                #[cfg(feature="tracing")]
+                #[cfg(feature = "tracing")]
                 debug!("drop channel {}", self);
 
                 let channel = self.clone();
                 tokio::spawn(async move {
-                    #[cfg(feature="tracing")]
+                    #[cfg(feature = "tracing")]
                     info!("close channel {} at drop", channel);
                     if let Err(err) = channel.close_handshake().await {
                         // Compliance: A peer that detects a socket closure without having received a Channel.Close-Ok
                         // handshake method SHOULD log the error.
-                        #[cfg(feature="tracing")]
+                        #[cfg(feature = "tracing")]
                         error!(
                             "'{}' occurred at closing channel {} after drop",
                             err, channel,
                         );
                     } else {
-                        #[cfg(feature="tracing")]
+                        #[cfg(feature = "tracing")]
                         info!("channel {} is closed OK after drop", channel);
                     }
                 });
@@ -352,9 +352,9 @@ impl fmt::Display for Channel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(id={}, open={}, connection={})",
+            "{} [{}] of connection {}",
             self.channel_id(),
-            self.is_open(),
+            if self.is_open() { "open" } else { "closed" },
             self.connection,
         )
     }

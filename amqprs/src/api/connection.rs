@@ -35,7 +35,6 @@
 //! [`close`]: struct.Connection.html#method.close
 
 use std::{
-    cell::RefCell,
     fmt,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -47,7 +46,7 @@ use amqp_serde::types::{
     AmqpChannelId, AmqpPeerProperties, FieldTable, FieldValue, LongStr, LongUint, ShortUint,
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
-#[cfg(feature="tracing")]
+#[cfg(feature = "tracing")]
 use tracing::{debug, error, info};
 
 use crate::{
@@ -334,7 +333,7 @@ impl Connection {
         // if no given connection name, generate one
         let connection_name = match args.connection_name {
             Some(ref given_name) => given_name.clone(),
-            None => generate_name(&args.uri),
+            None => generate_connection_name(&format!("{}{}", args.uri, args.virtual_host)),
         };
         // construct client properties
         let mut client_properties = AmqpPeerProperties::new();
@@ -398,7 +397,7 @@ impl Connection {
             .ok_or_else(|| {
                 Error::ConnectionOpenError("failed to register channel resource".to_string())
             })?;
-        #[cfg(feature="tracing")]
+        #[cfg(feature = "tracing")]
         info!("open connection {}", new_amqp_conn);
         Ok(new_amqp_conn)
     }
@@ -660,7 +659,7 @@ impl Connection {
         // If no channel id is given, it will be allocated by management task and included in acker response
         // otherwise same id will be received in response
         if let Err(err) = self.shared.conn_mgmt_tx.send(cmd).await {
-            #[cfg(feature="tracing")]
+            #[cfg(feature = "tracing")]
             debug!(
                 "failed to register channel resource on connection {}, cause: {}",
                 self, err
@@ -672,7 +671,7 @@ impl Connection {
         match acker_rx.await {
             Ok(res) => {
                 if let None = res {
-                    #[cfg(feature="tracing")]
+                    #[cfg(feature = "tracing")]
                     debug!(
                         "failed to allocate/reserve channel id on connection {}",
                         self
@@ -681,7 +680,7 @@ impl Connection {
                 res
             }
             Err(err) => {
-                #[cfg(feature="tracing")]
+                #[cfg(feature = "tracing")]
                 debug!(
                     "failed to register channel resource on connection {}, cause: {}",
                     self, err
@@ -775,7 +774,7 @@ impl Connection {
 
         let dispatcher = ChannelDispatcher::new(channel.clone(), dispatcher_rx, dispatcher_mgmt_rx);
         dispatcher.spawn().await;
-        #[cfg(feature="tracing")]
+        #[cfg(feature = "tracing")]
         info!("open channel {}", channel);
 
         Ok(channel)
@@ -830,7 +829,7 @@ impl Connection {
                 .is_open
                 .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
         {
-            #[cfg(feature="tracing")]
+            #[cfg(feature = "tracing")]
             info!("close connection {}", self);
             self.close_handshake().await?;
             // not necessary, but to skip atomic compare at `drop`
@@ -882,23 +881,23 @@ impl Drop for Connection {
                 Ordering::Acquire,
                 Ordering::Relaxed,
             ) {
-                #[cfg(feature="tracing")]
+                #[cfg(feature = "tracing")]
                 debug!("drop connection {}", self);
                 let conn = self.clone();
                 tokio::spawn(async move {
-                    #[cfg(feature="tracing")]
+                    #[cfg(feature = "tracing")]
                     info!("close connection {} at drop", conn);
 
                     if let Err(err) = conn.close_handshake().await {
                         // Compliance: A peer that detects a socket closure without having received a Close-Ok
                         // handshake method SHOULD log the error.
-                        #[cfg(feature="tracing")]
+                        #[cfg(feature = "tracing")]
                         error!(
                             "'{}' occurred at closing connection {} after drop",
                             err, conn
                         );
                     } else {
-                        #[cfg(feature="tracing")]
+                        #[cfg(feature = "tracing")]
                         info!("connection {} is closed OK after drop", conn);
                     }
                 });
@@ -911,66 +910,80 @@ impl fmt::Display for Connection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(name={}, open={})",
+            "{} [{}]",
             self.connection_name(),
-            self.is_open()
+            if self.is_open() { "open" } else { "close" }
         )
     }
 }
-/// It is uncommon to have many connections for one client
-/// We only need a simple algorithm to generate large enough number of unique names.
-/// To avoid using any external crate
-fn generate_name(domain: &str) -> String {
-    const CHAR_SET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    // at least have `usize::MAX` unique names
+/// In reality, one client can't open `usize::MAX` connections :)
+/// Use simple algorithm to generate large enough number of unique names,
+/// to avoid using any external crate.
+fn generate_connection_name(domain: &str) -> String {
+    const PREFIX: &str = "AMQPRS";
+    // global counter, gives `usize::MAX` unique values
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-    thread_local! {
-        static HEAD: RefCell<usize> = RefCell::new(0);
-        static TAIL: RefCell<usize> = RefCell::new(0);
-    }
-
-    let max_len = CHAR_SET.len();
-
-    let tail = TAIL.with(|tail| {
-        let current_tail = tail.borrow().to_owned();
-        if current_tail + 1 == max_len {
-            *tail.borrow_mut() = 0;
-        } else {
-            *tail.borrow_mut() += 1;
-        }
-
-        current_tail
-    });
-
-    let head = HEAD.with(|head| {
-        let current_head = head.borrow().to_owned();
-        if tail + 1 == max_len {
-            // move HEAD index one step forward when and only when TAIL index restarts
-            if current_head + 1 == max_len {
-                *head.borrow_mut() = 0;
-            } else {
-                *head.borrow_mut() += 1;
-            }
-        }
-        current_head
-    });
-
+    // construct a name
     format!(
-        "{}{}_{}@{}",
-        char::from(CHAR_SET[head]),
-        char::from(CHAR_SET[tail]),
+        "{}{:03}@{}",
+        PREFIX,
         COUNTER.fetch_add(1, Ordering::Relaxed),
         domain
     )
 }
+// Backup only:
+// Original thinking was to generate name = `ThreadId` + 2116 unique char group + `domain`,
+// it is uncommon one thread to open 2116 connections, but it turns out the `ThreadId` to
+// integer is not yet stable.
+// fn generate_connection_name(domain: &str) -> String {
+//     const CHAR_SET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+//     // choose any 2 chars from `CHAR_SET`, repetion of char allowed,
+//     // this gives 46^2 = 2116 unique values
+//     thread_local! {
+//         static HEAD: RefCell<usize> = RefCell::new(0);
+//         static TAIL: RefCell<usize> = RefCell::new(0);
+//     }
 
+//     let max_len = CHAR_SET.len();
+//     let tail = TAIL.with(|tail| {
+//         let current_tail = tail.borrow().to_owned();
+//         if current_tail + 1 == max_len {
+//             *tail.borrow_mut() = 0;
+//         } else {
+//             *tail.borrow_mut() += 1;
+//         }
+
+//         current_tail
+//     });
+
+//     let head = HEAD.with(|head| {
+//         let current_head = head.borrow().to_owned();
+//         if tail + 1 == max_len {
+//             // move HEAD index one step forward when and only when TAIL index restarts
+//             if current_head + 1 == max_len {
+//                 *head.borrow_mut() = 0;
+//             } else {
+//                 *head.borrow_mut() += 1;
+//             }
+//         }
+//         current_head
+//     });
+//     // construct a name
+//     format!(
+//         "{}{}{:?}@{}",
+//         char::from(CHAR_SET[head]),
+//         char::from(CHAR_SET[tail]),
+//         std::thread::current().id(),
+//         domain
+//     )
+// }
 /////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
     use std::{collections::HashSet, thread};
 
-    use super::{generate_name, Connection, OpenConnectionArguments};
+    use super::{generate_connection_name, Connection, OpenConnectionArguments};
     use tokio::time;
     use tracing::{subscriber::SetGlobalDefaultError, Level};
 
@@ -1058,10 +1071,25 @@ mod tests {
         let mut jh = Vec::with_capacity(n);
         let mut res = HashSet::with_capacity(n);
         for _ in 0..n {
-            jh.push(thread::spawn(|| generate_name("testdomain")));
+            jh.push(thread::spawn(|| generate_connection_name("testdomain")));
         }
         for h in jh {
             assert_eq!(true, res.insert(h.join().unwrap()));
         }
+    }
+
+    #[tokio::test]
+    async fn test_duplicated_conn_name_is_accpeted_by_server() {
+        setup_logging(Level::INFO).ok();
+
+        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+            .connection_name("amq.cname-test")
+            .finish();
+
+        let conn1 = Connection::open(&args).await.unwrap();
+        let conn2 = Connection::open(&args).await.unwrap();
+        time::sleep(time::Duration::from_millis(100)).await;
+        conn1.close().await.unwrap();
+        conn2.close().await.unwrap();
     }
 }
