@@ -22,12 +22,12 @@ async fn test_multi_consumer() {
 
     let connection = Connection::open(&args).await.unwrap();
 
-    // open a channel on the connection
-    let channel = connection.open_channel(None).await.unwrap();
+    // open a channel dedicated for consumer on the connection
+    let consumer_channel = connection.open_channel(None).await.unwrap();
 
     let exchange_name = "amq.topic";
     // declare a queue
-    let (queue_name, ..) = channel
+    let (queue_name, ..) = consumer_channel
         .queue_declare(QueueDeclareArguments::default())
         .await
         .unwrap()
@@ -35,7 +35,7 @@ async fn test_multi_consumer() {
 
     // bind the queue to exchange
     let routing_key = "amqprs_test_multi_consumer";
-    channel
+    consumer_channel
         .queue_bind(QueueBindArguments::new(
             &queue_name,
             exchange_name,
@@ -47,27 +47,30 @@ async fn test_multi_consumer() {
     // start consumer with given name
     let args = BasicConsumeArguments::new(&queue_name, "amqprs_test_multi_consumer");
 
-    channel
+    consumer_channel
         .basic_consume(DefaultConsumer::new(args.no_ack), args)
         .await
         .unwrap();
 
     // start consumer with generated name by server
     let args = BasicConsumeArguments::new(&queue_name, "");
-    channel
+    consumer_channel
         .basic_consume(DefaultConsumer::new(args.no_ack), args)
         .await
         .unwrap();
 
-    // publish messages
-    publish_test_messages(&channel, exchange_name, routing_key, 10).await;
+
+    // open a channel dedicated for publisher on the connection
+    let pub_channel = connection.open_channel(None).await.unwrap();
+    // publish test messages
+    publish_test_messages(&pub_channel, exchange_name, routing_key, 100).await;
 
     // keep the `channel` and `connection` object from dropping
     // NOTE: channel/connection will be closed when drop
     time::sleep(time::Duration::from_secs(1)).await;
 
     // explicitly close
-    channel.close().await.unwrap();
+    consumer_channel.close().await.unwrap();
     connection.close().await.unwrap();
 }
 
@@ -182,10 +185,11 @@ async fn test_cancel_consumer() {
         .await
         .unwrap();
 
-    // start consumer
-    // NOTE: use automatic ack, because if running both publisher and manual-ack consumer cocurrently,
-    // the ACK frames may interleave with the publish sequence which results in server exception to close
-    // the connection
+    // start consumer with auto-ack.
+    // NOTE: use automatic ack, because if running both publisher and 
+    // manual-ACK consumer on same channel cocurrently, the ACK frames
+    // may interleave with the publish sequence which results in server 
+    // exception to close the connection.
     let consumer_tag = channel
         .basic_consume(
             DefaultConsumer::new(true),

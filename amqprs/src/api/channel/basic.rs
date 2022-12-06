@@ -1,6 +1,6 @@
 use amqp_serde::types::AmqpDeliveryTag;
 use tokio::sync::mpsc;
-#[cfg(feature="tracing")]
+#[cfg(feature = "tracing")]
 use tracing::{debug, trace};
 
 use crate::{
@@ -20,7 +20,7 @@ use crate::{
     },
 };
 
-#[cfg(feature="compilance_assert")]
+#[cfg(feature = "compilance_assert")]
 use crate::api::compilance_asserts::{assert_exchange_name, assert_queue_name};
 
 use super::{Channel, DeregisterContentConsumer, RegisterGetContentResponder};
@@ -103,7 +103,7 @@ pub struct BasicConsumeArguments {
 impl BasicConsumeArguments {
     /// Create new arguments with defaults.
     pub fn new(queue: &str, consumer_tag: &str) -> Self {
-        #[cfg(feature="compilance_assert")]
+        #[cfg(feature = "compilance_assert")]
         assert_queue_name(queue);
 
         Self {
@@ -149,7 +149,7 @@ impl BasicConsumeArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
-        #[cfg(feature="compilance_assert")]
+        #[cfg(feature = "compilance_assert")]
         assert_queue_name(&self.queue);
 
         self.clone()
@@ -207,7 +207,7 @@ pub struct BasicGetArguments {
 impl BasicGetArguments {
     /// Create new arguments with defaults.
     pub fn new(queue: &str) -> Self {
-        #[cfg(feature="compilance_assert")]
+        #[cfg(feature = "compilance_assert")]
         assert_queue_name(queue);
 
         Self {
@@ -225,7 +225,7 @@ impl BasicGetArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
-        #[cfg(feature="compilance_assert")]
+        #[cfg(feature = "compilance_assert")]
         assert_queue_name(&self.queue);
 
         self.clone()
@@ -347,10 +347,9 @@ pub struct BasicPublishArguments {
 }
 
 impl BasicPublishArguments {
-
     /// Create new arguments with defaults.
     pub fn new(exchange: &str, routing_key: &str) -> Self {
-        #[cfg(feature="compilance_assert")]
+        #[cfg(feature = "compilance_assert")]
         assert_exchange_name(exchange);
 
         Self {
@@ -378,7 +377,7 @@ impl BasicPublishArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
-        #[cfg(feature="compilance_assert")]
+        #[cfg(feature = "compilance_assert")]
         assert_exchange_name(&self.exchange);
 
         self.clone()
@@ -483,7 +482,7 @@ impl Channel {
         let channel = self.clone();
         // spawn consumer task
         tokio::spawn(async move {
-            #[cfg(feature="tracing")]
+            #[cfg(feature = "tracing")]
             trace!("starts task for consumer {} on channel {}", ctag, channel);
 
             loop {
@@ -499,7 +498,7 @@ impl Channel {
                             .await;
                     }
                     None => {
-                        #[cfg(feature="tracing")]
+                        #[cfg(feature = "tracing")]
                         debug!("exit task of consumer {}", ctag);
                         break;
                     }
@@ -738,8 +737,7 @@ mod tests {
         let subscriber = tracing_subscriber::fmt()
             .with_max_level(Level::INFO)
             .finish();
-        // use that subscriber to process traces emitted after this point
-        let _ = tracing::subscriber::set_global_default(subscriber);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
             .connection_name("test_basic_consume_auto_ack")

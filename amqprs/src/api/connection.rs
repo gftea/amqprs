@@ -750,7 +750,7 @@ impl Connection {
     /// Open and return a new AMQP channel.
     ///
     /// `channel_id` range: 1 to 65535.
-    /// 
+    ///
     /// Automatically generate an id if input `channel_id` = [`None`],
     /// otherwise, use the given input id.
     ///
@@ -1007,16 +1007,14 @@ fn generate_connection_name(domain: &str) -> String {
 #[cfg(test)]
 mod tests {
     use std::{collections::HashSet, thread};
-
     use crate::security::SecurityCredentials;
-
     use super::{generate_connection_name, Connection, OpenConnectionArguments};
     use tokio::time;
-    use tracing::{subscriber::SetGlobalDefaultError, Level};
-
+    use tracing::{subscriber::DefaultGuard, Level};
+    
     #[tokio::test]
     async fn test_channel_open_close() {
-        setup_logging(Level::INFO).ok();
+        let _guard = setup_logging(Level::INFO);
         {
             // test close on drop
             let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
@@ -1034,7 +1032,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
     async fn test_multi_conn_open_close() {
-        setup_logging(Level::INFO).ok();
+        let _guard = setup_logging(Level::INFO);
 
         let mut handles = vec![];
 
@@ -1056,7 +1054,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
     async fn test_multi_channel_open_close() {
-        setup_logging(Level::INFO).ok();
+        let _guard = setup_logging(Level::INFO);
         {
             let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
                 .connection_name("test_multi_channel_open_close")
@@ -1084,14 +1082,6 @@ mod tests {
         time::sleep(time::Duration::from_millis(100)).await;
     }
 
-    fn setup_logging(level: Level) -> Result<(), SetGlobalDefaultError> {
-        // construct a subscriber that prints formatted traces to stdout
-        let subscriber = tracing_subscriber::fmt().with_max_level(level).finish();
-
-        // use that subscriber to process traces emitted after this point
-        tracing::subscriber::set_global_default(subscriber)
-    }
-
     #[test]
     fn test_name_generation() {
         let n = 100;
@@ -1107,7 +1097,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_duplicated_conn_name_is_accpeted_by_server() {
-        setup_logging(Level::INFO).ok();
+        let _guard = setup_logging(Level::INFO);
 
         let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
             .connection_name("amq.cname-test")
@@ -1122,7 +1112,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auth_amqplain() {
-        setup_logging(Level::INFO).ok();
+        let _guard = setup_logging(Level::INFO);
 
         let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
             .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
@@ -1133,7 +1123,7 @@ mod tests {
     #[tokio::test]
     #[should_panic(expected = "failed to register channel resource")]
     async fn test_open_already_opened_channel() {
-        setup_logging(Level::INFO).ok();
+        let _guard = setup_logging(Level::INFO);
 
         let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
             .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
@@ -1141,7 +1131,20 @@ mod tests {
         let connection = Connection::open(&args).await.unwrap();
         let id = Some(9);
         let _ch1 = connection.open_channel(id).await.unwrap();
-        let _ch2 =  connection.open_channel(id).await.unwrap();
+        let _ch2 = connection.open_channel(id).await.unwrap();
     }
-    
+    //////////////////////////////////////////////////////////////////
+    // construct a subscriber that prints formatted traces to stdout
+    fn setup_logging(level: Level) -> DefaultGuard {
+        // global subscriber as fallback
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(Level::ERROR)
+            .finish();
+        tracing::subscriber::set_global_default(subscriber).ok();
+
+        // thread local subscriber
+        let subscriber = tracing_subscriber::fmt().with_max_level(level).finish();
+        // use that subscriber to process traces emitted after this point
+        tracing::subscriber::set_default(subscriber)
+    }
 }

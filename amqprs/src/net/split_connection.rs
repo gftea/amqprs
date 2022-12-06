@@ -194,19 +194,16 @@ mod test {
     use crate::frame::*;
     use amqp_serde::types::AmqpPeerProperties;
     use tokio::sync::mpsc;
+    use tracing;
+    use tracing_subscriber;
 
     #[tokio::test]
     async fn test_open_amqp_connection() {
-        {
-            use tracing;
-            use tracing_subscriber;
-            // construct a subscriber that prints formatted traces to stdout
-            let subscriber = tracing_subscriber::fmt()
-                .with_max_level(tracing::Level::TRACE)
-                .finish();
-            // use that subscriber to process traces emitted after this point
-            tracing::subscriber::set_global_default(subscriber).unwrap();
-        }
+        // construct a subscriber that prints formatted traces to stdout
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::TRACE)
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let (tx_resp, mut rx_resp) = mpsc::channel(1024);
         let (tx_req, mut rx_req) = mpsc::channel(1024);

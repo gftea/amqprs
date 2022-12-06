@@ -9,8 +9,8 @@ use tracing::{info, Level};
 mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_multi_consumer() {
-    common::setup_logging(Level::DEBUG).ok();
+async fn test_customized_heartbeat() {
+    let _guard = common::setup_logging(Level::DEBUG);
 
     // open a connection to RabbitMQ server, set heartbeat = 10s
     let connection = Connection::open(
@@ -48,7 +48,7 @@ async fn test_multi_consumer() {
         .basic_consume(DefaultConsumer::new(args.no_ack), args)
         .await
         .unwrap();
-    
+
     info!("-------------no heartbeat required--------------------");
 
     // normal interval is the heartbeat timeout / 2
@@ -61,7 +61,7 @@ async fn test_multi_consumer() {
         // during this loop, do not expect any heartbeat sent
         channel.flow(true).await.unwrap();
     }
-    
+
     info!("------------------now heartbeat should be sent as required interval------------------");
 
     // now heartbeat should be sent as required interval
