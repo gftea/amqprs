@@ -144,6 +144,7 @@ impl ServerCapabilities {
 #[derive(Debug, Clone)]
 pub struct ServerProperties {
     capabilities: ServerCapabilities,
+    product: String,
     cluster_name: String,
     version: String,
 }
@@ -159,6 +160,10 @@ impl ServerProperties {
 
     pub fn version(&self) -> &str {
         self.version.as_ref()
+    }
+
+    pub fn product(&self) -> &str {
+        self.product.as_ref()
     }
 }
 
@@ -343,6 +348,19 @@ impl Connection {
             "connection_name".try_into().unwrap(),
             FieldValue::S(connection_name.clone().try_into().unwrap()),
         );
+        // fields required by spec: "product", "platform", "version"
+        client_properties.insert(
+            "product".try_into().unwrap(),
+            FieldValue::S("AMQPRS".try_into().unwrap()),
+        );
+        client_properties.insert(
+            "platform".try_into().unwrap(),
+            FieldValue::S("Rust".try_into().unwrap()),
+        );
+        client_properties.insert(
+            "version".try_into().unwrap(),
+            FieldValue::S("0.1".try_into().unwrap()),
+        );
 
         // S: `Start` C: `StartOk`
         let server_properties =
@@ -507,6 +525,7 @@ impl Connection {
 
         let server_properties = ServerProperties {
             capabilities,
+            product: unwrap_longstr_field("product").into(),
             cluster_name: unwrap_longstr_field("cluster_name").into(),
             version: unwrap_longstr_field("version").into(),
         };
@@ -1110,4 +1129,19 @@ mod tests {
             .finish();
         Connection::open(&args).await.unwrap();
     }
+
+    #[tokio::test]
+    #[should_panic(expected = "failed to register channel resource")]
+    async fn test_open_already_opened_channel() {
+        setup_logging(Level::INFO).ok();
+
+        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+            .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
+            .finish();
+        let connection = Connection::open(&args).await.unwrap();
+        let id = Some(9);
+        let _ch1 = connection.open_channel(id).await.unwrap();
+        let _ch2 =  connection.open_channel(id).await.unwrap();
+    }
+    
 }
