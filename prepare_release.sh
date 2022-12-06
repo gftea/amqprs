@@ -1,5 +1,5 @@
 #!/bin/bash
-#// regression test before release
+#// prepare release
 
 release_tag=$1
 

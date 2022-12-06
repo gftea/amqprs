@@ -1,6 +1,6 @@
 //! Implementation of AMQP_0-9-1's Channel class compatible with RabbitMQ.
 //!
-//! It provides [APIs][`Channel`] to manage an AMQP `Channel`.
+//! It provides [`APIs`] to manage an AMQP [`Channel`].
 //!
 //! User should hold the channel object until no longer needs it, and call the [`close`] method
 //! to gracefully shutdown the channel.
@@ -14,7 +14,8 @@
 //! # Example
 //! See [`crate`] documentation for quick start.
 //! See details in documentation of each method.
-//!
+//! 
+//! [`APIs`]: struct.Channel.html#implementations
 //! [`Channel`]: struct.Channel.html
 //! [`close`]: struct.Channel.html#method.close
 //!

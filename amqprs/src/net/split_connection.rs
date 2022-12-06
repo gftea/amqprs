@@ -11,8 +11,8 @@ use tokio::{
         TcpStream,
     },
 };
-#[cfg(feature="tracing")]
-use tracing::{trace};
+#[cfg(feature = "tracing")]
+use tracing::trace;
 
 use super::Error;
 type Result<T> = std::result::Result<T, Error>;
@@ -93,7 +93,7 @@ impl BufWriter {
     // write a AMQP frame over a specific channel
     pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
         // TODO: tracing
-        #[cfg(feature="tracing")]
+        #[cfg(feature = "tracing")]
         trace!("SENT on channel {}: {}", channel, frame);
 
         // reserve bytes for frame header, which to be updated after encoding payload
@@ -145,7 +145,7 @@ impl BufReader {
                 // discard parsed data in read buffer
                 self.buffer.advance(len);
                 // TODO: tracing
-                #[cfg(feature="tracing")]
+                #[cfg(feature = "tracing")]
                 trace!("RECV on channel {}: {}", channel_id, frame);
                 Ok(Some((channel_id, frame)))
             }
@@ -171,7 +171,7 @@ impl BufReader {
                 }
             }
             // TODO:  tracing
-            #[cfg(feature="tracing")]
+            #[cfg(feature = "tracing")]
             trace!("{len} bytes read from network");
             let result = self.decode()?;
             match result {
@@ -190,18 +190,13 @@ impl BufReader {
 /////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod test {
-
     use super::SplitConnection;
     use crate::frame::*;
-    use amqp_serde::{
-        to_buffer,
-        types::{AmqpPeerProperties, LongStr, ShortStr},
-    };
-    use bytes::BytesMut;
+    use amqp_serde::types::AmqpPeerProperties;
     use tokio::sync::mpsc;
 
     #[tokio::test]
-    async fn test_streaming_read_write() {
+    async fn test_open_amqp_connection() {
         let (tx_resp, mut rx_resp) = mpsc::channel(1024);
         let (tx_req, mut rx_req) = mpsc::channel(1024);
 
@@ -209,18 +204,19 @@ mod test {
             .await
             .unwrap()
             .into_split();
-        // TODO: protocol header negotiation in connection level
-        // do not need support channel multiplex, only done once per new connection
+
+        // C: protocol header
         writer.write(&ProtocolHeader::default()).await.unwrap();
 
-        // simulate  using  messaging channel as buffer
-        // request to channel over writer half
+        // Proof of Concept:
+        // start dedicated task for io writer
         tokio::spawn(async move {
             while let Some((channel_id, frame)) = rx_req.recv().await {
                 writer.write_frame(channel_id, frame).await.unwrap();
             }
         });
-        // response from channel over reader half
+        // Proof of Concept:
+        // start dedicated task for io reader
         tokio::spawn(async move {
             while let Ok((channel_id, frame)) = reader.read_frame().await {
                 tx_resp.send((channel_id, frame)).await.unwrap();
@@ -230,86 +226,28 @@ mod test {
         // S: 'Start'
         let _start = rx_resp.recv().await.unwrap();
 
-        // C: 'StartOk'
-        let auth_machanism = 2;
-        match auth_machanism {
-            1 => {
-                let start_ok = StartOk::new(
-                    AmqpPeerProperties::new(),
-                    "PLAIN".try_into().unwrap(),
-                    "\0user\0bitnami".try_into().unwrap(),
-                    "en_US".try_into().unwrap(),
-                );
-                // default: PLAIN
-                tx_req
-                    .send((DEFAULT_CONN_CHANNEL, start_ok.into_frame()))
-                    .await
-                    .unwrap();
-            }
-            2 => {
-                println!("AMQPLAIN authentication");
-                // serialize response
-                let mut buf = BytesMut::new();
-                to_buffer(
-                    &<&str as TryInto<ShortStr>>::try_into("LOGIN").unwrap(),
-                    &mut buf,
-                )
-                .unwrap();
-                to_buffer(&'S', &mut buf).unwrap();
-                to_buffer(
-                    &<&str as TryInto<LongStr>>::try_into("user").unwrap(),
-                    &mut buf,
-                )
-                .unwrap();
+        // C: 'StartOk' - with auth mechanism 'RABBIT-CR-DEMO'
+        let start_ok = StartOk::new(
+            AmqpPeerProperties::new(),
+            "RABBIT-CR-DEMO".try_into().unwrap(),
+            "user".try_into().unwrap(),
+            "en_US".try_into().unwrap(),
+        );
+        tx_req
+            .send((DEFAULT_CONN_CHANNEL, start_ok.into_frame()))
+            .await
+            .unwrap();
 
-                to_buffer(
-                    &<&str as TryInto<ShortStr>>::try_into("PASSWORD").unwrap(),
-                    &mut buf,
-                )
-                .unwrap();
-                to_buffer(&'S', &mut buf).unwrap();
-                to_buffer(
-                    &<&str as TryInto<LongStr>>::try_into("bitnami").unwrap(),
-                    &mut buf,
-                )
-                .unwrap();
+        //// secure challenges
+        // S: Secure
+        rx_resp.recv().await.unwrap();
 
-                let start_ok = StartOk::new(
-                    AmqpPeerProperties::new(),
-                    "AMQPLAIN".try_into().unwrap(),
-                    String::from_utf8(buf.to_vec()).unwrap().try_into().unwrap(),
-                    "en_US".try_into().unwrap(),
-                );
-                tx_req
-                    .send((DEFAULT_CONN_CHANNEL, start_ok.into_frame()))
-                    .await
-                    .unwrap();
-            }
-            3 => {
-                let start_ok = StartOk::new(
-                    AmqpPeerProperties::new(),
-                    "RABBIT-CR-DEMO".try_into().unwrap(),
-                    "user".try_into().unwrap(),
-                    "en_US".try_into().unwrap(),
-                );
-
-                tx_req
-                    .send((DEFAULT_CONN_CHANNEL, start_ok.into_frame()))
-                    .await
-                    .unwrap();
-
-                // S: Secure
-                rx_resp.recv().await.unwrap();
-
-                // C: SecureOk
-                let secure_ok = SecureOk::new("My password is bitnami".try_into().unwrap());
-                tx_req
-                    .send((DEFAULT_CONN_CHANNEL, secure_ok.into_frame()))
-                    .await
-                    .unwrap();
-            }
-            _ => unimplemented!(),
-        }
+        // C: SecureOk
+        let secure_ok = SecureOk::new("My password is bitnami".try_into().unwrap());
+        tx_req
+            .send((DEFAULT_CONN_CHANNEL, secure_ok.into_frame()))
+            .await
+            .unwrap();
 
         // S: 'Tune'
         let tune = rx_resp.recv().await.unwrap();
@@ -320,7 +258,6 @@ mod test {
 
         // C: TuneOk
         let tune_ok = TuneOk::new(tune.channel_max(), tune.frame_max(), tune.heartbeat());
-
         tx_req
             .send((DEFAULT_CONN_CHANNEL, tune_ok.into_frame()))
             .await

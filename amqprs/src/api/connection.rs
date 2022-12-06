@@ -400,7 +400,7 @@ impl Connection {
                 Error::ConnectionOpenError("failed to register channel resource".to_string())
             })?;
         #[cfg(feature = "tracing")]
-        info!("open connection {}", new_amqp_conn);
+        info!("open connection {}", new_amqp_conn.connection_name());
         Ok(new_amqp_conn)
     }
 
@@ -728,17 +728,21 @@ impl Connection {
         });
     }
 
-    /// Open and return a new channel.
+    /// Open and return a new AMQP channel.
     ///
-    /// Automatically generate channel id if input `channel_id` is [`None`],
-    /// otherwise, use the given `channel_id` if it is not occupied.
-    ///
-    /// If the given `channel_id` is occupied, error will be returned.
+    /// `channel_id` range: 1 to 65535.
+    /// 
+    /// Automatically generate an id if input `channel_id` = [`None`],
+    /// otherwise, use the given input id.
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in resource allocation and communication with server.
+    /// Returns error if the given `channel_id` is occupied, or any failure
+    /// in resource allocation and communication with server.
     pub async fn open_channel(&self, channel_id: Option<AmqpChannelId>) -> Result<Channel> {
+        // channel id 0 can't be used, it is reserved for connection
+        assert_ne!(Some(DEFAULT_CONN_CHANNEL), channel_id);
+
         let (dispatcher_tx, dispatcher_rx) = mpsc::channel(DISPATCHER_MESSAGE_BUFFER_SIZE);
         let (dispatcher_mgmt_tx, dispatcher_mgmt_rx) =
             mpsc::channel(DISPATCHER_MANAGEMENT_COMMAND_BUFFER_SIZE);
@@ -985,6 +989,8 @@ fn generate_connection_name(domain: &str) -> String {
 mod tests {
     use std::{collections::HashSet, thread};
 
+    use crate::security::SecurityCredentials;
+
     use super::{generate_connection_name, Connection, OpenConnectionArguments};
     use tokio::time;
     use tracing::{subscriber::SetGlobalDefaultError, Level};
@@ -1093,5 +1099,15 @@ mod tests {
         time::sleep(time::Duration::from_millis(100)).await;
         conn1.close().await.unwrap();
         conn2.close().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_auth_amqplain() {
+        setup_logging(Level::INFO).ok();
+
+        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+            .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
+            .finish();
+        Connection::open(&args).await.unwrap();
     }
 }

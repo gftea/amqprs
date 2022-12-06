@@ -25,6 +25,9 @@ impl Channel {
     /// # Errors
     ///
     /// Returns error if any failure in communication with server.
+    /// 
+    /// [`tx_commit`]: struct.Channel.html#method.tx_commit
+    /// [`tx_rollback`]: struct.Channel.html#method.tx_rollback
     pub async fn tx_select(&self) -> Result<()> {
         let select = TxSelect;
 
