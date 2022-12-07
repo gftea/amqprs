@@ -3,7 +3,7 @@ use tracing::{Level, subscriber::DefaultGuard};
 // construct a subscriber that prints formatted traces to stdout
 pub fn setup_logging(level: Level) -> DefaultGuard {
     // global subscriber as fallback
-    let subscriber = tracing_subscriber::fmt().with_max_level(Level::ERROR).finish();
+    let subscriber = tracing_subscriber::fmt().with_max_level(Level::INFO).finish();
     tracing::subscriber::set_global_default(subscriber).ok();
 
     // thread local subscriber

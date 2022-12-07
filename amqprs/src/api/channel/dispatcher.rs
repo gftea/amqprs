@@ -3,6 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use tokio::{
     sync::{mpsc, oneshot},
     task::yield_now,
+    time,
 };
 
 use crate::{
@@ -10,10 +11,22 @@ use crate::{
     frame::{CancelOk, CloseChannelOk, FlowOk, Frame, MethodHeader},
     net::IncomingMessage,
 };
-#[cfg(feature="tracing")]
+#[cfg(feature = "tracing")]
 use tracing::{debug, error, info, trace};
 
 use super::{Channel, ConsumerMessage, DispatcherManagementCommand};
+
+/// Assumption:
+/// Depends on total number of consumers per channel, a reasonable value
+/// should be selected. Assume most cases, searching expiry consumers
+/// every `10` seconds does not impact performance
+const CONSUMER_PURGE_INTERVAL: time::Duration = time::Duration::from_secs(10);
+
+/// Assumption:
+/// Consumer is expected to be registered right after `consume/consume-ok` handshake is done
+/// which can't take longer than `5` seconds.
+/// After consumer is canceled, all on-the-fly messages should be received within `5` seconds
+const CONSUMER_EXPIRY_PERIOD: time::Duration = time::Duration::from_secs(5);
 
 /// Resource for handling consumer messages.
 struct ConsumerResource {
@@ -22,6 +35,8 @@ struct ConsumerResource {
     /// tx channel to forward a delivery to a consumer task.
     /// dispatcher task holds the tx half, and the consumer task holds the rx half.
     tx: Option<mpsc::Sender<ConsumerMessage>>,
+    /// expiry time of fifo buffer
+    expiration: Option<time::Instant>,
 }
 
 impl ConsumerResource {
@@ -29,6 +44,7 @@ impl ConsumerResource {
         Self {
             fifo: VecDeque::new(),
             tx: None,
+            expiration: Some(time::Instant::now() + CONSUMER_EXPIRY_PERIOD),
         }
     }
 
@@ -36,6 +52,8 @@ impl ConsumerResource {
         &mut self,
         tx: mpsc::Sender<ConsumerMessage>,
     ) -> Option<mpsc::Sender<ConsumerMessage>> {
+        // once consumer's tx half is registered, clear the expiry timer
+        self.expiration.take();
         self.tx.replace(tx)
     }
 
@@ -43,11 +61,15 @@ impl ConsumerResource {
         self.tx.as_ref()
     }
 
-    fn push(&mut self, message: ConsumerMessage) {
+    fn get_expiration(&self) -> Option<&time::Instant> {
+        self.expiration.as_ref()
+    }
+
+    fn push_message(&mut self, message: ConsumerMessage) {
         self.fifo.push_back(message);
     }
 
-    fn pop(&mut self) -> Option<ConsumerMessage> {
+    fn pop_message(&mut self) -> Option<ConsumerMessage> {
         self.fifo.pop_front()
     }
 }
@@ -69,7 +91,7 @@ pub(crate) struct ChannelDispatcher {
     channel: Channel,
     dispatcher_rx: mpsc::Receiver<IncomingMessage>,
     dispatcher_mgmt_rx: mpsc::Receiver<DispatcherManagementCommand>,
-    consumers: HashMap<String, ConsumerResource>,
+    consumer_resources: HashMap<String, ConsumerResource>,
     get_content_responder: Option<mpsc::Sender<IncomingMessage>>,
     responders: HashMap<&'static MethodHeader, oneshot::Sender<IncomingMessage>>,
     callback: Option<Box<dyn ChannelCallback + Send + 'static>>,
@@ -86,7 +108,7 @@ impl ChannelDispatcher {
             channel,
             dispatcher_rx,
             dispatcher_mgmt_rx,
-            consumers: HashMap::new(),
+            consumer_resources: HashMap::new(),
             get_content_responder: None,
             responders: HashMap::new(),
             callback: None,
@@ -95,19 +117,46 @@ impl ChannelDispatcher {
     }
 
     /// Return the consumer resource if it always exists, otherwise create new one.
-    fn get_or_new_consumer(&mut self, consumer_tag: &String) -> &mut ConsumerResource {
-        if !self.consumers.contains_key(consumer_tag) {
+    fn get_or_new_consumer_resource(&mut self, consumer_tag: &String) -> &mut ConsumerResource {
+        if !self.consumer_resources.contains_key(consumer_tag) {
             let resource = ConsumerResource::new();
-            self.consumers.insert(consumer_tag.clone(), resource);
+            self.consumer_resources
+                .insert(consumer_tag.clone(), resource);
         }
-        self.consumers.get_mut(consumer_tag).unwrap()
+        self.consumer_resources.get_mut(consumer_tag).unwrap()
     }
 
+    /// purge expired consumer resource
+    fn purge_consumer_resource(&mut self) {
+        // find all resources that are expired
+        let purge_keys: Vec<String> = self
+            .consumer_resources
+            .iter()
+            .filter_map(|(k, v)| {
+                if let Some(expiration) = v.get_expiration() {
+                    if expiration < &time::Instant::now() {
+                        return Some(k.clone());
+                    }
+                }
+                return None;
+            })
+            .collect();
+
+        // purge expired resources
+        for key in purge_keys {
+            self.consumer_resources.remove(&key);
+            #[cfg(feature = "tracing")]
+            info!(
+                "purge stale consumer resource {} on channel {}",
+                key, self.channel
+            );
+        }
+    }
     /// Remove the consumer resource.
     ///
     /// Becuase the tx channel will drop, the consumer task will also exit.
-    fn remove_consumer(&mut self, consumer_tag: &String) -> Option<ConsumerResource> {
-        self.consumers.remove(consumer_tag)
+    fn remove_consumer_resource(&mut self, consumer_tag: &String) -> Option<ConsumerResource> {
+        self.consumer_resources.remove(consumer_tag)
     }
 
     /// Spawn dispatcher task.
@@ -124,8 +173,11 @@ impl ChannelDispatcher {
                 ret: None,
                 basic_properties: None,
             };
-            #[cfg(feature="tracing")]
+            #[cfg(feature = "tracing")]
             trace!("starts up dispatcher task of channel {}", self.channel);
+
+            let mut purge_timer = time::interval(CONSUMER_PURGE_INTERVAL);
+            purge_timer.tick().await;
             // main loop of dispatcher
             loop {
                 tokio::select! {
@@ -146,13 +198,13 @@ impl ChannelDispatcher {
                             DispatcherManagementCommand::RegisterContentConsumer(cmd) => {
                                 #[cfg(feature="tracing")]
                                 info!("register consumer {}", cmd.consumer_tag);
-                                let consumer = self.get_or_new_consumer(&cmd.consumer_tag);
+                                let consumer = self.get_or_new_consumer_resource(&cmd.consumer_tag);
                                 consumer.register_tx(cmd.consumer_tx);
                                 // forward buffered messages
                                 while !consumer.fifo.is_empty() {
                                     #[cfg(feature="tracing")]
                                     trace!("consumer {} total buffered messages: {}", cmd.consumer_tag, consumer.fifo.len());
-                                    let msg = consumer.pop().unwrap();
+                                    let msg = consumer.pop_message().unwrap();
                                     if let Err(_err) = consumer.get_tx().unwrap().send(msg).await {
                                         #[cfg(feature="tracing")]
                                         error!("failed to forward message to consumer {}", cmd.consumer_tag);
@@ -160,7 +212,7 @@ impl ChannelDispatcher {
                                 }
                             },
                             DispatcherManagementCommand::DeregisterContentConsumer(cmd) => {
-                                if let Some(consumer) = self.remove_consumer(&cmd.consumer_tag) {
+                                if let Some(consumer) = self.remove_consumer_resource(&cmd.consumer_tag) {
                                     #[cfg(feature="tracing")]
                                     info!("deregister consumer {}, total buffered messages: {}",
                                         cmd.consumer_tag, consumer.fifo.len()
@@ -281,7 +333,7 @@ impl ChannelDispatcher {
                                             basic_properties: message_buffer.basic_properties.take(),
                                             content: message_buffer.content.take(),
                                         };
-                                        let consumer = self.get_or_new_consumer(&consumer_tag);
+                                        let consumer = self.get_or_new_consumer_resource(&consumer_tag);
                                         match consumer.get_tx() {
                                             Some(consumer_tx) => {
                                                 if let Err(_) = consumer_tx.send(consumer_message).await {
@@ -292,10 +344,10 @@ impl ChannelDispatcher {
                                             },
                                             None => {
                                                 #[cfg(feature="tracing")]
-                                                info!("can't find consumer {}, buffering message", consumer_tag);
-                                                consumer.push(consumer_message);
-                                                // FIXME: try to yield for registering consumer
-                                                //      not sure if it is necessary
+                                                info!("can't find consumer {}, message is buffered", consumer_tag);
+                                                consumer.push_message(consumer_message);
+                                                // try to yield for expected consumer registration command,
+                                                // it might reduceas buffering
                                                 yield_now().await;
                                             },
                                         };
@@ -395,7 +447,7 @@ impl ChannelDispatcher {
                                         error!("cancel callback error on channel {}, cause: '{}'.", self.channel, err);
                                       }
                                       Ok(_) => {
-                                        self.remove_consumer(&consumer_tag);
+                                        self.remove_consumer_resource(&consumer_tag);
 
                                         // respond to server that we have handled the request
                                         if !no_wait  {
@@ -429,14 +481,118 @@ impl ChannelDispatcher {
                             _ => unreachable!("dispatcher of channel {} receive unexpected frame {}", self.channel, frame),
                         }
                     }
+                    // purge stale consumer resource
+                    _ = purge_timer.tick() => {
+                        self.purge_consumer_resource();
+                    }
                     else => {
                         break;
                     }
 
                 }
             }
-            #[cfg(feature="tracing")]
+            #[cfg(feature = "tracing")]
             info!("exit dispatcher of channel {}", self.channel);
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::time;
+    use tracing::{subscriber::DefaultGuard, Level};
+
+    use crate::{
+        channel::{
+            BasicCancelArguments, BasicConsumeArguments, BasicPublishArguments, QueueBindArguments,
+            QueueDeclareArguments,
+        },
+        connection::{Connection, OpenConnectionArguments},
+        consumer::DefaultConsumer,
+        BasicProperties,
+    };
+
+    use super::{CONSUMER_EXPIRY_PERIOD, CONSUMER_PURGE_INTERVAL};
+
+    #[tokio::test]
+    async fn test_purge_consumer_resource() {
+        let _guard = setup_logging(Level::INFO);
+
+        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+        let connection = Connection::open(&args).await.unwrap();
+
+        let exchange_name = "amq.topic";
+        let routing_key = "test.purge.consumer";
+
+        let consumer_channel = connection.open_channel(None).await.unwrap();
+        let (queue_name, _, _) = consumer_channel
+            .queue_declare(QueueDeclareArguments::default())
+            .await
+            .unwrap()
+            .unwrap();
+        consumer_channel
+            .queue_bind(QueueBindArguments::new(
+                &queue_name,
+                exchange_name,
+                routing_key,
+            ))
+            .await
+            .unwrap();
+
+        // publish messages first so that messages
+        // are redelivered immediately once we start consumer
+        let pub_channel = connection.open_channel(None).await.unwrap();
+
+        for _ in 0..100 {
+            pub_channel
+                .basic_publish(
+                    BasicProperties::default(),
+                    String::from("stale message").into_bytes(),
+                    BasicPublishArguments::new(exchange_name, routing_key),
+                )
+                .await
+                .unwrap();
+        }
+        // wait for publish done
+        time::sleep(time::Duration::from_secs(1)).await;
+
+        // start consumer with no_wait = true
+        let consumer_tag = consumer_channel
+            .basic_consume(
+                DefaultConsumer::new(false),
+                BasicConsumeArguments::new(&queue_name, "purge-tester")
+                    .no_wait(true)
+                    .finish(),
+            )
+            .await
+            .unwrap();
+
+        // immediately cancel consumer with no_wait = true
+        consumer_channel
+            .basic_cancel(
+                BasicCancelArguments::new(&consumer_tag)
+                    .no_wait(true)
+                    .finish(),
+            )
+            .await
+            .unwrap();
+
+        // the consumer resource should be purged within `CONSUMER_PURGE_INTERVAL + CONSUMER_EXPIRY_PERIOD`
+        time::sleep(CONSUMER_PURGE_INTERVAL + CONSUMER_EXPIRY_PERIOD).await;
+    }
+
+    //////////////////////////////////////////////////////////////////
+    // construct a subscriber that prints formatted traces to stdout
+    fn setup_logging(level: Level) -> DefaultGuard {
+        // global subscriber as fallback
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(Level::ERROR)
+            .finish();
+        tracing::subscriber::set_global_default(subscriber).ok();
+
+        // thread local subscriber
+        let subscriber = tracing_subscriber::fmt().with_max_level(level).finish();
+        // use that subscriber to process traces emitted after this point
+        tracing::subscriber::set_default(subscriber)
     }
 }

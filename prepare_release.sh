@@ -29,3 +29,6 @@ read -p 'push commit? ' ans
 if [ "$ans" = "y" ]; then
     git push
 fi
+
+echo "Run below command to publish to crates.io"
+echo "cargo publish -p amqprs --all-features"
