@@ -1,22 +1,31 @@
 #!/bin/bash
 #// prepare release
 
-release_tag=$1
+version=$(egrep '^version = "(.+)"$' -o amqprs/Cargo.toml | cut -d '"' -f2)
 
-Usage() { echo "missing release tag"; exit 1; }
-[ $# -ne 1 ] && Usage
+# check 
+semver_regex="[0-9]+\.[0-9]+\.[0-9]+"
+if ! [[ $version =~ $semver_regex ]]; then
+    echo "error, check semantic version: '$version'"
+    exit 1  
+fi
 
-read -p 'commit: ' ans
+read -p "Are you going to release $version? " ans
+if [ "$ans" != "y" ]; then
+    exit 0
+fi
+
+read -p 'commit? ' ans
 if [ "$ans" = "y" ]; then
-    git commit -a -m "prepare release ${release_tag}"
-    git tag -a ${release_tag} -m "${release_tag}"
+    git commit -a -m "prepare release ${version}"
+    git tag -a ${version} -m "${version}"
     git log -1
 fi
-read -p 'push tag: ' ans
+read -p 'push tag? ' ans
 if [ "$ans" = "y" ]; then
-    git push origin ${release_tag}
+    git push origin ${version}
 fi
-read -p 'push commit: ' ans
+read -p 'push commit? ' ans
 if [ "$ans" = "y" ]; then
     git push
 fi
