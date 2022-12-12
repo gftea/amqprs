@@ -20,7 +20,11 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Start RabbitMQ
-      run:  docker-compose up -d
+      run:  |
+        sudo chown -R 1001:root rabbitmq_conf/tls-test
+        sudo chmod 755 rabbitmq_conf/tls-test
+        sudo chmod 400 rabbitmq_conf/tls-test/*
+        docker-compose up -d
 
     - name: Build 
       run: cargo build --all-features --verbose

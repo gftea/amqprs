@@ -3,15 +3,17 @@ version: '3.8'
 services:
   rabbitmq:
     restart: always
-    image: bitnami/rabbitmq:3.8.9
+    image: bitnami/rabbitmq:3.9
     expose:
       - "15672"
       - "5672"
+      - "5671"
       - "15675"
       - "1883"
     ports:
       - "15672:15672"
       - "5672:5672"
+      - "5671:5671"
       - "15675:15675"
       - "1883:1883"
     networks:
@@ -22,10 +24,11 @@ services:
       - RABBITMQ_USERNAME=user
       - RABBITMQ_PASSWORD=bitnami
       - RABBITMQ_VHOST=/
+     
     volumes:
-      - type: bind
-        source: ./rabbitmq_conf/custom.conf
-        target: /bitnami/rabbitmq/conf/custom.conf
+      - "./rabbitmq_conf/custom.conf:/bitnami/rabbitmq/conf/custom.conf"
+      - "./rabbitmq_conf/tls-test:/bitnami/tls-test"
+        
 networks:
   integration-net:
     driver: bridge
