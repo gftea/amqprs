@@ -32,6 +32,17 @@ amqp_serde = { version = "0.1.1" }
 async-trait = "0.1"
 tracing = { version = "0.1", optional = true }
 
+# test different tls library 
+# original native tls
+# native-tls = "0.2"
+
+# tokio integrated native tls 
+tokio-native-tls  = "0.3"
+
+# rustls dependencies
+tokio-rustls = "0.23"
+webpki-roots = "0.22"
+rustls-pemfile = "1"
 [dev-dependencies]
 tracing = { version = "0.1" }
 tracing-subscriber = "0.3"

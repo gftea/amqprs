@@ -12,6 +12,7 @@ make info CN=$COMMON_NAME
 ls -lha ./result
 cd -
 sudo cp tls-gen/basic/result/* tls-test
+rm -rf tls-gen
 
 # to make sure the cert/key files have correct permissions
 # and owners within container after bind mount 
