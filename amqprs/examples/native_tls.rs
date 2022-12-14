@@ -1,15 +1,27 @@
 use std::fs::File;
 use std::io::{Read, Write};
 use std::net::TcpStream;
+use std::path::Path;
 use tokio_native_tls::native_tls::Identity;
 use tokio_native_tls::native_tls::{Certificate, TlsConnector};
 
 fn main() {
-    let ca_cert = "/home/gftea/repo/amqprs/rabbitmq_conf/tls-gen/basic/result/ca_certificate.pem";
-    let client_cert = "/home/gftea/repo/amqprs/rabbitmq_conf/tls-gen/basic/result/client_AMQPRS_TEST_certificate.pem";
-    let client_key =
-        "/home/gftea/repo/amqprs/rabbitmq_conf/tls-gen/basic/result/client_AMQPRS_TEST_key.pem";
+    // println!("{:?}", std::env::current_dir());
+    let current_dir = std::env::current_dir().unwrap();
 
+    let ca_cert = current_dir.join(Path::new(
+        "rabbitmq_conf/client/ca_certificate.pem",
+    ));
+
+    let client_cert = current_dir.join(Path::new(
+        "rabbitmq_conf/client/client_AMQPRS_TEST_certificate.pem",
+    ));
+
+    let client_key = current_dir.join(Path::new(
+        "rabbitmq_conf/client/client_AMQPRS_TEST_key.pem",
+    ));
+
+    println!("{:?},{:?},{:?}", ca_cert, client_cert, client_key);
     let mut file = File::open(ca_cert).unwrap();
     let mut ca_cert = vec![];
     file.read_to_end(&mut ca_cert).unwrap();

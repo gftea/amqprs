@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::{self, Read};
 use std::net::ToSocketAddrs;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::io::{split, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -11,11 +12,20 @@ use tokio_rustls::{webpki, TlsConnector};
 use tokio_native_tls::native_tls;
 
 async fn test_rustls() -> io::Result<()> {
-    let ca_cert = "/home/gftea/repo/amqprs/rabbitmq_conf/tls-gen/basic/result/ca_certificate.pem";
-    let client_cert = "/home/gftea/repo/amqprs/rabbitmq_conf/tls-gen/basic/result/client_AMQPRS_TEST_certificate.pem";
-    let client_key =
-        "/home/gftea/repo/amqprs/rabbitmq_conf/tls-gen/basic/result/client_AMQPRS_TEST_key.pem";
+    let current_dir = std::env::current_dir().unwrap();
 
+    let ca_cert = current_dir.join(Path::new(
+        "rabbitmq_conf/client/ca_certificate.pem",
+    ));
+
+    let client_cert = current_dir.join(Path::new(
+        "rabbitmq_conf/client/client_AMQPRS_TEST_certificate.pem",
+    ));
+
+    let client_key = current_dir.join(Path::new(
+        "rabbitmq_conf/client/client_AMQPRS_TEST_key.pem",
+    ));
+    
     let addr = ("localhost", 5671)
         .to_socket_addrs()?
         .next()
@@ -69,10 +79,20 @@ async fn test_rustls() -> io::Result<()> {
 }
 
 async fn test_nativetls() -> io::Result<()> {
-    let ca_cert = "/home/gftea/repo/amqprs/rabbitmq_conf/tls-gen/basic/result/ca_certificate.pem";
-    let client_cert = "/home/gftea/repo/amqprs/rabbitmq_conf/tls-gen/basic/result/client_AMQPRS_TEST_certificate.pem";
-    let client_key =
-        "/home/gftea/repo/amqprs/rabbitmq_conf/tls-gen/basic/result/client_AMQPRS_TEST_key.pem";
+    let current_dir = std::env::current_dir().unwrap();
+
+    let ca_cert = current_dir.join(Path::new(
+        "rabbitmq_conf/client/ca_certificate.pem",
+    ));
+
+    let client_cert = current_dir.join(Path::new(
+        "rabbitmq_conf/client/client_AMQPRS_TEST_certificate.pem",
+    ));
+
+    let client_key = current_dir.join(Path::new(
+        "rabbitmq_conf/client/client_AMQPRS_TEST_key.pem",
+    ));
+    
     let addr = ("localhost", 5671)
         .to_socket_addrs()?
         .next()
