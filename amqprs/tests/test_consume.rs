@@ -13,13 +13,41 @@ use tokio::time;
 use tracing::Level;
 mod common;
 
+#[cfg(not(feature = "tls"))]
+fn build_conn_args() -> OpenConnectionArguments {
+    OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+
+}
+#[cfg(feature = "tls")]
+fn build_conn_args() -> OpenConnectionArguments {
+    // TLS specific configuration
+    let current_dir = std::env::current_dir().unwrap();
+    let current_dir = current_dir.join("../rabbitmq_conf/client/");
+
+    let root_ca_cert = current_dir.join("ca_certificate.pem");
+    let client_cert = current_dir.join("client_AMQPRS_TEST_certificate.pem");
+    let client_private_key = current_dir.join("client_AMQPRS_TEST_key.pem");
+    // domain should match the certificate/key files
+    let domain = "AMQPRS_TEST";
+    OpenConnectionArguments::new("localhost:5671", "user", "bitnami")
+        .tls_adaptor(
+            amqprs::tls::TlsAdaptor::with_client_auth(
+                root_ca_cert.as_path(),
+                client_cert.as_path(),
+                client_private_key.as_path(),
+                domain.to_owned(),
+            )
+            .unwrap(),
+        )
+        .finish()
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
 async fn test_multi_consumer() {
     let _guard = common::setup_logging(Level::INFO);
 
     // open a connection to RabbitMQ server
-    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
-
+    let args = build_conn_args();
     let connection = Connection::open(&args).await.unwrap();
 
     // open a channel dedicated for consumer on the connection
@@ -58,7 +86,6 @@ async fn test_multi_consumer() {
         .basic_consume(DefaultConsumer::new(args.no_ack), args)
         .await
         .unwrap();
-
 
     // open a channel dedicated for publisher on the connection
     let pub_channel = connection.open_channel(None).await.unwrap();
@@ -186,9 +213,9 @@ async fn test_cancel_consumer() {
         .unwrap();
 
     // start consumer with auto-ack.
-    // NOTE: use automatic ack, because if running both publisher and 
+    // NOTE: use automatic ack, because if running both publisher and
     // manual-ACK consumer on same channel cocurrently, the ACK frames
-    // may interleave with the publish sequence which results in server 
+    // may interleave with the publish sequence which results in server
     // exception to close the connection.
     let consumer_tag = channel
         .basic_consume(

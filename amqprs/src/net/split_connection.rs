@@ -3,15 +3,13 @@ use crate::frame::{Frame, FrameHeader, FRAME_END};
 use amqp_serde::{to_buffer, types::AmqpChannelId};
 use bytes::{Buf, BytesMut};
 use serde::Serialize;
-use std::{io::{self, BufReader}, pin::Pin, path::Path, fs::File, sync::Arc};
+use std::{io, pin::Pin};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf},
-    net::{
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-        TcpStream,
-    },
+    net::TcpStream,
 };
-use tokio_rustls::{client::TlsStream, rustls::{self, OwnedTrustAnchor, Certificate, PrivateKey}, webpki, TlsConnector};
+#[cfg(feature = "tls")]
+use tokio_rustls::{client::TlsStream, rustls, TlsConnector};
 #[cfg(feature = "tracing")]
 use tracing::trace;
 
@@ -32,70 +30,10 @@ pub(crate) struct BufIoWriter {
     buffer: BytesMut,
 }
 
-///
-use std::net::ToSocketAddrs;
-
-async fn create_tls_stream(addr: &str, domain: &str) -> Result<TlsStream<TcpStream>> {
-    let current_dir = std::env::current_dir().unwrap();
-
-    let ca_cert = current_dir.join(Path::new(
-        "../rabbitmq_conf/client/ca_certificate.pem",
-    ));
-
-    let client_cert = current_dir.join(Path::new(
-        "../rabbitmq_conf/client/client_AMQPRS_TEST_certificate.pem",
-    ));
-
-    let client_key = current_dir.join(Path::new(
-        "../rabbitmq_conf/client/client_AMQPRS_TEST_key.pem",
-    ));
-    
-    let addr = addr
-        .to_socket_addrs()?
-        .next()
-        .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))?;
-
-    let mut root_cert_store = rustls::RootCertStore::empty();
-    let mut pem = BufReader::new(File::open(ca_cert)?);
-    let certs = rustls_pemfile::certs(&mut pem)?;
-    let trust_anchors = certs.iter().map(|cert| {
-        let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
-        OwnedTrustAnchor::from_subject_spki_name_constraints(
-            ta.subject,
-            ta.spki,
-            ta.name_constraints,
-        )
-    });
-    root_cert_store.add_server_trust_anchors(trust_anchors);
-
-    let mut pem = BufReader::new(File::open(client_cert)?);
-    let certs = rustls_pemfile::certs(&mut pem)?;
-    let certs = certs.into_iter().map(|cert| Certificate(cert));
-
-    let mut pem = BufReader::new(File::open(client_key)?);
-    let keys = rustls_pemfile::pkcs8_private_keys(&mut pem)?;
-    let mut keys = keys.into_iter().map(|key| PrivateKey(key));
-
-    let config = rustls::ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(root_cert_store)
-        .with_single_cert(certs.collect(), keys.next().unwrap())
-        .unwrap();
-    let connector = TlsConnector::from(Arc::new(config));
-
-    let stream = TcpStream::connect(&addr).await?;
-
-    let domain = rustls::ServerName::try_from(domain)
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid dnsname"))?;
-
-    let stream = connector.connect(domain, stream).await?;
-
-
-    Ok(stream)
-}
 /// Unify Splitable IO stream types
 enum SplitIoStream {
     TcpStream(TcpStream),
+    #[cfg(feature = "tls")]
     TlsStream(TlsStream<TcpStream>),
 }
 
@@ -104,13 +42,12 @@ impl From<TcpStream> for SplitIoStream {
         SplitIoStream::TcpStream(stream)
     }
 }
-
+#[cfg(feature = "tls")]
 impl From<TlsStream<TcpStream>> for SplitIoStream {
     fn from(stream: TlsStream<TcpStream>) -> Self {
         SplitIoStream::TlsStream(stream)
     }
 }
-
 impl AsyncRead for SplitIoStream {
     fn poll_read(
         self: Pin<&mut Self>,
@@ -119,6 +56,7 @@ impl AsyncRead for SplitIoStream {
     ) -> std::task::Poll<io::Result<()>> {
         match self.get_mut() {
             SplitIoStream::TcpStream(stream) => Pin::new(stream).poll_read(cx, buf),
+            #[cfg(feature = "tls")]
             SplitIoStream::TlsStream(stream) => Pin::new(stream).poll_read(cx, buf),
         }
     }
@@ -132,6 +70,7 @@ impl AsyncWrite for SplitIoStream {
     ) -> std::task::Poll<io::Result<usize>> {
         match self.get_mut() {
             SplitIoStream::TcpStream(stream) => Pin::new(stream).poll_write(cx, buf),
+            #[cfg(feature = "tls")]
             SplitIoStream::TlsStream(stream) => Pin::new(stream).poll_write(cx, buf),
         }
     }
@@ -142,6 +81,7 @@ impl AsyncWrite for SplitIoStream {
     ) -> std::task::Poll<io::Result<()>> {
         match self.get_mut() {
             SplitIoStream::TcpStream(stream) => Pin::new(stream).poll_flush(cx),
+            #[cfg(feature = "tls")]
             SplitIoStream::TlsStream(stream) => Pin::new(stream).poll_flush(cx),
         }
     }
@@ -152,6 +92,7 @@ impl AsyncWrite for SplitIoStream {
     ) -> std::task::Poll<io::Result<()>> {
         match self.get_mut() {
             SplitIoStream::TcpStream(stream) => Pin::new(stream).poll_shutdown(cx),
+            #[cfg(feature = "tls")]
             SplitIoStream::TlsStream(stream) => Pin::new(stream).poll_shutdown(cx),
         }
     }
@@ -161,8 +102,34 @@ impl AsyncWrite for SplitIoStream {
 // Same interfaces to read/write packet before and after split.
 impl SplitConnection {
     pub async fn open(addr: &str) -> Result<Self> {
-        // let stream = TcpStream::connect(addr).await?;
-        let stream = create_tls_stream("localhost:5671", "AMQPRS_TEST").await.unwrap();
+        let stream = TcpStream::connect(addr).await?;
+
+        let stream: SplitIoStream = stream.into();
+        let (reader, writer) = tokio::io::split(stream);
+
+        let read_buffer = BytesMut::with_capacity(DEFAULT_IO_BUFFER_SIZE);
+        let write_buffer = BytesMut::with_capacity(DEFAULT_IO_BUFFER_SIZE);
+
+        Ok(Self {
+            reader: BufIoReader {
+                stream: reader,
+                buffer: read_buffer,
+            },
+            writer: BufIoWriter {
+                stream: writer,
+                buffer: write_buffer,
+            },
+        })
+    }
+
+    #[cfg(feature = "tls")]
+    pub async fn open_tls(addr: &str, domain: &str, connector: &TlsConnector) -> Result<Self> {
+        let domain = rustls::ServerName::try_from(domain)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid dnsname"))?;
+
+        let stream = connector
+            .connect(domain, TcpStream::connect(addr).await?)
+            .await?;
         let stream: SplitIoStream = stream.into();
         let (reader, writer) = tokio::io::split(stream);
 

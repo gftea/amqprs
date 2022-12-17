@@ -49,3 +49,6 @@ jobs:
 
     - name: compliance_assert feature test
       run: cargo test -F compliance_assert
+
+    - name: tls feature test
+      run: cargo test -F tls      

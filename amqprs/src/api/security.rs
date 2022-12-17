@@ -11,7 +11,7 @@ use amqp_serde::{
 use bytes::BytesMut;
 
 /// Credentials used to open a connection.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SecurityCredentials {
     username: String,
     password: String,
@@ -48,6 +48,8 @@ impl SecurityCredentials {
             mechanism: AuthenticationMechanism::AMQPLAIN,
         }
     }
+
+
     /// Get the name of authentication mechanism of current credential
     pub(crate) fn get_mechanism_name(&self) -> &str {
         match self.mechanism {

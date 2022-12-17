@@ -43,6 +43,8 @@ pub(crate) mod helpers {
 /////////////////////////////////////////////////////////////////////////////
 #[cfg(feature="compilance_assert")]
 mod compilance_asserts;
+#[cfg(feature="tls")]
+pub mod tls;
 
 pub mod callbacks;
 pub mod channel;
