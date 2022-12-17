@@ -12,10 +12,10 @@ use crate::{
     frame::{Frame, HeartBeat, DEFAULT_CONN_CHANNEL},
 };
 
-use super::{BufWriter, OutgoingMessage};
+use super::{BufIoWriter, OutgoingMessage};
 
 pub(crate) struct WriterHandler {
-    stream: BufWriter,
+    stream: BufIoWriter,
     /// receiver half to forward outgoing messages from AMQ connection/channel to server
     outgoing_rx: mpsc::Receiver<OutgoingMessage>,
     /// listener of shutdown signal
@@ -26,7 +26,7 @@ pub(crate) struct WriterHandler {
 
 impl WriterHandler {
     pub fn new(
-        stream: BufWriter,
+        stream: BufIoWriter,
         outgoing_rx: mpsc::Receiver<OutgoingMessage>,
         shutdown: broadcast::Receiver<()>,
         amqp_connection: Connection,

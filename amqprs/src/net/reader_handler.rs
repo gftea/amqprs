@@ -16,13 +16,13 @@ use crate::{
 };
 
 use super::{
-    channel_manager::ChannelManager, BufReader, ConnManagementCommand, Error, OutgoingMessage,
+    channel_manager::ChannelManager, BufIoReader, ConnManagementCommand, Error, OutgoingMessage,
 };
 
 /////////////////////////////////////////////////////////////////////////////
 
 pub(crate) struct ReaderHandler {
-    stream: BufReader,
+    stream: BufIoReader,
 
     /// AMQ connection
     amqp_connection: Connection,
@@ -48,7 +48,7 @@ pub(crate) struct ReaderHandler {
 
 impl ReaderHandler {
     pub fn new(
-        stream: BufReader,
+        stream: BufIoReader,
         amqp_connection: Connection,
         outgoing_tx: Sender<OutgoingMessage>,
         conn_mgmt_rx: Receiver<ConnManagementCommand>,
