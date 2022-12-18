@@ -12,6 +12,12 @@ use tokio_rustls::{
     webpki, TlsConnector,
 };
 
+/// The TLS adaptor used to enable TLS network stream.
+/// 
+/// Currently, it depends on [`tokio-rustls`] and provides convenient
+/// methods to create a TLS adaptor. See details of each method.
+/// 
+/// [`tokio-rustls`]: https://docs.rs/tokio-rustls/latest/tokio_rustls
 #[derive(Clone)]
 pub struct TlsAdaptor {
     pub(crate) connector: TlsConnector,
