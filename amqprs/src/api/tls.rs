@@ -1,10 +1,23 @@
-use std::{fs::File, io::BufReader, path::Path, sync::Arc};
+//! This module provides TLS adaptor.
+//! 
+//! If TLS adaptor is set in [`OpenConnectionArguments`], and given to [`Connection::open`],
+//! the TLS network stream will be used instead of regular TCP stream.
+//! 
+//! [`OpenConnectionArguments`]: ../connection/struct.OpenConnectionArguments.html
+//! [`Connection::open`]: ../connection/struct.Connection.html#method.open
 
+use std::{fs::File, io::BufReader, path::Path, sync::Arc};
 use tokio_rustls::{
     rustls::{Certificate, ClientConfig, OwnedTrustAnchor, PrivateKey, RootCertStore},
     webpki, TlsConnector,
 };
 
+/// The TLS adaptor used to enable TLS network stream.
+/// 
+/// Currently, it depends on [`tokio-rustls`] and provides convenient
+/// methods to create a TLS adaptor. See details of each method.
+/// 
+/// [`tokio-rustls`]: https://docs.rs/tokio-rustls/latest/tokio_rustls
 #[derive(Clone)]
 pub struct TlsAdaptor {
     pub(crate) connector: TlsConnector,
