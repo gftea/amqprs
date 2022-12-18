@@ -18,11 +18,12 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 
 ## [Readme](amqprs/README.md)
 
-## [Example](amqprs/examples/basic_pub_sub.rs) 
+## [Example - Publish and Subscribe](amqprs/examples/basic_pub_sub.rs) 
+## [Example - SSL/TLS](amqprs/examples/tls.rs) 
 
 ## Run test locally
 
-Tests depends on RabbitMQ docker container.
+__Testing depends on RabbitMQ docker container.__
 
 ```bash
 docker-compose up -d
