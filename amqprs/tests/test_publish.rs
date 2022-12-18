@@ -1,7 +1,7 @@
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
     channel::{BasicPublishArguments, ExchangeDeclareArguments},
-    connection::{Connection, OpenConnectionArguments},
+    connection::Connection,
     BasicProperties,
 };
 use tokio::time;
@@ -13,7 +13,7 @@ async fn test_publish() {
     let _guard = common::setup_logging(Level::INFO);
 
     // open a connection to RabbitMQ server
-    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+    let args = common::build_conn_args();
 
     let connection = Connection::open(&args).await.unwrap();
     connection

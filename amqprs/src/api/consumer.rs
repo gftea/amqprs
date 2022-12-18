@@ -12,9 +12,8 @@
 use super::channel::{BasicAckArguments, Channel};
 use crate::frame::{BasicProperties, Deliver};
 
-
 use async_trait::async_trait;
-#[cfg(feature="tracing")]
+#[cfg(feature = "tracing")]
 use tracing::info;
 
 /// Trait defines the callback interfaces for consuming asynchronous content data from server.
@@ -87,12 +86,12 @@ impl AsyncConsumer for DefaultConsumer {
         _basic_properties: BasicProperties,
         _content: Vec<u8>,
     ) {
-        #[cfg(feature="tracing")]
+        #[cfg(feature = "tracing")]
         info!("consume delivery {} on channel {}", deliver, channel);
 
         // ack explicitly if manual ack
         if !self.no_ack {
-            #[cfg(feature="tracing")]
+            #[cfg(feature = "tracing")]
             info!("ack to delivery {} on channel {}", deliver, channel);
             let args = BasicAckArguments::new(deliver.delivery_tag(), false);
             channel.basic_ack(args).await.unwrap();

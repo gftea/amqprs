@@ -17,7 +17,7 @@ async fn main() {
         .with_max_level(Level::INFO)
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
-    
+
     // open a connection to RabbitMQ server
     let connection = Connection::open(&OpenConnectionArguments::new(
         "localhost:5672",

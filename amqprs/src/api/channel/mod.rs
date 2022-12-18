@@ -14,7 +14,7 @@
 //! # Example
 //! See [`crate`] documentation for quick start.
 //! See details in documentation of each method.
-//! 
+//!
 //! [`APIs`]: struct.Channel.html#implementations
 //! [`Channel`]: struct.Channel.html
 //! [`close`]: struct.Channel.html#method.close

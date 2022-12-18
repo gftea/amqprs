@@ -4,7 +4,7 @@ use tokio::{
     task::yield_now,
     time,
 };
-#[cfg(feature="tracing")]
+#[cfg(feature = "tracing")]
 use tracing::{debug, error, info, trace};
 
 use crate::{
@@ -90,7 +90,7 @@ impl WriterHandler {
             }
         }
         if let Err(err) = self.stream.close().await {
-            #[cfg(feature="tracing")]
+            #[cfg(feature = "tracing")]
             error!(
                 "failed to close i/o writer of connection {}, cause: {}",
                 self.amqp_connection, err

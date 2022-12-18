@@ -3,7 +3,7 @@ use amqprs::{
         BasicAckArguments, BasicGetArguments, BasicPublishArguments, QueueBindArguments,
         QueueDeclareArguments,
     },
-    connection::{Connection, OpenConnectionArguments},
+    connection::Connection,
     BasicProperties,
 };
 use tracing::{info, Level};
@@ -14,7 +14,7 @@ async fn test_get() {
     let _guard = common::setup_logging(Level::INFO);
 
     // open a connection to RabbitMQ server
-    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+    let args = common::build_conn_args();
 
     let connection = Connection::open(&args).await.unwrap();
 
@@ -68,7 +68,7 @@ async fn test_get() {
         // get single message
         let delivery_tag = match channel.basic_get(get_args.clone()).await.unwrap() {
             Some((get_ok, basic_props, content)) => {
-                #[cfg(feature="tracing")]
+                #[cfg(feature = "tracing")]
                 info!(
                     "Get results: 
                     {}
@@ -104,7 +104,7 @@ async fn test_get_empty() {
     let _guard = common::setup_logging(Level::INFO);
 
     // open a connection to RabbitMQ server
-    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+    let args = common::build_conn_args();
 
     let connection = Connection::open(&args).await.unwrap();
 

@@ -7,7 +7,7 @@ use tokio::{
     task::yield_now,
     time,
 };
-#[cfg(feature="tracing")]
+#[cfg(feature = "tracing")]
 use tracing::{debug, error, info, trace};
 
 use crate::{
@@ -76,7 +76,7 @@ impl ReaderHandler {
             // any received frame can be considered as heartbeat
             // nothing to handle with heartbeat frame.
             Frame::HeartBeat(_) => {
-                #[cfg(feature="tracing")]
+                #[cfg(feature = "tracing")]
                 debug!("received heartbeat on connection {}", self.amqp_connection);
                 Ok(())
             }
@@ -108,7 +108,7 @@ impl ReaderHandler {
                 responder
                     .send(close_ok.into_frame())
                     .map_err(|response| Error::InternalChannelError(response.to_string()))?;
-                #[cfg(feature="tracing")]
+                #[cfg(feature = "tracing")]
                 info!("close connection {} by client", self.amqp_connection);
 
                 // Try to yield for last sent message to be scheduled.
@@ -121,7 +121,7 @@ impl ReaderHandler {
             Frame::Close(_, close) => {
                 if let Some(ref mut callback) = self.callback {
                     if let Err(err) = callback.close(&self.amqp_connection, close).await {
-                        #[cfg(feature="tracing")]
+                        #[cfg(feature = "tracing")]
                         error!(
                             "close callback error on connection {}, cause: {}",
                             self.amqp_connection, err
@@ -129,7 +129,7 @@ impl ReaderHandler {
                         return Err(Error::CloseCallbackError);
                     }
                 } else {
-                    #[cfg(feature="tracing")]
+                    #[cfg(feature = "tracing")]
                     error!(
                         "callback not registered on connection {}",
                         self.amqp_connection
@@ -140,7 +140,7 @@ impl ReaderHandler {
                 self.outgoing_tx
                     .send((DEFAULT_CONN_CHANNEL, CloseOk::default().into_frame()))
                     .await?;
-                #[cfg(feature="tracing")]
+                #[cfg(feature = "tracing")]
                 info!(
                     "server requests to shutdown connection {}",
                     self.amqp_connection
@@ -157,7 +157,7 @@ impl ReaderHandler {
                         .blocked(&self.amqp_connection, blocked.reason.into())
                         .await;
                 } else {
-                    #[cfg(feature="tracing")]
+                    #[cfg(feature = "tracing")]
                     error!(
                         "callback not registered on connection {}",
                         self.amqp_connection
@@ -169,7 +169,7 @@ impl ReaderHandler {
                 if let Some(ref mut callback) = self.callback {
                     callback.unblocked(&self.amqp_connection).await;
                 } else {
-                    #[cfg(feature="tracing")]
+                    #[cfg(feature = "tracing")]
                     error!(
                         "callback not registered on connection {}",
                         self.amqp_connection

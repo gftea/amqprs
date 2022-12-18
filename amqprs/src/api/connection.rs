@@ -199,12 +199,18 @@ struct SharedConnectionInner {
 ///
 /// Methods can be chained in order to build the desired argument values, call
 /// [`finish`] to finish chaining and returns a new argument.
+/// 
+/// Chaining configuration implies an additional clone when [`finish`] is called. 
 ///
 /// # Examples:
+/// 
+/// ## Chaining configuration style
+/// 
 /// ```
 /// # use amqprs::security::SecurityCredentials;
 /// # use amqprs::connection::OpenConnectionArguments;
-/// // Update `credentials` field, leaving remaining fields as default value.
+/// 
+/// // Create a default and update only `credentials` field, then return desired config.
 /// let args = OpenConnectionArguments::default()
 ///     .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
 ///     .finish();
@@ -213,13 +219,26 @@ struct SharedConnectionInner {
 /// ```
 /// # use amqprs::security::SecurityCredentials;
 /// # use amqprs::connection::OpenConnectionArguments;
-/// // Create arguments, then update the fields.
-/// let mut args = OpenConnectionArguments::new("localhost:5672","user", "bitnami")
+/// 
+/// // Create a new one and update the fields, then return desired config
+/// let args = OpenConnectionArguments::new("localhost:5672","user", "bitnami")
 ///     .virtual_host("myhost")
 ///     .connection_name("myconnection")
 ///     .finish();
 /// ```
-///
+/// 
+/// ## Non-chaining configuration style
+/// 
+/// ```
+/// # use amqprs::security::SecurityCredentials;
+/// # use amqprs::connection::OpenConnectionArguments;
+/// 
+/// // create a new and mutable argument
+/// let mut args = OpenConnectionArguments::new("localhost:5672","user", "bitnami");
+/// // update fields of the mutable argument
+/// args.virtual_host("myhost").connection_name("myconnection");
+/// ```
+/// 
 /// [`Connection::open`]: struct.Connection.html#method.open
 /// [`finish`]: struct.OpenConnectionArguments.html#method.finish
 
@@ -338,6 +357,9 @@ impl OpenConnectionArguments {
     }
 
     /// Finish chaining and returns a new argument according to chained configurations.
+    /// 
+    /// It actually clones the resulted configurations.
+    /// 
     pub fn finish(&mut self) -> Self {
         self.clone()
     }

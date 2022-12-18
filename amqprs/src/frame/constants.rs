@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use amqp_serde::types::{Octect, ShortUint, LongUint};
+use amqp_serde::types::{LongUint, Octect, ShortUint};
 
 pub const FRAME_HEADER_SIZE: usize = 7;
 pub const DEFAULT_CONN_CHANNEL: ShortUint = 0;

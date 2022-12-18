@@ -49,7 +49,6 @@ impl SecurityCredentials {
         }
     }
 
-
     /// Get the name of authentication mechanism of current credential
     pub(crate) fn get_mechanism_name(&self) -> &str {
         match self.mechanism {
