@@ -38,5 +38,3 @@ pub(crate) fn assert_path(value: &str) {
     assert_notnull(value);
     assert_length(value);
 }
-
-

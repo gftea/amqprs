@@ -46,8 +46,6 @@ use amqp_serde::types::{
     AmqpChannelId, AmqpPeerProperties, FieldTable, FieldValue, LongStr, LongUint, ShortUint,
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
-#[cfg(feature = "tracing")]
-use tracing::{debug, error, info};
 
 use crate::{
     frame::{
@@ -69,10 +67,14 @@ use super::{
     Result,
 };
 
+#[cfg(feature = "tls")]
+use super::tls::TlsAdaptor;
 #[cfg(feature = "compilance_assert")]
 use crate::api::compilance_asserts::assert_path;
 #[cfg(feature = "compilance_assert")]
 use crate::frame::FRAME_MIN_SIZE;
+#[cfg(feature = "tracing")]
+use tracing::{debug, error, info};
 
 //  TODO: move below constants gto be part of static configuration of connection
 // per channel buffer
@@ -197,12 +199,18 @@ struct SharedConnectionInner {
 ///
 /// Methods can be chained in order to build the desired argument values, call
 /// [`finish`] to finish chaining and returns a new argument.
+/// 
+/// Chaining configuration implies an additional clone when [`finish`] is called. 
 ///
 /// # Examples:
+/// 
+/// ## Chaining configuration style
+/// 
 /// ```
 /// # use amqprs::security::SecurityCredentials;
 /// # use amqprs::connection::OpenConnectionArguments;
-/// // Update `credentials` field, leaving remaining fields as default value.
+/// 
+/// // Create a default and update only `credentials` field, then return desired config.
 /// let args = OpenConnectionArguments::default()
 ///     .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
 ///     .finish();
@@ -211,13 +219,26 @@ struct SharedConnectionInner {
 /// ```
 /// # use amqprs::security::SecurityCredentials;
 /// # use amqprs::connection::OpenConnectionArguments;
-/// // Create arguments, then update the fields.
-/// let mut args = OpenConnectionArguments::new("localhost:5672","user", "bitnami")
+/// 
+/// // Create a new one and update the fields, then return desired config
+/// let args = OpenConnectionArguments::new("localhost:5672","user", "bitnami")
 ///     .virtual_host("myhost")
 ///     .connection_name("myconnection")
 ///     .finish();
 /// ```
-///
+/// 
+/// ## Non-chaining configuration style
+/// 
+/// ```
+/// # use amqprs::security::SecurityCredentials;
+/// # use amqprs::connection::OpenConnectionArguments;
+/// 
+/// // create a new and mutable argument
+/// let mut args = OpenConnectionArguments::new("localhost:5672","user", "bitnami");
+/// // update fields of the mutable argument
+/// args.virtual_host("myhost").connection_name("myconnection");
+/// ```
+/// 
 /// [`Connection::open`]: struct.Connection.html#method.open
 /// [`finish`]: struct.OpenConnectionArguments.html#method.finish
 
@@ -234,6 +255,10 @@ pub struct OpenConnectionArguments {
     /// Heartbeat timeout in seconds. See [RabbitMQ heartbeats](https://www.rabbitmq.com/heartbeats.html)
     /// Default: 60s.
     heartbeat: u16,
+
+    /// SSL/TLS adaptor
+    #[cfg(feature = "tls")]
+    tls_adaptor: Option<TlsAdaptor>,
 }
 
 impl Default for OpenConnectionArguments {
@@ -244,6 +269,8 @@ impl Default for OpenConnectionArguments {
             connection_name: None,
             credentials: SecurityCredentials::new_plain("guest", "guest"),
             heartbeat: 60,
+            #[cfg(feature = "tls")]
+            tls_adaptor: None,
         }
     }
 }
@@ -262,6 +289,8 @@ impl OpenConnectionArguments {
             connection_name: None,
             credentials: SecurityCredentials::new_plain(username, password),
             heartbeat: 60,
+            #[cfg(feature = "tls")]
+            tls_adaptor: None,
         }
     }
 
@@ -316,7 +345,21 @@ impl OpenConnectionArguments {
         self
     }
 
+    /// Set SSL/TLS adaptor. Set to enable SSL/TLS connection.
+    ///
+    /// # Default
+    ///
+    /// No SSL/TLS enabled
+    #[cfg(feature = "tls")]
+    pub fn tls_adaptor(&mut self, tls_adaptor: TlsAdaptor) -> &mut Self {
+        self.tls_adaptor = Some(tls_adaptor);
+        self
+    }
+
     /// Finish chaining and returns a new argument according to chained configurations.
+    /// 
+    /// It actually clones the resulted configurations.
+    /// 
     pub fn finish(&mut self) -> Self {
         self.clone()
     }
@@ -332,6 +375,16 @@ impl Connection {
     /// Returns [`Err`] if any step goes wrong during openning an connection.
     pub async fn open(args: &OpenConnectionArguments) -> Result<Self> {
         // TODO: uri parsing
+        #[cfg(feature = "tls")]
+        let mut io_conn = match &args.tls_adaptor {
+            Some(tls_adaptor) => {
+                SplitConnection::open_tls(&args.uri, &tls_adaptor.domain, &tls_adaptor.connector)
+                    .await?
+            }
+
+            None => SplitConnection::open(&args.uri).await?,
+        };
+        #[cfg(not(feature = "tls"))]
         let mut io_conn = SplitConnection::open(&args.uri).await?;
 
         // C:protocol-header
@@ -1006,12 +1059,12 @@ fn generate_connection_name(domain: &str) -> String {
 /////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashSet, thread};
-    use crate::security::SecurityCredentials;
     use super::{generate_connection_name, Connection, OpenConnectionArguments};
+    use crate::security::SecurityCredentials;
+    use std::{collections::HashSet, thread};
     use tokio::time;
     use tracing::{subscriber::DefaultGuard, Level};
-    
+
     #[tokio::test]
     async fn test_channel_open_close() {
         let _guard = setup_logging(Level::INFO);

@@ -48,7 +48,8 @@
 //! - "compliance_assert": enable compliance assertion according to AMQP spec.
 //!     If enabled, library always check user inputs and `panic` if any non-compliance.
 //!     If disabled, then it relies on server to reject.
-//! 
+//! - "tls": enable SSL/TLS.
+//!
 //! [`Connection`]: connection/struct.Connection.html
 //! [`Channel`]: channel/struct.Channel.html
 //! [`callbacks`]: callbacks/index.html

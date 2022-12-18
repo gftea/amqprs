@@ -13,35 +13,64 @@ env:
 
 jobs:
 
-  integration_test:
-
+  builds:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-    - name: Start RabbitMQ
-      run:  docker-compose up -d
 
-    - name: Build 
+    - name: cargo build (debug, all-features)
       run: cargo build --all-features --verbose
 
-    - name: Run doc tests
-      run: cargo test  --all-features --doc --verbose
+    - name: cargo build (debug, tls)
+      run: cargo build -F tls --verbose
 
-    - name: Run lib unit tests
-      run: cargo test  --all-features --lib --verbose
+  test_all_features:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Start RabbitMQ server
+      run:  |
+        sudo chown -R 1001:root rabbitmq_conf/tls-test
+        sudo chmod 755 rabbitmq_conf/tls-test
+        sudo chmod 400 rabbitmq_conf/tls-test/*
+        docker-compose up -d
+
+    - name: doc tests (debug, all-features)
+      run: cargo test --all-features --doc --verbose
+
+    - name: unit tests (debug, all-features)
+      run: cargo test --all-features --lib --verbose
     
-    - name: Run integration tests
-      run: cargo test  --all-features --test '*'
+    - name: integration tests (release, all-features)
+      run: cargo test --release --all-features --test '*'
 
-    - name: Run examples
-      run: cargo run --example 2>&1 | grep -E '^ ' | xargs -n1 cargo run --all-features --example
+    - name: examples (release, all-features)
+      run: cargo run --release --example 2>&1 | grep -E '^ ' | xargs -n1 cargo run --release --all-features --example
 
-    - name: default feature test
+  test_features_combination:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Start RabbitMQ server
+      run:  |
+        sudo chown -R 1001:root rabbitmq_conf/tls-test
+        sudo chmod 755 rabbitmq_conf/tls-test
+        sudo chmod 400 rabbitmq_conf/tls-test/*
+        docker-compose up -d
+
+    - name: default
       run: cargo test
 
-    - name: tracing feature test
+    - name: tracing
       run: cargo test -F tracing
 
-    - name: compliance_assert feature test
+    - name: compliance_assert
       run: cargo test -F compliance_assert
+
+    - name: tls feature
+      run: cargo test -F tls      

@@ -3,32 +3,99 @@ use crate::frame::{Frame, FrameHeader, FRAME_END};
 use amqp_serde::{to_buffer, types::AmqpChannelId};
 use bytes::{Buf, BytesMut};
 use serde::Serialize;
-use std::io;
+use std::{io, pin::Pin};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::{
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-        TcpStream,
-    },
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf},
+    net::TcpStream,
 };
+#[cfg(feature = "tls")]
+use tokio_rustls::{client::TlsStream, rustls, TlsConnector};
 #[cfg(feature = "tracing")]
 use tracing::trace;
 
 use super::Error;
 type Result<T> = std::result::Result<T, Error>;
-const DEFAULT_BUFFER_SIZE: usize = 8192;
+const DEFAULT_IO_BUFFER_SIZE: usize = 8192;
 
 pub(crate) struct SplitConnection {
-    reader: BufReader,
-    writer: BufWriter,
+    reader: BufIoReader,
+    writer: BufIoWriter,
 }
-pub(crate) struct BufReader {
-    stream: OwnedReadHalf,
+pub(crate) struct BufIoReader {
+    stream: ReadHalf<SplitIoStream>,
     buffer: BytesMut,
 }
-pub(crate) struct BufWriter {
-    stream: OwnedWriteHalf,
+pub(crate) struct BufIoWriter {
+    stream: WriteHalf<SplitIoStream>,
     buffer: BytesMut,
+}
+
+/// Unify Splitable IO stream types
+enum SplitIoStream {
+    TcpStream(TcpStream),
+    #[cfg(feature = "tls")]
+    TlsStream(TlsStream<TcpStream>),
+}
+
+impl From<TcpStream> for SplitIoStream {
+    fn from(stream: TcpStream) -> Self {
+        SplitIoStream::TcpStream(stream)
+    }
+}
+#[cfg(feature = "tls")]
+impl From<TlsStream<TcpStream>> for SplitIoStream {
+    fn from(stream: TlsStream<TcpStream>) -> Self {
+        SplitIoStream::TlsStream(stream)
+    }
+}
+impl AsyncRead for SplitIoStream {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<io::Result<()>> {
+        match self.get_mut() {
+            SplitIoStream::TcpStream(stream) => Pin::new(stream).poll_read(cx, buf),
+            #[cfg(feature = "tls")]
+            SplitIoStream::TlsStream(stream) => Pin::new(stream).poll_read(cx, buf),
+        }
+    }
+}
+
+impl AsyncWrite for SplitIoStream {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<io::Result<usize>> {
+        match self.get_mut() {
+            SplitIoStream::TcpStream(stream) => Pin::new(stream).poll_write(cx, buf),
+            #[cfg(feature = "tls")]
+            SplitIoStream::TlsStream(stream) => Pin::new(stream).poll_write(cx, buf),
+        }
+    }
+
+    fn poll_flush(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<io::Result<()>> {
+        match self.get_mut() {
+            SplitIoStream::TcpStream(stream) => Pin::new(stream).poll_flush(cx),
+            #[cfg(feature = "tls")]
+            SplitIoStream::TlsStream(stream) => Pin::new(stream).poll_flush(cx),
+        }
+    }
+
+    fn poll_shutdown(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<io::Result<()>> {
+        match self.get_mut() {
+            SplitIoStream::TcpStream(stream) => Pin::new(stream).poll_shutdown(cx),
+            #[cfg(feature = "tls")]
+            SplitIoStream::TlsStream(stream) => Pin::new(stream).poll_shutdown(cx),
+        }
+    }
 }
 
 // Support to split socket connection into reader half and wirter half, which can be run in different tasks cocurrently
@@ -36,17 +103,45 @@ pub(crate) struct BufWriter {
 impl SplitConnection {
     pub async fn open(addr: &str) -> Result<Self> {
         let stream = TcpStream::connect(addr).await?;
-        let (reader, writer) = stream.into_split();
 
-        let read_buffer = BytesMut::with_capacity(DEFAULT_BUFFER_SIZE);
-        let write_buffer = BytesMut::with_capacity(DEFAULT_BUFFER_SIZE);
+        let stream: SplitIoStream = stream.into();
+        let (reader, writer) = tokio::io::split(stream);
+
+        let read_buffer = BytesMut::with_capacity(DEFAULT_IO_BUFFER_SIZE);
+        let write_buffer = BytesMut::with_capacity(DEFAULT_IO_BUFFER_SIZE);
 
         Ok(Self {
-            reader: BufReader {
+            reader: BufIoReader {
                 stream: reader,
                 buffer: read_buffer,
             },
-            writer: BufWriter {
+            writer: BufIoWriter {
+                stream: writer,
+                buffer: write_buffer,
+            },
+        })
+    }
+
+    #[cfg(feature = "tls")]
+    pub async fn open_tls(addr: &str, domain: &str, connector: &TlsConnector) -> Result<Self> {
+        let domain = rustls::ServerName::try_from(domain)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid dnsname"))?;
+
+        let stream = connector
+            .connect(domain, TcpStream::connect(addr).await?)
+            .await?;
+        let stream: SplitIoStream = stream.into();
+        let (reader, writer) = tokio::io::split(stream);
+
+        let read_buffer = BytesMut::with_capacity(DEFAULT_IO_BUFFER_SIZE);
+        let write_buffer = BytesMut::with_capacity(DEFAULT_IO_BUFFER_SIZE);
+
+        Ok(Self {
+            reader: BufIoReader {
+                stream: reader,
+                buffer: read_buffer,
+            },
+            writer: BufIoWriter {
                 stream: writer,
                 buffer: write_buffer,
             },
@@ -54,7 +149,7 @@ impl SplitConnection {
     }
 
     /// split connection into reader half and writer half
-    pub(crate) fn into_split(self) -> (BufReader, BufWriter) {
+    pub(crate) fn into_split(self) -> (BufIoReader, BufIoWriter) {
         (self.reader, self.writer)
     }
 
@@ -66,7 +161,7 @@ impl SplitConnection {
         self.writer.close().await
     }
 
-    pub async fn write<T: Serialize>(&mut self, value: &T) -> Result<usize> {
+    pub async fn write<V: Serialize>(&mut self, value: &V) -> Result<usize> {
         self.writer.write(value).await
     }
 
@@ -79,9 +174,9 @@ impl SplitConnection {
     }
 }
 
-impl BufWriter {
+impl BufIoWriter {
     // write any serializable value to socket
-    pub async fn write<T: Serialize>(&mut self, value: &T) -> Result<usize> {
+    pub async fn write<V: Serialize>(&mut self, value: &V) -> Result<usize> {
         to_buffer(value, &mut self.buffer)
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
         let len = self.buffer.len();
@@ -135,7 +230,7 @@ impl BufWriter {
 
 type ChannelFrame = (AmqpChannelId, Frame);
 
-impl BufReader {
+impl BufIoReader {
     // try to decode a whole frame from the bufferred data.
     // If it is incomplete data, return None;
     // If the frame syntax is corrupted, return Error.

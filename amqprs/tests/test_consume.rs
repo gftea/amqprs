@@ -5,7 +5,7 @@ use amqprs::{
         BasicCancelArguments, BasicConsumeArguments, BasicPublishArguments, Channel,
         QueueBindArguments, QueueDeclareArguments,
     },
-    connection::{Connection, OpenConnectionArguments},
+    connection::Connection,
     consumer::DefaultConsumer,
     BasicProperties, DELIVERY_MODE_TRANSIENT,
 };
@@ -18,8 +18,7 @@ async fn test_multi_consumer() {
     let _guard = common::setup_logging(Level::INFO);
 
     // open a connection to RabbitMQ server
-    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
-
+    let args = common::build_conn_args();
     let connection = Connection::open(&args).await.unwrap();
 
     // open a channel dedicated for consumer on the connection
@@ -59,7 +58,6 @@ async fn test_multi_consumer() {
         .await
         .unwrap();
 
-
     // open a channel dedicated for publisher on the connection
     let pub_channel = connection.open_channel(None).await.unwrap();
     // publish test messages
@@ -79,7 +77,7 @@ async fn test_consume_redelivered_messages() {
     let _guard = common::setup_logging(Level::INFO);
 
     // open a connection to RabbitMQ server
-    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+    let args = common::build_conn_args();
 
     let connection = Connection::open(&args).await.unwrap();
 
@@ -151,7 +149,7 @@ async fn test_cancel_consumer() {
     let _guard = common::setup_logging(Level::INFO);
 
     // open a connection to RabbitMQ server
-    let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+    let args = common::build_conn_args();
 
     let connection = Connection::open(&args).await.unwrap();
     connection
@@ -186,9 +184,9 @@ async fn test_cancel_consumer() {
         .unwrap();
 
     // start consumer with auto-ack.
-    // NOTE: use automatic ack, because if running both publisher and 
+    // NOTE: use automatic ack, because if running both publisher and
     // manual-ACK consumer on same channel cocurrently, the ACK frames
-    // may interleave with the publish sequence which results in server 
+    // may interleave with the publish sequence which results in server
     // exception to close the connection.
     let consumer_tag = channel
         .basic_consume(

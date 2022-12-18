@@ -12,14 +12,12 @@ mod common;
 async fn test_customized_heartbeat() {
     let _guard = common::setup_logging(Level::DEBUG);
 
-    // open a connection to RabbitMQ server, set heartbeat = 10s
-    let connection = Connection::open(
-        &OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
-            .heartbeat(10)
-            .finish(),
-    )
-    .await
-    .unwrap();
+    // open a connection to RabbitMQ server,
+    let mut args = common::build_conn_args();
+    // set heartbeat = 10s
+    args.heartbeat(10);
+    
+    let connection = Connection::open(&args).await.unwrap();
 
     // open a channel on the connection
     let channel = connection.open_channel(None).await.unwrap();
