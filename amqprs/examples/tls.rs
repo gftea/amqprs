@@ -8,7 +8,7 @@ use amqprs::{
     BasicProperties,
 };
 use tokio::time;
-use tracing::{Level, warn};
+use tracing::{warn, Level};
 
 #[cfg(feature = "tls")]
 use amqprs::tls::TlsAdaptor;
@@ -42,7 +42,7 @@ async fn main() {
         let args = OpenConnectionArguments::new("localhost:5671", "user", "bitnami")
             .tls_adaptor(
                 TlsAdaptor::with_client_auth(
-                    root_ca_cert.as_path(),
+                    Some(root_ca_cert.as_path()),
                     client_cert.as_path(),
                     client_private_key.as_path(),
                     domain.to_owned(),
