@@ -16,7 +16,6 @@ mod common;
 #[cfg(not(feature = "tls"))]
 fn build_conn_args() -> OpenConnectionArguments {
     OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
-
 }
 #[cfg(feature = "tls")]
 fn build_conn_args() -> OpenConnectionArguments {
@@ -32,7 +31,7 @@ fn build_conn_args() -> OpenConnectionArguments {
     OpenConnectionArguments::new("localhost:5671", "user", "bitnami")
         .tls_adaptor(
             amqprs::tls::TlsAdaptor::with_client_auth(
-                root_ca_cert.as_path(),
+                Some(root_ca_cert.as_path()),
                 client_cert.as_path(),
                 client_private_key.as_path(),
                 domain.to_owned(),
