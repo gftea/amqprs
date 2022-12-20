@@ -103,7 +103,7 @@ impl TryFrom<&str> for ShortStr {
 /// // create a LongStr from `String`
 /// let s: LongStr = String::from("hello").try_into().unwrap();
 /// ```
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct LongStr(u32, String);
 
 impl fmt::Display for LongStr {
@@ -150,7 +150,7 @@ impl From<LongStr> for String {
 ///
 /// RabbitMQ treat the decimal value as signed integer.
 /// See notes "Decimals encoding" in [amqp-0-9-1-errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html).
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct DecimalValue(Octect, LongInt);
 
 impl DecimalValue {
@@ -168,7 +168,7 @@ impl fmt::Display for DecimalValue {
 /////////////////////////////////////////////////////////////////////////////
 /// AMQP byte array type.
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct ByteArray(LongUint, Vec<u8>);
 impl TryFrom<Vec<u8>> for ByteArray {
     type Error = TryFromIntError;
