@@ -34,4 +34,7 @@ jobs:
       run: llvm-profdata-14 merge -sparse amqprs/default_*.profraw -o amqprs.profdata
 
     - name: Generate coverage report
-      run: llvm-cov-14 report --use-color --ignore-filename-regex='/.cargo/registry' --ignore-filename-regex='rustc/' --ignore-filename-regex='tests/'  --instr-profile=amqprs.profdata  --object target/debug/deps/amqprs-2198819eedaae22f --object target/debug/deps/test_callback-8bc52238e93946c1 --object target/debug/deps/test_consume-d398838828406d45 --object target/debug/deps/test_get-a4225bd45ce802f1 --object target/debug/deps/test_publish-34bf7643a4fa89fe --object target/debug/deps/test_heartbeat-cced048e3836e229
+      run: |
+        object_list=$(for file in $(LLVM_PROFILE_FILE="default_%m.profraw" RUSTFLAGS="-C instrument-coverage -C codegen-units=1" cargo test -p amqprs --all-features --tests --no-run --message-format=json | jq -r "select(.profile.test == true) | .filenames[]"); do printf "%s %s " --object $file; done)
+        llvm-cov-14 report --use-color --ignore-filename-regex='/.cargo/registry' --ignore-filename-regex='rustc/' --ignore-filename-regex='tests/'  --instr-profile=amqprs.profdata ${object_list}
+
