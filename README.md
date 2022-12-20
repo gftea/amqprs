@@ -1,4 +1,5 @@
 [![integration-test](https://github.com/gftea/amqprs/actions/workflows/rust.yml/badge.svg)](https://github.com/gftea/amqprs/actions/workflows/rust.yml)
+[![codecov](https://github.com/gftea/amqprs/actions/workflows/codecov.yml/badge.svg)](https://github.com/gftea/amqprs/actions/workflows/codecov.yml)
 
 # amqprs
 ## [Documentation](https://docs.rs/amqprs/latest/amqprs/)
