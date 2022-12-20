@@ -30,5 +30,7 @@ if [ "$ans" = "y" ]; then
     git push
 fi
 
-echo "Run below command to publish to crates.io"
-echo "cargo publish -p amqprs --all-features"
+read -p 'Want to publish to crates.io? ' ans
+if [ "$ans" = "y" ]; then
+    cargo publish -p amqprs --all-features
+fi
