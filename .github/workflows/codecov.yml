@@ -1,4 +1,5 @@
-name: Rust
+name: codecov
+run-name: 'Test coverage'
 
 on: [push, workflow_dispatch]
 
@@ -12,7 +13,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  codecov:
 
     runs-on: ubuntu-latest
 
