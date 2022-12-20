@@ -22,9 +22,9 @@ jobs:
     
     - name: Start RabbitMQ server
       run:  |
-        sudo chown -R 1001:root rabbitmq_conf/tls-test
-        sudo chmod 755 rabbitmq_conf/tls-test
-        sudo chmod 400 rabbitmq_conf/tls-test/*
+        sudo chown -R 1001:root rabbitmq_conf/server
+        sudo chmod 755 rabbitmq_conf/server
+        sudo chmod 400 rabbitmq_conf/server/*
         docker-compose up -d    
     
     - name: Cargo test instrumented

@@ -27,7 +27,7 @@ services:
      
     volumes:
       - "./rabbitmq_conf/custom.conf:/bitnami/rabbitmq/conf/custom.conf"
-      - "./rabbitmq_conf/tls-test:/bitnami/tls-test"
+      - "./rabbitmq_conf/server:/bitnami/tls-test"
         
 networks:
   integration-net:
