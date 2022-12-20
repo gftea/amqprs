@@ -10,7 +10,7 @@ use tokio::{
 };
 #[cfg(feature = "tls")]
 use tokio_rustls::{client::TlsStream, rustls, TlsConnector};
-#[cfg(feature = "tracing")]
+#[cfg(feature = "traces")]
 use tracing::trace;
 
 use super::Error;
@@ -188,7 +188,7 @@ impl BufIoWriter {
     // write a AMQP frame over a specific channel
     pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
         // TODO: tracing
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "traces")]
         trace!("SENT on channel {}: {}", channel, frame);
 
         // reserve bytes for frame header, which to be updated after encoding payload
@@ -240,7 +240,7 @@ impl BufIoReader {
                 // discard parsed data in read buffer
                 self.buffer.advance(len);
                 // TODO: tracing
-                #[cfg(feature = "tracing")]
+                #[cfg(feature = "traces")]
                 trace!("RECV on channel {}: {}", channel_id, frame);
                 Ok(Some((channel_id, frame)))
             }
@@ -266,7 +266,7 @@ impl BufIoReader {
                 }
             }
             // TODO:  tracing
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "traces")]
             trace!("{len} bytes read from network");
             let result = self.decode()?;
             match result {

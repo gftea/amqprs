@@ -48,14 +48,14 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::NetworkError(msg) => write!(f, "AMQP network error: {}", msg),
-            Error::ConnectionOpenError(msg) => write!(f, "AMQP connection open error: {msg}"),
-            Error::ConnectionCloseError(msg) => write!(f, "AMQP connection close error: {msg}"),
-            Error::ConnectionUseError(msg) => write!(f, "AMQP connection usage error: {msg}"),
-            Error::ChannelOpenError(msg) => write!(f, "AMQP channel open error: {msg}"),
-            Error::ChannelUseError(msg) => write!(f, "AMQP channel close error: {msg}"),
-            Error::ChannelCloseError(msg) => write!(f, "AMQP channel usage error: {msg}"),
+            Error::ConnectionOpenError(msg) => write!(f, "AMQP connection open error: {}", msg),
+            Error::ConnectionCloseError(msg) => write!(f, "AMQP connection close error: {}", msg),
+            Error::ConnectionUseError(msg) => write!(f, "AMQP connection usage error: {}", msg),
+            Error::ChannelOpenError(msg) => write!(f, "AMQP channel open error: {}", msg),
+            Error::ChannelUseError(msg) => write!(f, "AMQP channel close error: {}", msg),
+            Error::ChannelCloseError(msg) => write!(f, "AMQP channel usage error: {}", msg),
             Error::InternalChannelError(msg) => {
-                write!(f, "internal communication error: {msg}")
+                write!(f, "internal communication error: {}", msg)
             }
         }
     }

@@ -11,7 +11,7 @@ use crate::{
     frame::{CancelOk, CloseChannelOk, FlowOk, Frame, MethodHeader},
     net::IncomingMessage,
 };
-#[cfg(feature = "tracing")]
+#[cfg(feature = "traces")]
 use tracing::{debug, error, info, trace};
 
 use super::{Channel, ConsumerMessage, DispatcherManagementCommand};
@@ -145,7 +145,7 @@ impl ChannelDispatcher {
         // purge expired resources
         for key in purge_keys {
             self.consumer_resources.remove(&key);
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "traces")]
             info!(
                 "purge stale consumer resource {} on channel {}",
                 key, self.channel
@@ -173,7 +173,7 @@ impl ChannelDispatcher {
                 ret: None,
                 basic_properties: None,
             };
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "traces")]
             trace!("starts up dispatcher task of channel {}", self.channel);
 
             let mut purge_timer = time::interval(CONSUMER_PURGE_INTERVAL);
@@ -196,24 +196,24 @@ impl ChannelDispatcher {
                         // handle command
                         match cmd {
                             DispatcherManagementCommand::RegisterContentConsumer(cmd) => {
-                                #[cfg(feature="tracing")]
+                                #[cfg(feature="traces")]
                                 info!("register consumer {}", cmd.consumer_tag);
                                 let consumer = self.get_or_new_consumer_resource(&cmd.consumer_tag);
                                 consumer.register_tx(cmd.consumer_tx);
                                 // forward buffered messages
                                 while !consumer.fifo.is_empty() {
-                                    #[cfg(feature="tracing")]
+                                    #[cfg(feature="traces")]
                                     trace!("consumer {} total buffered messages: {}", cmd.consumer_tag, consumer.fifo.len());
                                     let msg = consumer.pop_message().unwrap();
                                     if let Err(_err) = consumer.get_tx().unwrap().send(msg).await {
-                                        #[cfg(feature="tracing")]
+                                        #[cfg(feature="traces")]
                                         error!("failed to forward message to consumer {}", cmd.consumer_tag);
                                     }
                                 }
                             },
                             DispatcherManagementCommand::DeregisterContentConsumer(cmd) => {
                                 if let Some(consumer) = self.remove_consumer_resource(&cmd.consumer_tag) {
-                                    #[cfg(feature="tracing")]
+                                    #[cfg(feature="traces")]
                                     info!("deregister consumer {}, total buffered messages: {}",
                                         cmd.consumer_tag, consumer.fifo.len()
                                     );
@@ -229,7 +229,7 @@ impl ChannelDispatcher {
                             }
                             DispatcherManagementCommand::RegisterChannelCallback(cmd) => {
                                 self.callback.replace(cmd.callback);
-                                #[cfg(feature="tracing")]
+                                #[cfg(feature="traces")]
                                 debug!("callback registered on channel {}", self.channel);
                             }
                         }
@@ -241,7 +241,7 @@ impl ChannelDispatcher {
                         let frame = match message {
                             None => {
                                 // exit
-                                #[cfg(feature="tracing")]
+                                #[cfg(feature="traces")]
                                 debug!("dispatcher message channel closed, {}", self.channel);
                                 break;
                             },
@@ -268,13 +268,13 @@ impl ChannelDispatcher {
                                 // callback
                                 if let Some(ref mut cb) = self.callback {
                                     if let Err(err) = cb.close(&self.channel, close_channel).await {
-                                      #[cfg(feature="tracing")]
+                                      #[cfg(feature="traces")]
                                       error!("close callback returns error on channel {}, cause: {}", self.channel, err);
                                       // exit immediately, no response to server
                                       break;
                                     };
                                 } else {
-                                    #[cfg(feature="tracing")]
+                                    #[cfg(feature="traces")]
                                     error!("callback not registered on channel {}", self.channel);
                                 }
                                 self.channel.set_is_open(false);
@@ -337,13 +337,13 @@ impl ChannelDispatcher {
                                         match consumer.get_tx() {
                                             Some(consumer_tx) => {
                                                 if (consumer_tx.send(consumer_message).await).is_err() {
-                                                    #[cfg(feature="tracing")]
+                                                    #[cfg(feature="traces")]
                                                     error!("failed to dispatch message to consumer {} on channel {}",
                                                     consumer_tag, self.channel);
                                                 }
                                             },
                                             None => {
-                                                #[cfg(feature="tracing")]
+                                                #[cfg(feature="traces")]
                                                 info!("can't find consumer {}, message is buffered", consumer_tag);
                                                 consumer.push_message(consumer_message);
                                                 // try to yield for expected consumer registration command,
@@ -366,7 +366,7 @@ impl ChannelDispatcher {
                                                 body.inner
                                             ).await ;
                                         } else {
-                                            #[cfg(feature="tracing")]
+                                            #[cfg(feature="traces")]
                                             error!("callback not registered on channel {}", self.channel);
                                         }
                                     },
@@ -400,7 +400,7 @@ impl ChannelDispatcher {
                                 {
                                     Some(responder) => {
                                         if let Err(response) = responder.send(frame) {
-                                            #[cfg(feature="tracing")]
+                                            #[cfg(feature="traces")]
                                             error!(
                                                 "failed to dispatch {} to channel {}",
                                                 response, self.channel
@@ -420,7 +420,7 @@ impl ChannelDispatcher {
                                 if let Some(ref mut cb) = self.callback {
                                     match cb.flow(&self.channel, flow.active).await {
                                       Err(err) => {
-                                        #[cfg(feature="tracing")]
+                                        #[cfg(feature="traces")]
                                         error!("flow callback error on channel {}, cause: '{}'.", self.channel, err);
                                       }
                                       Ok(active) => {
@@ -431,7 +431,7 @@ impl ChannelDispatcher {
                                       }
                                     };
                                 } else {
-                                    #[cfg(feature="tracing")]
+                                    #[cfg(feature="traces")]
                                     error!("callback not registered on channel {}", self.channel);
                                 }
 
@@ -443,7 +443,7 @@ impl ChannelDispatcher {
                                     let no_wait = cancel.no_wait();
                                     match cb.cancel(&self.channel, cancel).await {
                                       Err(err) => {
-                                        #[cfg(feature="tracing")]
+                                        #[cfg(feature="traces")]
                                         error!("cancel callback error on channel {}, cause: '{}'.", self.channel, err);
                                       }
                                       Ok(_) => {
@@ -458,7 +458,7 @@ impl ChannelDispatcher {
                                       }
                                     };
                                 } else {
-                                    #[cfg(feature="tracing")]
+                                    #[cfg(feature="traces")]
                                     error!("callback not registered on channel {}", self.channel);
                                 }
                             }
@@ -467,7 +467,7 @@ impl ChannelDispatcher {
                                 if let Some(ref mut cb) = self.callback {
                                     cb.publish_ack(&self.channel, ack).await;
                                 } else {
-                                    #[cfg(feature="tracing")]
+                                    #[cfg(feature="traces")]
                                     error!("callback not registered on channel {}", self.channel);
                                 }
                             }
@@ -475,7 +475,7 @@ impl ChannelDispatcher {
                                 if let Some(ref mut cb) = self.callback {
                                     cb.publish_nack(&self.channel, nack).await;
                                 } else {
-                                    #[cfg(feature="tracing")]
+                                    #[cfg(feature="traces")]
                                     error!("callback not registered on channel {}", self.channel);
                                 }                            }
                             _ => unreachable!("dispatcher of channel {} receive unexpected frame {}", self.channel, frame),
@@ -491,7 +491,7 @@ impl ChannelDispatcher {
 
                 }
             }
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "traces")]
             info!("exit dispatcher of channel {}", self.channel);
         });
     }

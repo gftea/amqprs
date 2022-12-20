@@ -28,7 +28,7 @@ use crate::{
     BasicProperties,
 };
 use async_trait::async_trait;
-#[cfg(feature = "tracing")]
+#[cfg(feature = "traces")]
 use tracing::{error, warn, info};
 
 /////////////////////////////////////////////////////////////////////////////
@@ -64,7 +64,7 @@ pub struct DefaultConnectionCallback;
 #[async_trait]
 impl ConnectionCallback for DefaultConnectionCallback {
     async fn close(&mut self, connection: &Connection, close: Close) -> Result<()> {
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "traces")]
         error!(
             "handle close request for connection {}, cause: {}",
             connection, close
@@ -73,7 +73,7 @@ impl ConnectionCallback for DefaultConnectionCallback {
     }
 
     async fn blocked(&mut self, connection: &Connection, reason: String) {
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "traces")]
         info!(
             "handle blocked notification for connection {}, reason: {}",
             connection, reason
@@ -81,7 +81,7 @@ impl ConnectionCallback for DefaultConnectionCallback {
     }
 
     async fn unblocked(&mut self, connection: &Connection) {
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "traces")]
         info!(
             "handle unblocked notification for connection {}",
             connection
@@ -166,7 +166,7 @@ pub struct DefaultChannelCallback;
 #[async_trait]
 impl ChannelCallback for DefaultChannelCallback {
     async fn close(&mut self, channel: &Channel, close: CloseChannel) -> Result<()> {
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "traces")]
         error!(
             "handle close request for channel {}, cause: {}",
             channel, close
@@ -174,7 +174,7 @@ impl ChannelCallback for DefaultChannelCallback {
         Ok(())
     }
     async fn cancel(&mut self, channel: &Channel, cancel: Cancel) -> Result<()> {
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "traces")]
         warn!(
             "handle cancel request for consumer {} on channel {}",
             cancel.consumer_tag(),
@@ -183,7 +183,7 @@ impl ChannelCallback for DefaultChannelCallback {
         Ok(())
     }
     async fn flow(&mut self, channel: &Channel, active: bool) -> Result<bool> {
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "traces")]
         info!(
             "handle flow request active={} for channel {}",
             active, channel
@@ -191,7 +191,7 @@ impl ChannelCallback for DefaultChannelCallback {
         Ok(true)
     }
     async fn publish_ack(&mut self, channel: &Channel, ack: Ack) {
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "traces")]
         info!(
             "handle publish ack delivery_tag={} on channel {}",
             ack.delivery_tag(),
@@ -199,7 +199,7 @@ impl ChannelCallback for DefaultChannelCallback {
         );
     }
     async fn publish_nack(&mut self, channel: &Channel, nack: Nack) {
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "traces")]
         warn!(
             "handle publish nack delivery_tag={} on channel {}",
             nack.delivery_tag(),
@@ -210,10 +210,10 @@ impl ChannelCallback for DefaultChannelCallback {
         &mut self,
         channel: &Channel,
         ret: Return,
-        basic_properties: BasicProperties,
-        content: Vec<u8>,
+        _basic_properties: BasicProperties,
+        _content: Vec<u8>,
     ) {
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "traces")]
         warn!("handle publish return {} on channel {}", ret, channel);
     }
 }

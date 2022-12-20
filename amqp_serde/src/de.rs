@@ -537,7 +537,7 @@ impl<'de, 'a> EnumAccess<'de> for Enum<'a, 'de> {
             v if v.is_ascii_alphabetic() => {
                 let val = [v];
 
-                let variant = unsafe { std::str::from_utf8_unchecked(val.as_slice()) };
+                let variant = unsafe { std::str::from_utf8_unchecked(&val[..]) };
                 let val = seed.deserialize(variant.into_deserializer())?;
                 Ok((val, self))
             }

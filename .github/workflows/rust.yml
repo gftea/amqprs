@@ -22,12 +22,17 @@ jobs:
     - name: cargo build (debug, all-features)
       run: cargo build --all-features --verbose
 
-    - name: cargo clippy (debug, all-features)
-      run: cargo clippy --all-features
+    - name: cargo clippy (all-features)
+      run: cargo clippy --all-features -- -Dwarnings
 
     - name: cargo build (debug, tls)
       run: cargo build -F tls --verbose
 
+    - name: cargo msrv
+      uses: actions-rs/toolchain@v1
+      with:
+        components: msrv
+      run: cargo msrv
 
   test_all_features:
     runs-on: ubuntu-latest
@@ -70,8 +75,8 @@ jobs:
     - name: default
       run: cargo test
 
-    - name: tracing
-      run: cargo test -F tracing
+    - name: traces
+      run: cargo test -F traces
 
     - name: compliance_assert
       run: cargo test -F compliance_assert

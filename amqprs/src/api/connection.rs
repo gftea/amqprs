@@ -73,7 +73,7 @@ use super::tls::TlsAdaptor;
 use crate::api::compilance_asserts::assert_path;
 #[cfg(feature = "compilance_assert")]
 use crate::frame::FRAME_MIN_SIZE;
-#[cfg(feature = "tracing")]
+#[cfg(feature = "traces")]
 use tracing::{debug, error, info};
 
 //  TODO: move below constants gto be part of static configuration of connection
@@ -470,7 +470,7 @@ impl Connection {
             .ok_or_else(|| {
                 Error::ConnectionOpenError("failed to register channel resource".to_string())
             })?;
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "traces")]
         info!("open connection {}", new_amqp_conn.connection_name());
         Ok(new_amqp_conn)
     }
@@ -731,7 +731,7 @@ impl Connection {
         // If no channel id is given, it will be allocated by management task and included in acker response
         // otherwise same id will be received in response
         if let Err(err) = self.shared.conn_mgmt_tx.send(cmd).await {
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "traces")]
             debug!(
                 "failed to register channel resource on connection {}, cause: {}",
                 self, err
@@ -743,7 +743,7 @@ impl Connection {
         match acker_rx.await {
             Ok(res) => {
                 if res.is_none() {
-                    #[cfg(feature = "tracing")]
+                    #[cfg(feature = "traces")]
                     debug!(
                         "failed to allocate/reserve channel id on connection {}",
                         self
@@ -752,7 +752,7 @@ impl Connection {
                 res
             }
             Err(err) => {
-                #[cfg(feature = "tracing")]
+                #[cfg(feature = "traces")]
                 debug!(
                     "failed to register channel resource on connection {}, cause: {}",
                     self, err
@@ -850,7 +850,7 @@ impl Connection {
 
         let dispatcher = ChannelDispatcher::new(channel.clone(), dispatcher_rx, dispatcher_mgmt_rx);
         dispatcher.spawn().await;
-        #[cfg(feature = "tracing")]
+        #[cfg(feature = "traces")]
         info!("open channel {}", channel);
 
         Ok(channel)
@@ -905,7 +905,7 @@ impl Connection {
                 .is_open
                 .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
         {
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "traces")]
             info!("close connection {}", self);
             self.close_handshake().await?;
             // not necessary, but to skip atomic compare at `drop`
@@ -957,23 +957,23 @@ impl Drop for Connection {
                 Ordering::Acquire,
                 Ordering::Relaxed,
             ) {
-                #[cfg(feature = "tracing")]
+                #[cfg(feature = "traces")]
                 debug!("drop connection {}", self);
                 let conn = self.clone();
                 tokio::spawn(async move {
-                    #[cfg(feature = "tracing")]
+                    #[cfg(feature = "traces")]
                     info!("close connection {} at drop", conn);
 
                     if let Err(err) = conn.close_handshake().await {
                         // Compliance: A peer that detects a socket closure without having received a Close-Ok
                         // handshake method SHOULD log the error.
-                        #[cfg(feature = "tracing")]
+                        #[cfg(feature = "traces")]
                         error!(
                             "'{}' occurred at closing connection {} after drop",
                             err, conn
                         );
                     } else {
-                        #[cfg(feature = "tracing")]
+                        #[cfg(feature = "traces")]
                         info!("connection {} is closed OK after drop", conn);
                     }
                 });

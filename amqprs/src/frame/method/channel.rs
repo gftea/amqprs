@@ -37,19 +37,6 @@ pub struct CloseChannel {
 }
 
 impl CloseChannel {
-    pub(crate) fn new(
-        reply_code: ShortUint,
-        reply_text: ShortStr,
-        class_id: ShortUint,
-        method_id: ShortUint,
-    ) -> Self {
-        Self {
-            reply_code,
-            reply_text,
-            class_id,
-            method_id,
-        }
-    }
 
     pub fn reply_code(&self) -> u16 {
         self.reply_code
