@@ -45,7 +45,8 @@ jobs:
           override: true
       - uses: actions-rs/cargo@v1
         with:
-          command: check --all-features
+          command: check 
+          args: --all-features
 
   test_all_features:
     runs-on: ubuntu-latest
