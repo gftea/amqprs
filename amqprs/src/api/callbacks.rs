@@ -29,7 +29,7 @@ use crate::{
 };
 use async_trait::async_trait;
 #[cfg(feature = "tracing")]
-use tracing::{error, info};
+use tracing::{error, warn, info};
 
 /////////////////////////////////////////////////////////////////////////////
 /// Callback interfaces for asynchronous `Connection` class message.
@@ -175,7 +175,7 @@ impl ChannelCallback for DefaultChannelCallback {
     }
     async fn cancel(&mut self, channel: &Channel, cancel: Cancel) -> Result<()> {
         #[cfg(feature = "tracing")]
-        info!(
+        warn!(
             "handle cancel request for consumer {} on channel {}",
             cancel.consumer_tag(),
             channel
@@ -200,7 +200,7 @@ impl ChannelCallback for DefaultChannelCallback {
     }
     async fn publish_nack(&mut self, channel: &Channel, nack: Nack) {
         #[cfg(feature = "tracing")]
-        info!(
+        warn!(
             "handle publish nack delivery_tag={} on channel {}",
             nack.delivery_tag(),
             channel
@@ -214,6 +214,6 @@ impl ChannelCallback for DefaultChannelCallback {
         content: Vec<u8>,
     ) {
         #[cfg(feature = "tracing")]
-        info!("handle publish return {} on channel {}", ret, channel);
+        warn!("handle publish return {} on channel {}", ret, channel);
     }
 }
