@@ -267,7 +267,7 @@ impl BufIoReader {
             }
             // TODO:  tracing
             #[cfg(feature = "traces")]
-            trace!("{len} bytes read from network");
+            trace!("{} bytes read from network", len);
             let result = self.decode()?;
             match result {
                 Some(frame) => return Ok(frame),
