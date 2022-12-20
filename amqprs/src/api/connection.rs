@@ -199,17 +199,17 @@ struct SharedConnectionInner {
 ///
 /// Methods can be chained in order to build the desired argument values, call
 /// [`finish`] to finish chaining and returns a new argument.
-/// 
-/// Chaining configuration implies an additional clone when [`finish`] is called. 
+///
+/// Chaining configuration implies an additional clone when [`finish`] is called.
 ///
 /// # Examples:
-/// 
+///
 /// ## Chaining configuration style
-/// 
+///
 /// ```
 /// # use amqprs::security::SecurityCredentials;
 /// # use amqprs::connection::OpenConnectionArguments;
-/// 
+///
 /// // Create a default and update only `credentials` field, then return desired config.
 /// let args = OpenConnectionArguments::default()
 ///     .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
@@ -219,26 +219,26 @@ struct SharedConnectionInner {
 /// ```
 /// # use amqprs::security::SecurityCredentials;
 /// # use amqprs::connection::OpenConnectionArguments;
-/// 
+///
 /// // Create a new one and update the fields, then return desired config
 /// let args = OpenConnectionArguments::new("localhost:5672","user", "bitnami")
 ///     .virtual_host("myhost")
 ///     .connection_name("myconnection")
 ///     .finish();
 /// ```
-/// 
+///
 /// ## Non-chaining configuration style
-/// 
+///
 /// ```
 /// # use amqprs::security::SecurityCredentials;
 /// # use amqprs::connection::OpenConnectionArguments;
-/// 
+///
 /// // create a new and mutable argument
 /// let mut args = OpenConnectionArguments::new("localhost:5672","user", "bitnami");
 /// // update fields of the mutable argument
 /// args.virtual_host("myhost").connection_name("myconnection");
 /// ```
-/// 
+///
 /// [`Connection::open`]: struct.Connection.html#method.open
 /// [`finish`]: struct.OpenConnectionArguments.html#method.finish
 
@@ -357,9 +357,9 @@ impl OpenConnectionArguments {
     }
 
     /// Finish chaining and returns a new argument according to chained configurations.
-    /// 
+    ///
     /// It actually clones the resulted configurations.
-    /// 
+    ///
     pub fn finish(&mut self) -> Self {
         self.clone()
     }
@@ -510,12 +510,11 @@ impl Connection {
             Error::ConnectionOpenError("start".to_string())
         )?;
         // get server supported locales
-        if false
-            == start
-                .locales
-                .as_ref()
-                .split(" ")
-                .any(|v| DEFAULT_LOCALE == v)
+        if !start
+            .locales
+            .as_ref()
+            .split(' ')
+            .any(|v| DEFAULT_LOCALE == v)
         {
             return Err(Error::ConnectionOpenError(format!(
                 "locale '{}' is not supported by server",
@@ -523,12 +522,11 @@ impl Connection {
             )));
         }
         // get server supported authentication mechanisms
-        if false
-            == start
-                .mechanisms
-                .as_ref()
-                .split(" ")
-                .any(|v| args.credentials.get_mechanism_name() == v)
+        if !start
+            .mechanisms
+            .as_ref()
+            .split(' ')
+            .any(|v| args.credentials.get_mechanism_name() == v)
         {
             return Err(Error::ConnectionOpenError(format!(
                 "authentication '{}' is not supported by server",
@@ -540,7 +538,7 @@ impl Connection {
         let mut caps_table: FieldTable = start
             .server_properties
             .remove(&"capabilities".try_into().unwrap())
-            .unwrap_or(FieldValue::F(FieldTable::default()))
+            .unwrap_or_else(|| FieldValue::F(FieldTable::default()))
             .try_into()
             .unwrap();
         // helper closure to get bool FieldValue
@@ -570,7 +568,7 @@ impl Connection {
             let value: LongStr = start
                 .server_properties
                 .remove(&key.try_into().unwrap())
-                .unwrap_or(FieldValue::S("unknown".try_into().unwrap()))
+                .unwrap_or_else(|| FieldValue::S("unknown".try_into().unwrap()))
                 .try_into()
                 .unwrap();
             value
@@ -744,7 +742,7 @@ impl Connection {
         // expect a channel id in response
         match acker_rx.await {
             Ok(res) => {
-                if let None = res {
+                if res.is_none() {
                     #[cfg(feature = "tracing")]
                     debug!(
                         "failed to allocate/reserve channel id on connection {}",
@@ -865,7 +863,7 @@ impl Connection {
     ///
     /// Returns error if fails to send indication to server.
     pub async fn blocked(&self, reason: &str) -> Result<()> {
-        let blocked = Blocked::new(reason.clone().try_into().unwrap());
+        let blocked = Blocked::new(reason.to_owned().try_into().unwrap());
 
         self.shared
             .outgoing_tx

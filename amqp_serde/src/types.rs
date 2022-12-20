@@ -200,7 +200,11 @@ impl FieldArray {
         Self(0, Vec::with_capacity(0))
     }
 }
-
+impl Default for FieldArray {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl TryFrom<Vec<FieldValue>> for FieldArray {
     type Error = TryFromIntError;
 

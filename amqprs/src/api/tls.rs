@@ -1,8 +1,8 @@
 //! This module provides TLS adaptor.
-//! 
+//!
 //! If TLS adaptor is set in [`OpenConnectionArguments`], and given to [`Connection::open`],
 //! the TLS network stream will be used instead of regular TCP stream.
-//! 
+//!
 //! [`OpenConnectionArguments`]: ../connection/struct.OpenConnectionArguments.html
 //! [`Connection::open`]: ../connection/struct.Connection.html#method.open
 
@@ -13,10 +13,10 @@ use tokio_rustls::{
 };
 
 /// The TLS adaptor used to enable TLS network stream.
-/// 
+///
 /// Currently, it depends on [`tokio-rustls`] and provides convenient
 /// methods to create a TLS adaptor. See details of each method.
-/// 
+///
 /// [`tokio-rustls`]: https://docs.rs/tokio-rustls/latest/tokio_rustls
 #[derive(Clone)]
 pub struct TlsAdaptor {
@@ -112,14 +112,14 @@ impl TlsAdaptor {
     fn build_client_certificates(client_cert: &Path) -> std::io::Result<Vec<Certificate>> {
         let mut pem = BufReader::new(File::open(client_cert)?);
         let certs = rustls_pemfile::certs(&mut pem)?;
-        let certs = certs.into_iter().map(|cert| Certificate(cert));
+        let certs = certs.into_iter().map(Certificate);
         Ok(certs.collect())
     }
 
     fn build_client_private_keys(client_private_key: &Path) -> std::io::Result<Vec<PrivateKey>> {
         let mut pem = BufReader::new(File::open(client_private_key)?);
         let keys = rustls_pemfile::pkcs8_private_keys(&mut pem)?;
-        let keys = keys.into_iter().map(|key| PrivateKey(key));
+        let keys = keys.into_iter().map(PrivateKey);
         Ok(keys.collect())
     }
 }

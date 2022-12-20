@@ -18,6 +18,7 @@ pub struct SecurityCredentials {
     mechanism: AuthenticationMechanism,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 enum AuthenticationMechanism {

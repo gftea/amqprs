@@ -13,6 +13,10 @@ cargo test -F tracing
 cargo test -F compliance_assert
 cargo test -F tls
 
+
+# clippy
+cargo clippy --all-features
+
 # docs build
 cargo doc -p amqprs --all-features --open
 

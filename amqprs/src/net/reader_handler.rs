@@ -91,7 +91,7 @@ impl ReaderHandler {
                 responder
                     .send(open_channel_ok.into_frame())
                     .map_err(|err_frame| {
-                        Error::InternalChannelError(format!(
+                        Error::SyncChannel(format!(
                             "failed to forward {} to connection {}",
                             err_frame, self.amqp_connection
                         ))
@@ -107,7 +107,7 @@ impl ReaderHandler {
 
                 responder
                     .send(close_ok.into_frame())
-                    .map_err(|response| Error::InternalChannelError(response.to_string()))?;
+                    .map_err(|response| Error::SyncChannel(response.to_string()))?;
                 #[cfg(feature = "tracing")]
                 info!("close connection {} by client", self.amqp_connection);
 
@@ -126,7 +126,7 @@ impl ReaderHandler {
                             "close callback error on connection {}, cause: {}",
                             self.amqp_connection, err
                         );
-                        return Err(Error::CloseCallbackError);
+                        return Err(Error::Callback);
                     }
                 } else {
                     #[cfg(feature = "tracing")]

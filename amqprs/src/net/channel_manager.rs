@@ -81,8 +81,7 @@ impl ChannelManager {
 
     /// remove channel resource, when channel to be closed
     pub fn remove_resource(&mut self, channel_id: &AmqpChannelId) -> Option<ChannelResource> {
-        assert_eq!(
-            true,
+        assert!(
             self.channel_id_repo.release(*channel_id),
             "release a free id, implementation error"
         );

@@ -84,7 +84,7 @@ macro_rules! impl_parse_num {
 impl<'de> Deserializer<'de> {
     // Look at the first byte in the input without consuming it.
     fn peek_byte(&mut self) -> Result<u8> {
-        self.input.iter().next().map(|&v| v).ok_or(Error::Eof)
+        self.input.iter().next().copied().ok_or(Error::Eof)
     }
 
     // Consume the first byte in the input.
@@ -134,7 +134,7 @@ impl<'de> Deserializer<'de> {
     fn get_parsed_length(&self) -> Result<usize> {
         match self.last_parsed_len {
             Some(len) if len <= u32::MAX as usize => {
-                let len = len as usize;
+                let len = len;
                 if self.input.len() < len {
                     Err(Error::Syntax)
                 } else {

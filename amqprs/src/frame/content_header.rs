@@ -20,7 +20,7 @@ impl ContentHeader {
     }
 
     pub fn into_frame(self) -> Frame {
-        Frame::ContentHeader(self)
+        Frame::ContentHeader(Box::new(self))
     }
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,7 +72,8 @@ pub struct BasicProperties {
 }
 
 impl BasicProperties {
-    /// Returns a new instance.
+    #[allow(clippy::too_many_arguments)]
+    /// Returns a new instance.    
     pub fn new(
         content_type: Option<String>,
         content_encoding: Option<String>,
@@ -449,7 +450,7 @@ impl<'de> Deserialize<'de> for BasicProperties {
     where
         D: serde::Deserializer<'de>,
     {
-        const FIELDS: &'static [&'static str] = &[
+        const FIELDS: &[&str] = &[
             "content_type",
             "content_encoding",
             "headers",

@@ -55,7 +55,7 @@ mod helpers {
             $($($method(&'static MethodHeader, $method),)+)+
 
             HeartBeat(HeartBeat),
-            ContentHeader(ContentHeader),
+            ContentHeader(Box<ContentHeader>),
             ContentBody(ContentBody),
         }
     };
@@ -225,7 +225,7 @@ impl Frame {
                         Some(s) => s,
                         None => unreachable!("out of bound"),
                     })?;
-                let method_raw = match buf.get(FRAME_HEADER_SIZE + 4..total_size as usize - 1) {
+                let method_raw = match buf.get(FRAME_HEADER_SIZE + 4..total_size - 1) {
                     Some(s) => s,
                     None => unreachable!("out of bound"),
                 };
@@ -244,7 +244,7 @@ impl Frame {
                 })?;
 
                 start = end;
-                end = total_size as usize - 1;
+                end = total_size - 1;
                 let basic_properties: BasicProperties = from_bytes(match buf.get(start..end) {
                     Some(s) => s,
                     None => unreachable!("out of bound"),
@@ -253,12 +253,12 @@ impl Frame {
                 Ok(Some((
                     total_size,
                     channel,
-                    Frame::ContentHeader(ContentHeader::new(header_common, basic_properties)),
+                    Frame::ContentHeader(Box::new(ContentHeader::new(header_common, basic_properties))),
                 )))
             }
             FRAME_CONTENT_BODY => {
                 let start = FRAME_HEADER_SIZE;
-                let end = total_size as usize - 1;
+                let end = total_size - 1;
                 let body = buf.get(start..end).expect("should never fail");
                 Ok(Some((
                     total_size,

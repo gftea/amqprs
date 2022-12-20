@@ -138,7 +138,7 @@ impl ChannelDispatcher {
                         return Some(k.clone());
                     }
                 }
-                return None;
+                None
             })
             .collect();
 
@@ -336,7 +336,7 @@ impl ChannelDispatcher {
                                         let consumer = self.get_or_new_consumer_resource(&consumer_tag);
                                         match consumer.get_tx() {
                                             Some(consumer_tx) => {
-                                                if let Err(_) = consumer_tx.send(consumer_message).await {
+                                                if (consumer_tx.send(consumer_message).await).is_err() {
                                                     #[cfg(feature="tracing")]
                                                     error!("failed to dispatch message to consumer {} on channel {}",
                                                     consumer_tag, self.channel);

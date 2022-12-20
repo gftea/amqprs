@@ -260,7 +260,7 @@ impl BufIoReader {
             let len = self.stream.read_buf(&mut self.buffer).await?;
             if len == 0 {
                 if self.buffer.is_empty() {
-                    return Err(Error::CloseCallbackError);
+                    return Err(Error::PeerShutdown);
                 } else {
                     return Err(Error::Interrupted);
                 }

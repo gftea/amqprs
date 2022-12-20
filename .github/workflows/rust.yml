@@ -12,7 +12,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-
+ 
   builds:
     runs-on: ubuntu-latest
 
@@ -22,8 +22,12 @@ jobs:
     - name: cargo build (debug, all-features)
       run: cargo build --all-features --verbose
 
+    - name: cargo clippy (debug, all-features)
+      run: cargo clippy --all-features
+
     - name: cargo build (debug, tls)
       run: cargo build -F tls --verbose
+
 
   test_all_features:
     runs-on: ubuntu-latest
