@@ -251,11 +251,11 @@ async fn publish_test_messages(
     headers.insert("date".try_into().unwrap(), "2022-11".into());
 
     let basic_props = BasicProperties::default()
-        .set_content_type("application/json")
-        .set_headers(headers)
-        .set_delivery_mode(DELIVERY_MODE_TRANSIENT)
-        .set_user_id("user")
-        .set_app_id("consumer_test")
+        .with_content_type("application/json")
+        .with_headers(headers)
+        .with_delivery_mode(DELIVERY_MODE_TRANSIENT)
+        .with_user_id("user")
+        .with_app_id("consumer_test")
         .finish();
     for _ in 0..num {
         channel

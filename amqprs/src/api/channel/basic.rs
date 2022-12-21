@@ -727,7 +727,7 @@ mod tests {
             connection::{Connection, OpenConnectionArguments},
             consumer::DefaultConsumer,
         },
-        frame::BasicProperties,
+        frame::BasicProperties, DELIVERY_MODE_TRANSIENT,
     };
 
     use super::{BasicConsumeArguments, BasicPublishArguments};
@@ -824,7 +824,8 @@ mod tests {
             let args = BasicPublishArguments::new("amq.topic", "eiffel._.amqprs._.tester");
 
             let basic_properties = BasicProperties::default()
-                .set_content_type("application/json;charset=utf-8")
+                .with_content_type("application/json;charset=utf-8")
+                .with_delivery_mode(DELIVERY_MODE_TRANSIENT)
                 .finish();
 
             let content = String::from(

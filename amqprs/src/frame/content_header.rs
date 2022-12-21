@@ -44,10 +44,10 @@ pub struct ContentHeaderCommon {
 /// ```
 /// # use amqprs::{BasicProperties, DELIVERY_MODE_TRANSIENT};
 /// let basic_props = BasicProperties::default()
-///     .set_content_type("application/json")
-///     .set_delivery_mode(DELIVERY_MODE_TRANSIENT)
-///     .set_user_id("user")
-///     .set_app_id("consumer_test")
+///     .with_content_type("application/json")
+///     .with_delivery_mode(DELIVERY_MODE_TRANSIENT)
+///     .with_user_id("user")
+///     .with_app_id("consumer_test")
 ///     .finish();
 /// ```
 #[derive(Debug, Serialize, Default, Clone)]
@@ -262,7 +262,7 @@ impl BasicProperties {
     /// Chainable setter of content type.
     ///
     /// # Default: [`None`]
-    pub fn set_content_type(&mut self, content_type: &str) -> &mut Self {
+    pub fn with_content_type(&mut self, content_type: &str) -> &mut Self {
         Self::set_content_type_flag(&mut self.property_flags);
         self.content_type = Some(content_type.to_owned().try_into().unwrap());
         self
@@ -275,7 +275,7 @@ impl BasicProperties {
     /// Chainable setter of content encoding.
     ///
     /// # Default: [`None`]
-    pub fn set_content_encoding(&mut self, content_encoding: &str) -> &mut Self {
+    pub fn with_content_encoding(&mut self, content_encoding: &str) -> &mut Self {
         Self::set_content_encoding_flag(&mut self.property_flags);
         self.content_encoding = Some(content_encoding.to_owned().try_into().unwrap());
         self
@@ -288,7 +288,7 @@ impl BasicProperties {
     /// Chainable setter of headers.
     ///
     /// # Default: [`None`]
-    pub fn set_headers(&mut self, headers: FieldTable) -> &mut Self {
+    pub fn with_headers(&mut self, headers: FieldTable) -> &mut Self {
         Self::set_headers_flag(&mut self.property_flags);
         self.headers = Some(headers);
         self
@@ -306,7 +306,7 @@ impl BasicProperties {
     ///
     /// [`DELIVERY_MODE_TRANSIENT`]: ../constant.DELIVERY_MODE_TRANSIENT.html
     /// [`DELIVERY_MODE_PERSISTENT`]: ../constant.DELIVERY_MODE_PERSISTENT.html
-    pub fn set_delivery_mode(&mut self, delivery_mode: u8) -> &mut Self {
+    pub fn with_delivery_mode(&mut self, delivery_mode: u8) -> &mut Self {
         Self::set_delivery_mode_flag(&mut self.property_flags);
         self.delivery_mode = Some(delivery_mode);
         self
@@ -321,7 +321,7 @@ impl BasicProperties {
     /// `priority`: message priority, 0 to 9
     ///
     /// # Default: [`None`]
-    pub fn set_priority(&mut self, priority: u8) -> &mut Self {
+    pub fn with_priority(&mut self, priority: u8) -> &mut Self {
         Self::set_priority_flag(&mut self.property_flags);
         self.priority = Some(priority);
         self
@@ -336,7 +336,7 @@ impl BasicProperties {
     /// `correlation_id`: application correlation identifier
     ///
     /// # Default: [`None`]
-    pub fn set_correlation_id(&mut self, correlation_id: &str) -> &mut Self {
+    pub fn with_correlation_id(&mut self, correlation_id: &str) -> &mut Self {
         Self::set_correlation_id_flag(&mut self.property_flags);
         self.correlation_id = Some(correlation_id.try_into().unwrap());
         self
@@ -349,7 +349,7 @@ impl BasicProperties {
     /// Chainable setter of reply_to.
     ///
     /// # Default: [`None`]
-    pub fn set_reply_to(&mut self, reply_to: &str) -> &mut Self {
+    pub fn with_reply_to(&mut self, reply_to: &str) -> &mut Self {
         Self::set_reply_to_flag(&mut self.property_flags);
         self.reply_to = Some(reply_to.try_into().unwrap());
         self
@@ -362,7 +362,7 @@ impl BasicProperties {
     /// Chainable setter of expiration.
     ///
     /// # Default: [`None`]
-    pub fn set_expiration(&mut self, expiration: &str) -> &mut Self {
+    pub fn with_expiration(&mut self, expiration: &str) -> &mut Self {
         Self::set_expiration_flag(&mut self.property_flags);
         self.expiration = Some(expiration.try_into().unwrap());
         self
@@ -374,7 +374,7 @@ impl BasicProperties {
     /// Chainable setter of message_id.
     ///
     /// # Default: [`None`]
-    pub fn set_message_id(&mut self, message_id: &str) -> &mut Self {
+    pub fn with_message_id(&mut self, message_id: &str) -> &mut Self {
         Self::set_message_id_flag(&mut self.property_flags);
         self.message_id = Some(message_id.try_into().unwrap());
         self
@@ -386,7 +386,7 @@ impl BasicProperties {
     /// Chainable setter of timestamp.
     ///
     /// # Default: [`None`]
-    pub fn set_timestamp(&mut self, timestamp: u64) -> &mut Self {
+    pub fn with_timestamp(&mut self, timestamp: u64) -> &mut Self {
         Self::set_timestamp_flag(&mut self.property_flags);
         self.timestamp = Some(timestamp);
         self
@@ -398,7 +398,7 @@ impl BasicProperties {
     /// Chainable setter of message_type.
     ///
     /// # Default: [`None`]
-    pub fn set_message_type(&mut self, message_type: &str) -> &mut Self {
+    pub fn with_message_type(&mut self, message_type: &str) -> &mut Self {
         Self::set_message_type_flag(&mut self.property_flags);
         self.message_type = Some(message_type.try_into().unwrap());
         self
@@ -409,7 +409,7 @@ impl BasicProperties {
     /// Chainable setter of user_id.
     ///
     /// # Default: [`None`]
-    pub fn set_user_id(&mut self, user_id: &str) -> &mut Self {
+    pub fn with_user_id(&mut self, user_id: &str) -> &mut Self {
         Self::set_user_id_flag(&mut self.property_flags);
         self.user_id = Some(user_id.try_into().unwrap());
         self
@@ -421,7 +421,7 @@ impl BasicProperties {
     /// Chainable setter of app_id.
     ///
     /// # Default: [`None`]
-    pub fn set_app_id(&mut self, app_id: &str) -> &mut Self {
+    pub fn with_app_id(&mut self, app_id: &str) -> &mut Self {
         Self::set_app_id_flag(&mut self.property_flags);
         self.app_id = Some(app_id.try_into().unwrap());
         self
@@ -433,7 +433,7 @@ impl BasicProperties {
     /// Chainable setter of cluster_id.
     ///
     /// # Default: [`None`]
-    pub fn set_cluster_id(&mut self, cluster_id: &str) -> &mut Self {
+    pub fn with_cluster_id(&mut self, cluster_id: &str) -> &mut Self {
         Self::set_cluster_id_flag(&mut self.property_flags);
         self.cluster_id = Some(cluster_id.try_into().unwrap());
         self
