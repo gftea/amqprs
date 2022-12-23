@@ -1,8 +1,10 @@
 [![integration-test](https://github.com/gftea/amqprs/actions/workflows/rust.yml/badge.svg)](https://github.com/gftea/amqprs/actions/workflows/rust.yml)
 [![codecov](https://github.com/gftea/amqprs/actions/workflows/codecov.yml/badge.svg)](https://github.com/gftea/amqprs/actions/workflows/codecov.yml)
+[![codecov](https://codecov.io/gh/gftea/amqprs/branch/main/graph/badge.svg?token=7MF92R6F60)](https://codecov.io/gh/gftea/amqprs)
+[![Documentation](https://docs.rs/amqprs/badge.svg)](https://docs.rs/amqprs)
+[![crates.io](https://img.shields.io/crates/v/amqprs.svg)](https://crates.io/crates/amqprs)
 
 # amqprs
-## [Documentation](https://docs.rs/amqprs/latest/amqprs/)
 
 Yet another RabbitMQ client implementation in rust with different design goals.
 

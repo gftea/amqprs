@@ -10,8 +10,13 @@ repository = "https://github.com/gftea/amqprs"
 keywords = ["amqp", "rabbitmq", "async", "tokio", "lock-free"]
 categories = ["network-programming", "asynchronous"]
 documentation = "https://docs.rs/amqprs/latest/amqprs/"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+exclude = [
+    "*.profraw",
+    "*.profdata",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
 default = []
 compliance_assert = []
