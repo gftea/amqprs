@@ -2,12 +2,17 @@ name: integration-test
 
 run-name: 'Run test against real rabbitmq server'
 
-on: [push, workflow_dispatch]
-  # push:
-  #   branches: [ "main" ]
-  # pull_request:
-  #   branches: [ "main" ]
-  
+# on: [push, workflow_dispatch]
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+
 env:
   CARGO_TERM_COLOR: always
 
