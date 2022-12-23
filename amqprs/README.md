@@ -1,4 +1,7 @@
 [![integration-test](https://github.com/gftea/amqprs/actions/workflows/rust.yml/badge.svg)](https://github.com/gftea/amqprs/actions/workflows/rust.yml)
+[![codecov](https://codecov.io/gh/gftea/amqprs/branch/main/graph/badge.svg?token=7MF92R6F60)](https://codecov.io/gh/gftea/amqprs)
+[![Documentation](https://docs.rs/amqprs/badge.svg)](https://docs.rs/amqprs)
+[![crates.io](https://img.shields.io/crates/v/amqprs.svg)](https://crates.io/crates/amqprs)
 
 # amqprs
 
@@ -10,14 +13,12 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 2. Minimum external dependencies: as few external crates as possible.
 3. lock free: no mutex/lock in client library itself.
 
-
-## Design Architecture
+# Design Architecture
 ![Lock-free Design](amqp-chosen_design.drawio.png)
 
+# Example: Consume and Publish
 
-## Example: Consume and Publish
-
-### [Link to full example code](https://github.com/gftea/amqprs/blob/main/amqprs/examples/basic_pub_sub.rs) 
+## [Link to full example code](https://github.com/gftea/amqprs/blob/main/amqprs/examples/basic_pub_sub.rs) 
 
 ```rust
 // open a connection to RabbitMQ server
