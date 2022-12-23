@@ -13,28 +13,59 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  codecov:
+  # codecov:
 
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #   - uses: actions/checkout@v3
+    
+  #   - name: Start RabbitMQ server
+  #     run:  |
+  #       sudo chown -R 1001:root rabbitmq_conf/server
+  #       sudo chmod 755 rabbitmq_conf/server
+  #       sudo chmod 400 rabbitmq_conf/server/*
+  #       docker-compose up -d    
+    
+  #   - name: Cargo test instrumented
+  #     run: LLVM_PROFILE_FILE="default_%m.profraw" RUSTFLAGS="-C instrument-coverage -C codegen-units=1" cargo test -p amqprs --all-features --tests
+
+  #   - name: Merge coverage data
+  #     run: llvm-profdata-14 merge -sparse amqprs/default_*.profraw -o amqprs.profdata
+
+  #   - name: Generate coverage report
+  #     run: |
+  #       object_list=$(for file in $(LLVM_PROFILE_FILE="default_%m.profraw" RUSTFLAGS="-C instrument-coverage -C codegen-units=1" cargo test -p amqprs --all-features --tests --no-run --message-format=json | jq -r "select(.profile.test == true) | .filenames[]"); do printf "%s %s " --object $file; done)
+  #       llvm-cov-14 report --use-color --ignore-filename-regex='/.cargo/registry' --ignore-filename-regex='rustc/' --ignore-filename-regex='tests/'  --instr-profile=amqprs.profdata ${object_list}
+
+  coverage:
+    name: Measure coverage
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Start RabbitMQ server
-      run:  |
-        sudo chown -R 1001:root rabbitmq_conf/server
-        sudo chmod 755 rabbitmq_conf/server
-        sudo chmod 400 rabbitmq_conf/server/*
-        docker-compose up -d    
-    
-    - name: Cargo test instrumented
-      run: LLVM_PROFILE_FILE="default_%m.profraw" RUSTFLAGS="-C instrument-coverage -C codegen-units=1" cargo test -p amqprs --all-features --tests
+      - name: Checkout sources
+        uses: actions/checkout@v3
+      - name: Start RabbitMQ server
+        run:  |
+          sudo chown -R 1001:root rabbitmq_conf/server
+          sudo chmod 755 rabbitmq_conf/server
+          sudo chmod 400 rabbitmq_conf/server/*
+          docker-compose up -d    
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          default: true
+          components: llvm-tools
 
-    - name: Merge coverage data
-      run: llvm-profdata-14 merge -sparse amqprs/default_*.profraw -o amqprs.profdata
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov
 
-    - name: Generate coverage report
-      run: |
-        object_list=$(for file in $(LLVM_PROFILE_FILE="default_%m.profraw" RUSTFLAGS="-C instrument-coverage -C codegen-units=1" cargo test -p amqprs --all-features --tests --no-run --message-format=json | jq -r "select(.profile.test == true) | .filenames[]"); do printf "%s %s " --object $file; done)
-        llvm-cov-14 report --use-color --ignore-filename-regex='/.cargo/registry' --ignore-filename-regex='rustc/' --ignore-filename-regex='tests/'  --instr-profile=amqprs.profdata ${object_list}
+      - name: Measure coverage
+        run: cargo llvm-cov --lcov --output-path ./lcov.info
 
+      - name: Report to codecov.io
+        uses: codecov/codecov-action@v1
+        with:
+          files: ./lcov.info
+          fail_ci_if_error: false
