@@ -50,7 +50,7 @@ async fn test_publish() {
     .into_bytes();
 
     // create arguments for basic_publish
-    let args = BasicPublishArguments::new(exchange_name, exchange_type);
+    let args = BasicPublishArguments::new(exchange_name, "amqprs.example");
 
     let num_loop = 10000;
     for _ in 0..num_loop {
