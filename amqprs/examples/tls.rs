@@ -91,7 +91,7 @@ async fn main() {
         let args = BasicConsumeArguments::new(&queue_name, "example_basic_pub_sub");
 
         channel
-            .basic_consume(DefaultConsumer::new(args.no_ack), args)
+            .basic_consume(DefaultConsumer::new(args.no_ack, None), args)
             .await
             .unwrap();
 

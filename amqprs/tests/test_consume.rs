@@ -47,14 +47,14 @@ async fn test_multi_consumer() {
     let args = BasicConsumeArguments::new(&queue_name, "amqprs_test_multi_consumer");
 
     consumer_channel
-        .basic_consume(DefaultConsumer::new(args.no_ack), args)
+        .basic_consume(DefaultConsumer::new(args.no_ack, None), args)
         .await
         .unwrap();
 
     // start consumer with generated name by server
     let args = BasicConsumeArguments::new(&queue_name, "");
     consumer_channel
-        .basic_consume(DefaultConsumer::new(args.no_ack), args)
+        .basic_consume(DefaultConsumer::new(args.no_ack, None), args)
         .await
         .unwrap();
 
@@ -125,7 +125,7 @@ async fn test_consume_redelivered_messages() {
     // start consumer
     channel
         .basic_consume(
-            DefaultConsumer::new(false),
+            DefaultConsumer::new(false, None),
             BasicConsumeArguments::new(&queue_name, ""),
         )
         .await
@@ -190,7 +190,7 @@ async fn test_cancel_consumer() {
     // exception to close the connection.
     let consumer_tag = channel
         .basic_consume(
-            DefaultConsumer::new(true),
+            DefaultConsumer::new(true, None),
             BasicConsumeArguments::new(&queue_name, ""),
         )
         .await
@@ -263,4 +263,82 @@ async fn publish_test_messages(
             .await
             .unwrap();
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 5)]
+async fn test_default_consumer_cb() {
+    let _guard = common::setup_logging(Level::INFO);
+
+    // open a connection to RabbitMQ server
+    let args = common::build_conn_args();
+
+    let connection = Connection::open(&args).await.unwrap();
+    connection
+        .register_callback(DefaultConnectionCallback)
+        .await
+        .unwrap();
+
+    // open a channel on the connection
+    let channel = connection.open_channel(None).await.unwrap();
+    channel
+        .register_callback(DefaultChannelCallback)
+        .await
+        .unwrap();
+
+    let exchange_name = "amq.topic";
+    // declare a queue
+    let (queue_name, ..) = channel
+        .queue_declare(QueueDeclareArguments::default())
+        .await
+        .unwrap()
+        .unwrap();
+
+    // bind the queue to exchange
+    let routing_key = "amqprs_test_cancel_consumer";
+    channel
+        .queue_bind(QueueBindArguments::new(
+            &queue_name,
+            exchange_name,
+            routing_key,
+        ))
+        .await
+        .unwrap();
+
+        
+        
+    // A test callback function
+    let cb = |content: Vec<u8>| {
+        // Assert the content was received
+        let expected_content = String::from(
+            r#"
+            {
+                "data": "publish data for consumer test" 
+            }
+            "#,
+        );
+        assert_eq!(expected_content, String::from_utf8(content).unwrap());
+    };
+        
+    // start consumer with auto-ack.
+    // NOTE: use automatic ack, because if running both publisher and
+    // manual-ACK consumer on same channel cocurrently, the ACK frames
+    // may interleave with the publish sequence which results in server
+    // exception to close the connection.
+    channel
+        .basic_consume(
+            DefaultConsumer::new(true, Some(Box::new(cb))),
+            BasicConsumeArguments::new(&queue_name, ""),
+        )
+        .await
+        .unwrap();
+    // publish message
+    let num_of_message = 1;
+    publish_test_messages(&channel, exchange_name, routing_key, num_of_message).await;
+
+    // wait for certain time, and the message should be consumed.
+    time::sleep(time::Duration::from_secs(1)).await;
+
+    // explicitly close
+    channel.close().await.unwrap();
+    connection.close().await.unwrap();
 }

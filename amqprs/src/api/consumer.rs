@@ -62,6 +62,7 @@ pub trait AsyncConsumer {
 /// It is used for demo and debugging purposes only.
 pub struct DefaultConsumer {
     no_ack: bool,
+    callback: Option<Box<dyn Fn(Vec<u8>) + Send + Sync>>,
 }
 
 impl DefaultConsumer {
@@ -72,8 +73,14 @@ impl DefaultConsumer {
     /// no_ack = [`true`] means automatic ack and should NOT send ACK to server.
     ///
     /// no_ack = [`false`] means manual ack, and should send ACK message to server.
-    pub fn new(no_ack: bool) -> Self {
-        Self { no_ack }
+    pub fn new(no_ack: bool, callback: Option<Box<dyn Fn(Vec<u8>) + Send + Sync>>) -> Self {
+        Self { no_ack, callback }
+    }
+}
+
+impl Default for DefaultConsumer {
+    fn default() -> Self {
+        Self { no_ack: true, callback: None }
     }
 }
 
@@ -88,6 +95,11 @@ impl AsyncConsumer for DefaultConsumer {
     ) {
         #[cfg(feature = "tracing")]
         info!("consume delivery {} on channel {}", deliver, channel);
+
+        // call callback if any callback is set
+        if let Some(callback) = &self.callback {
+            callback(_content);
+        }
 
         // ack explicitly if manual ack
         if !self.no_ack {

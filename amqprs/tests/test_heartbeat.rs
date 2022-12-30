@@ -43,7 +43,7 @@ async fn test_customized_heartbeat() {
     let args = BasicConsumeArguments::new(&queue_name, "test_multi_consume");
 
     channel
-        .basic_consume(DefaultConsumer::new(args.no_ack), args)
+        .basic_consume(DefaultConsumer::new(args.no_ack, None), args)
         .await
         .unwrap();
 

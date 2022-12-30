@@ -559,7 +559,7 @@ mod tests {
         // start consumer with no_wait = true
         let consumer_tag = consumer_channel
             .basic_consume(
-                DefaultConsumer::new(false),
+                DefaultConsumer::new(false, None),
                 BasicConsumeArguments::new(&queue_name, "purge-tester")
                     .no_wait(true)
                     .finish(),

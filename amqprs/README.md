@@ -14,11 +14,12 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 3. lock free: no mutex/lock in client library itself.
 
 # Design Architecture
+
 ![Lock-free Design](amqp-chosen_design.drawio.png)
 
 # Example: Consume and Publish
 
-## [Link to full example code](https://github.com/gftea/amqprs/blob/main/amqprs/examples/basic_pub_sub.rs) 
+## [Link to full example code](https://github.com/gftea/amqprs/blob/main/amqprs/examples/basic_pub_sub.rs)
 
 ```rust
 // open a connection to RabbitMQ server
@@ -63,12 +64,12 @@ channel
 //////////////////////////////////////////////////////////////////
 // start consumer with given name
 let args = BasicConsumeArguments::new(
-        &queue_name, 
+        &queue_name,
         "example_basic_pub_sub"
     );
 
 channel
-    .basic_consume(DefaultConsumer::new(args.no_ack), args)
+    .basic_consume(DefaultConsumer::new(args.no_ack, None), args)
     .await
     .unwrap();
 
@@ -94,7 +95,7 @@ channel
 
 
 // channel/connection will be closed when drop.
-// keep the `channel` and `connection` object from dropping 
+// keep the `channel` and `connection` object from dropping
 // before pub/sub is done.
 time::sleep(time::Duration::from_secs(1)).await;
 // explicitly close

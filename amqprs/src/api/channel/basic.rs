@@ -765,7 +765,7 @@ mod tests {
                 .finish();
 
             channel
-                .basic_consume(DefaultConsumer::new(args.no_ack), args)
+                .basic_consume(DefaultConsumer::new(args.no_ack, None), args)
                 .await
                 .unwrap();
             time::sleep(time::Duration::from_secs(1)).await;
@@ -801,7 +801,7 @@ mod tests {
 
             let args = BasicConsumeArguments::new(&queue_name, "test_manual_ack");
             channel
-                .basic_consume(DefaultConsumer::new(args.no_ack), args)
+                .basic_consume(DefaultConsumer::new(args.no_ack, None), args)
                 .await
                 .unwrap();
             time::sleep(time::Duration::from_secs(1)).await;
