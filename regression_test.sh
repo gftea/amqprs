@@ -5,7 +5,7 @@
 cargo test --all-features 
 
 # all examples
-cargo run --example 2>&1 | grep -E '^ ' | xargs -n1 cargo run --all-features --example
+cargo run --release --example 2>&1 | grep -E '^ ' | grep -v basic_consumer | xargs -n1 cargo run --release --all-features --example
 
 # features combination
 cargo test 
