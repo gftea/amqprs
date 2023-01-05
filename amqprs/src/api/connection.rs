@@ -16,7 +16,7 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() {
-//! let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+//! let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami");
 //! // open a connection with given arguments
 //! let connection = Connection::open(&args).await.unwrap();
 //!
@@ -221,7 +221,7 @@ struct SharedConnectionInner {
 /// # use amqprs::connection::OpenConnectionArguments;
 ///
 /// // Create a new one and update the fields, then return desired config
-/// let args = OpenConnectionArguments::new("localhost:5672","user", "bitnami")
+/// let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami")
 ///     .virtual_host("myhost")
 ///     .connection_name("myconnection")
 ///     .finish();
@@ -234,7 +234,7 @@ struct SharedConnectionInner {
 /// # use amqprs::connection::OpenConnectionArguments;
 ///
 /// // create a new and mutable argument
-/// let mut args = OpenConnectionArguments::new("localhost:5672","user", "bitnami");
+/// let mut args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami");
 /// // update fields of the mutable argument
 /// args.virtual_host("myhost").connection_name("myconnection");
 /// ```
@@ -282,9 +282,9 @@ impl OpenConnectionArguments {
     ///
     /// Use virtual host "/", SASL/PLAIN authentication and auto generated connection name.
     ///
-    pub fn new(uri: &str, username: &str, password: &str) -> Self {
+    pub fn new(host: &str, port: Option<u16>, username: &str, password: &str) -> Self {
         Self {
-            uri: uri.to_owned(),
+            uri: host.to_owned() + ":" + &port.unwrap_or(5672).to_string(),
             virtual_host: String::from("/"),
             connection_name: None,
             credentials: SecurityCredentials::new_plain(username, password),
@@ -1068,7 +1068,7 @@ mod tests {
         let _guard = setup_logging(Level::INFO);
         {
             // test close on drop
-            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+            let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami");
 
             let connection = Connection::open(&args).await.unwrap();
             {
@@ -1089,7 +1089,7 @@ mod tests {
 
         for _ in 0..10 {
             let handle = tokio::spawn(async {
-                let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+                let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami");
 
                 time::sleep(time::Duration::from_millis(200)).await;
                 let connection = Connection::open(&args).await.unwrap();
@@ -1107,7 +1107,7 @@ mod tests {
     async fn test_multi_channel_open_close() {
         let _guard = setup_logging(Level::INFO);
         {
-            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+            let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami")
                 .connection_name("test_multi_channel_open_close")
                 .finish();
 
@@ -1150,7 +1150,7 @@ mod tests {
     async fn test_duplicated_conn_name_is_accpeted_by_server() {
         let _guard = setup_logging(Level::INFO);
 
-        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+        let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami")
             .connection_name("amq.cname-test")
             .finish();
 
@@ -1165,7 +1165,7 @@ mod tests {
     async fn test_auth_amqplain() {
         let _guard = setup_logging(Level::INFO);
 
-        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+        let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami")
             .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
             .finish();
         Connection::open(&args).await.unwrap();
@@ -1176,7 +1176,7 @@ mod tests {
     async fn test_open_already_opened_channel() {
         let _guard = setup_logging(Level::INFO);
 
-        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+        let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami")
             .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
             .finish();
         let connection = Connection::open(&args).await.unwrap();

@@ -19,11 +19,7 @@ async fn main() {
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
     // open a connection to RabbitMQ server
-    let connection = Connection::open(&OpenConnectionArguments::new(
-        "localhost:5672",
-        "user",
-        "bitnami",
-    ))
+    let connection = Connection::open(&OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami"))
     .await
     .unwrap();
     connection

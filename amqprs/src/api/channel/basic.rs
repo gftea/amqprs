@@ -727,7 +727,8 @@ mod tests {
             connection::{Connection, OpenConnectionArguments},
             consumer::DefaultConsumer,
         },
-        frame::BasicProperties, DELIVERY_MODE_TRANSIENT,
+        frame::BasicProperties,
+        DELIVERY_MODE_TRANSIENT,
     };
 
     use super::{BasicConsumeArguments, BasicPublishArguments};
@@ -739,7 +740,7 @@ mod tests {
             .finish();
         let _guard = tracing::subscriber::set_default(subscriber);
 
-        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+        let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami")
             .connection_name("test_basic_consume_auto_ack")
             .finish();
         let connection = Connection::open(&args).await.unwrap();
@@ -778,7 +779,7 @@ mod tests {
     #[tokio::test]
     async fn test_basic_consume_manual_ack() {
         {
-            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+            let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami")
                 .connection_name("test_basic_consume_manual_ack")
                 .finish();
 
@@ -813,7 +814,7 @@ mod tests {
     #[tokio::test]
     async fn test_basic_publish() {
         {
-            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+            let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami")
                 .connection_name("test_basic_publish")
                 .finish();
 

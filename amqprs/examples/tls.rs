@@ -39,7 +39,7 @@ async fn main() {
         // domain should match the certificate/key files
         let domain = "AMQPRS_TEST";
 
-        let args = OpenConnectionArguments::new("localhost:5671", "user", "bitnami")
+        let args = OpenConnectionArguments::new("localhost", Some(5671), "user", "bitnami")
             .tls_adaptor(
                 TlsAdaptor::with_client_auth(
                     Some(root_ca_cert.as_path()),
