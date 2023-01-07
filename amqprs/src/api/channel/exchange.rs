@@ -441,7 +441,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_exchange_declare() {
-        let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami");
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
 
         let connection = Connection::open(&args).await.unwrap();
         connection
@@ -467,7 +467,7 @@ mod tests {
     #[tokio::test]
     #[should_panic = "InternalChannelError(\"channel closed\")"]
     async fn test_exchange_delete() {
-        let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami");
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
 
         let connection = Connection::open(&args).await.unwrap();
         connection

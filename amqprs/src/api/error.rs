@@ -9,6 +9,8 @@ use tokio::sync::{mpsc::error::SendError, oneshot::error::RecvError};
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {
+    /// Error when creating arguments for opening a connection. Usually due to incorrect usage by user.
+    ConnectionOpenArgsError(String),
     /// Error during openning a connection.
     ConnectionOpenError(String),
     /// Error during closing a connection.
@@ -47,6 +49,9 @@ impl From<RecvError> for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Error::ConnectionOpenArgsError(msg) => {
+                write!(f, "AMQP connection open arguments error: {}", msg)
+            }
             Error::NetworkError(msg) => write!(f, "AMQP network error: {}", msg),
             Error::ConnectionOpenError(msg) => write!(f, "AMQP connection open error: {}", msg),
             Error::ConnectionCloseError(msg) => write!(f, "AMQP connection close error: {}", msg),

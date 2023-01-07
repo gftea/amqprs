@@ -56,7 +56,7 @@ impl ChannelCallback for ExampleChannelCallback {
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
     // open a connection to RabbitMQ server
-    let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami");
+    let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
 
     let connection = Connection::open(&args).await.unwrap();
     connection

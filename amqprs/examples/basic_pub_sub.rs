@@ -21,7 +21,7 @@ async fn main() {
     // open a connection to RabbitMQ server
     let connection = Connection::open(&OpenConnectionArguments::new(
         "localhost",
-        Some(5672),
+        5672,
         "user",
         "bitnami",
     ))

@@ -18,7 +18,7 @@
 //! # #[tokio::main]
 //! # async fn main() {
 //! // Build arguments for new connection.
-//! let args = OpenConnectionArguments::new("localhost", Some(5672), "user", "bitnami");
+//! let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
 //! // Open an AMQP connection with given arguments.
 //! let connection = Connection::open(&args).await.unwrap();
 //!
