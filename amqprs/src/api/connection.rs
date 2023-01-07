@@ -429,7 +429,6 @@ impl TryFrom<&str> for OpenConnectionArguments {
 
         if let Ok(pu) = parsed_uri_result {
             // Check scheme
-
             if pu.scheme().is_none()
                 || (pu.scheme().unwrap().as_str() != "amqp"
                     && pu.scheme().unwrap().as_str() != "amqps")
@@ -439,27 +438,77 @@ impl TryFrom<&str> for OpenConnectionArguments {
                 )));
             }
 
-            let pu_authority = pu.authority().unwrap();
+            // Check authority
+            let pu_authority_result = pu.authority();
 
+            if pu_authority_result.is_none() {
+                return Err(Error::ConnectionOpenArgsError(format!(
+                    "Invalid URI authority"
+                )));
+            }
+
+            let pu_authority = pu_authority_result.unwrap();
+
+            // Check username
             let mut pu_authority_username: Option<&str> = None;
             if let Some(pu_a_u) = pu_authority.username() {
                 pu_authority_username = Some(pu_a_u.as_str());
             }
 
+            // Check password
             let mut pu_authority_password: Option<&str> = None;
             if let Some(pu_a_p) = pu_authority.password() {
                 pu_authority_password = Some(pu_a_p.as_str());
             }
 
+            // Check virtual host
             let pu_path = pu.path().to_string();
-            return Ok(OpenConnectionArguments::new(
+
+            // Check query
+            let pu_query = pu.query();
+
+            // Apply authority
+            let mut args: &mut OpenConnectionArguments = &mut OpenConnectionArguments::new(
                 pu_authority.host().to_string().as_str(),
                 pu_authority.port().unwrap_or(DEFAULT_AMQP_PORT),
                 pu_authority_username.unwrap_or(""),
                 pu_authority_password.unwrap_or(""),
-            )
-            .virtual_host(if pu_path == "" { "/" } else { pu_path.as_str() })
-            .finish());
+            );
+
+            // Apply Virtual Host
+            if pu_path == "" {
+                args = args.virtual_host("/");
+            } else {
+                args = args.virtual_host(pu_path.as_str());
+            }
+
+            // Apply query
+            if let Some(pu_q) = pu_query {
+                // Create a hash map for query
+                let pu_q_map: std::collections::HashMap<&str, &str> = pu_q
+                    .split('&')
+                    .map(|s| {
+                        let mut split = s.split('=');
+                        let key = split.next().unwrap();
+                        let value = split.next().unwrap();
+                        (key, value)
+                    })
+                    .collect();
+
+                // Apply heartbeat
+                if let Some(pu_q_hb) = pu_q_map.get("heartbeat") {
+                    if let Ok(pu_q_hb_parsed) = pu_q_hb.parse::<u16>() {
+                        args = args.heartbeat(pu_q_hb_parsed);
+                    } else {
+                        return Err(Error::ConnectionOpenArgsError(format!(
+                            "Invalid Heartbeat provided in uri: {}",
+                            uri
+                        )));
+                    }
+                }
+            }
+
+            return Ok(args.finish());
         }
 
         Err(Error::ConnectionOpenArgsError(format!(
@@ -1372,5 +1421,12 @@ mod tests {
         assert_eq!(args.host, "[::1]");
         assert_eq!(args.port, 5672);
         assert_eq!(args.virtual_host, "/");
+        assert_eq!(args.heartbeat, 60);
+
+        let args = OpenConnectionArguments::try_from("amqp://[::1]?heartbeat=30").unwrap();
+        assert_eq!(args.host, "[::1]");
+        assert_eq!(args.port, 5672);
+        assert_eq!(args.virtual_host, "/");
+        assert_eq!(args.heartbeat, 30);
     }
 }
