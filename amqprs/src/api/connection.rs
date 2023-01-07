@@ -47,7 +47,7 @@ use amqp_serde::types::{
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
 
-use url::Url;
+use uriparse::{URIReference, URI};
 
 use crate::{
     frame::{
@@ -423,24 +423,42 @@ impl TryFrom<&str> for OpenConnectionArguments {
     /// If no host is speecified or is zero-length, a ConnectionOpenArgsError error is returned. Note that this is different from the spec, which allows for EmptyHost. This is because the host is used to create a TCP connection, and an empty host is invalid.
     ///
     fn try_from(uri: &str) -> Result<Self> {
-        let parsed_uri_result = Url::parse(uri);
+        let parsed_uri_result = URIReference::try_from(uri);
+
+        println!("parsed_uri_result: {:?}", parsed_uri_result);
 
         if let Ok(pu) = parsed_uri_result {
-            // Verify the scheme is amqp or amqps
-            if pu.scheme() != "amqp" && pu.scheme() != "amqps" {
+            // Check scheme
+
+            if pu.scheme().is_none()
+                || (pu.scheme().unwrap().as_str() != "amqp"
+                    && pu.scheme().unwrap().as_str() != "amqps")
+            {
                 return Err(Error::ConnectionOpenArgsError(format!(
-                    "Invalid URI scheme: {}",
-                    pu.scheme()
+                    "Invalid URI scheme"
                 )));
             }
 
+            let pu_authority = pu.authority().unwrap();
+
+            let mut pu_authority_username: Option<&str> = None;
+            if let Some(pu_a_u) = pu_authority.username() {
+                pu_authority_username = Some(pu_a_u.as_str());
+            }
+
+            let mut pu_authority_password: Option<&str> = None;
+            if let Some(pu_a_p) = pu_authority.password() {
+                pu_authority_password = Some(pu_a_p.as_str());
+            }
+
+            let pu_path = pu.path().to_string();
             return Ok(OpenConnectionArguments::new(
-                pu.host_str().unwrap_or(""),
-                pu.port().unwrap_or(DEFAULT_AMQP_PORT),
-                pu.username(),
-                pu.password().unwrap_or(""),
+                pu_authority.host().to_string().as_str(),
+                pu_authority.port().unwrap_or(DEFAULT_AMQP_PORT),
+                pu_authority_username.unwrap_or(""),
+                pu_authority_password.unwrap_or(""),
             )
-            .virtual_host(if pu.path() == "" { "/" } else { pu.path() })
+            .virtual_host(if pu_path == "" { "/" } else { pu_path.as_str() })
             .finish());
         }
 
@@ -1317,22 +1335,25 @@ mod tests {
         assert_eq!(args.port, 5672);
         assert_eq!(args.virtual_host, "/");
 
-        // Results in an error because of EmptyHost
-        let args = OpenConnectionArguments::try_from("amqp://user@");
-        assert!(args.is_err());
+        let args = OpenConnectionArguments::try_from("amqp://user@").unwrap();
+        assert_eq!(args.host, "");
+        assert_eq!(args.port, 5672);
+        assert_eq!(args.virtual_host, "/");
 
-        // Results in an error because of EmptyHost
-        let args = OpenConnectionArguments::try_from("amqp://user:pass@");
-        assert!(args.is_err());
+        let args = OpenConnectionArguments::try_from("amqp://user:pass@").unwrap();
+        assert_eq!(args.host, "");
+        assert_eq!(args.port, 5672);
+        assert_eq!(args.virtual_host, "/");
 
         let args = OpenConnectionArguments::try_from("amqp://host").unwrap();
         assert_eq!(args.host, "host");
         assert_eq!(args.port, 5672);
         assert_eq!(args.virtual_host, "/");
 
-        // Results in an error because of EmptyHost
-        let args = OpenConnectionArguments::try_from("amqp://:10000");
-        assert!(args.is_err());
+        let args = OpenConnectionArguments::try_from("amqp://:10000").unwrap();
+        assert_eq!(args.host, "");
+        assert_eq!(args.port, 10000);
+        assert_eq!(args.virtual_host, "/");
 
         let args = OpenConnectionArguments::try_from("amqp://host:10000").unwrap();
         assert_eq!(args.host, "host");
