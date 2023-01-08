@@ -14,8 +14,8 @@ cargo test -F compliance_assert
 cargo test -F tls
 
 
-# clippy
-cargo clippy --all-features
+# clippy, warnings not allowed
+cargo clippy --all-features -- -Dwarnings
 
 # docs build
 cargo doc -p amqprs --all-features --open
