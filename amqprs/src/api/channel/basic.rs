@@ -20,8 +20,8 @@ use crate::{
     },
 };
 
-#[cfg(feature = "compilance_assert")]
-use crate::api::compilance_asserts::{assert_exchange_name, assert_queue_name};
+#[cfg(feature = "compliance_assert")]
+use crate::api::compliance_asserts::{assert_exchange_name, assert_queue_name};
 
 use super::{Channel, DeregisterContentConsumer, RegisterGetContentResponder};
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,7 +103,7 @@ pub struct BasicConsumeArguments {
 impl BasicConsumeArguments {
     /// Create new arguments with defaults.
     pub fn new(queue: &str, consumer_tag: &str) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         assert_queue_name(queue);
 
         Self {
@@ -149,7 +149,7 @@ impl BasicConsumeArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         assert_queue_name(&self.queue);
 
         self.clone()
@@ -207,7 +207,7 @@ pub struct BasicGetArguments {
 impl BasicGetArguments {
     /// Create new arguments with defaults.
     pub fn new(queue: &str) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         assert_queue_name(queue);
 
         Self {
@@ -225,7 +225,7 @@ impl BasicGetArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         assert_queue_name(&self.queue);
 
         self.clone()
@@ -349,7 +349,7 @@ pub struct BasicPublishArguments {
 impl BasicPublishArguments {
     /// Create new arguments with defaults.
     pub fn new(exchange: &str, routing_key: &str) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         assert_exchange_name(exchange);
 
         Self {
@@ -377,7 +377,7 @@ impl BasicPublishArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         assert_exchange_name(&self.exchange);
 
         self.clone()

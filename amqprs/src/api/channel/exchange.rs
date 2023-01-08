@@ -5,8 +5,8 @@ use crate::{
 
 use super::{Channel, Result};
 
-#[cfg(feature = "compilance_assert")]
-use crate::api::compilance_asserts::assert_exchange_name;
+#[cfg(feature = "compliance_assert")]
+use crate::api::compliance_asserts::assert_exchange_name;
 
 /// Arguments for [`exchange_declare`]
 ///
@@ -60,7 +60,7 @@ impl Default for ExchangeDeclareArguments {
 impl ExchangeDeclareArguments {
     /// Creates new arguments with defaults
     pub fn new(exchange: &str, exchange_type: &str) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         assert_exchange_name(exchange);
 
         Self {
@@ -108,7 +108,7 @@ impl ExchangeDeclareArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         assert_exchange_name(&self.exchange);
 
         self.clone()
@@ -133,7 +133,7 @@ pub struct ExchangeDeleteArguments {
 impl ExchangeDeleteArguments {
     /// Create new arguments with defaults
     pub fn new(exchange: &str) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         assert_exchange_name(exchange);
 
         Self {
@@ -156,7 +156,7 @@ impl ExchangeDeleteArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         assert_exchange_name(&self.exchange);
 
         self.clone()
@@ -185,7 +185,7 @@ pub struct ExchangeBindArguments {
 impl ExchangeBindArguments {
     /// Create arguments with defaults
     pub fn new(destination: &str, source: &str, routing_key: &str) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         {
             assert_exchange_name(destination);
             assert_exchange_name(source);
@@ -220,7 +220,7 @@ impl ExchangeBindArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         {
             assert_exchange_name(&self.destination);
             assert_exchange_name(&self.source);
@@ -251,7 +251,7 @@ pub struct ExchangeUnbindArguments {
 impl ExchangeUnbindArguments {
     /// Create arguments with defaults
     pub fn new(destination: &str, source: &str, routing_key: &str) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         {
             assert_exchange_name(destination);
             assert_exchange_name(source);
@@ -286,7 +286,7 @@ impl ExchangeUnbindArguments {
     }
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         {
             assert_exchange_name(&self.destination);
             assert_exchange_name(&self.source);

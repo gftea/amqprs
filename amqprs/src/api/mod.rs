@@ -41,8 +41,8 @@ pub(crate) mod helpers {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-#[cfg(feature = "compilance_assert")]
-mod compilance_asserts;
+#[cfg(feature = "compliance_assert")]
+mod compliance_asserts;
 #[cfg(feature = "tls")]
 pub mod tls;
 

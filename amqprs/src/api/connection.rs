@@ -69,9 +69,9 @@ use super::{
 
 #[cfg(feature = "tls")]
 use super::tls::TlsAdaptor;
-#[cfg(feature = "compilance_assert")]
-use crate::api::compilance_asserts::assert_path;
-#[cfg(feature = "compilance_assert")]
+#[cfg(feature = "compliance_assert")]
+use crate::api::compliance_asserts::assert_path;
+#[cfg(feature = "compliance_assert")]
 use crate::frame::FRAME_MIN_SIZE;
 #[cfg(feature = "traces")]
 use tracing::{debug, error, info};
@@ -310,7 +310,7 @@ impl OpenConnectionArguments {
     ///
     /// "/"
     pub fn virtual_host(&mut self, virtual_host: &str) -> &mut Self {
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         assert_path(virtual_host);
         self.virtual_host = virtual_host.to_owned();
         self
@@ -623,7 +623,7 @@ impl Connection {
         };
 
         // No tunning of channel_max and frame_max
-        #[cfg(feature = "compilance_assert")]
+        #[cfg(feature = "compliance_assert")]
         {
             assert_ne!(0, tune.channel_max());
             assert!(tune.frame_max() >= FRAME_MIN_SIZE);
