@@ -24,7 +24,7 @@ traces = ["tracing"]
 tls = ["tokio-rustls", "rustls-pemfile", "webpki-roots"]
 
 [dependencies]
-tokio = { version = "1.0", features = [
+tokio = { version = "1.23", features = [
     "rt",
     "rt-multi-thread",
     "sync",
