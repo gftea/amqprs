@@ -4,10 +4,11 @@
 #[inline]
 pub(crate) fn assert_regexp(value: &str) {
     // regexp: [a-zA-Z0-9-_.:]
-    assert!(value
-        .chars()
-        .find(|&c| !c.is_alphanumeric() && c != '-' && c != '_' && c != '.' && c != ':')
-        .is_none());
+    assert!(!value.chars().any(|c| !c.is_alphanumeric()
+        && c != '-'
+        && c != '_'
+        && c != '.'
+        && c != ':'));
 }
 
 #[inline]
