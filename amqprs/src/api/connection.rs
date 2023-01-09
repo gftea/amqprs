@@ -416,6 +416,7 @@ impl OpenConnectionArguments {
     }
 }
 
+#[cfg(feature = "urispec")]
 impl TryFrom<&str> for OpenConnectionArguments {
     type Error = Error;
 
