@@ -47,8 +47,6 @@ use amqp_serde::types::{
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
 
-use uriparse::URIReference;
-
 use crate::{
     frame::{
         Blocked, Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, OpenChannelOk,
@@ -77,8 +75,11 @@ use crate::api::compilance_asserts::assert_path;
 use crate::frame::FRAME_MIN_SIZE;
 #[cfg(feature = "traces")]
 use tracing::{debug, error, info};
+#[cfg(feature = "urispec")]
+use uriparse::URIReference;
 
 const DEFAULT_AMQP_PORT: u16 = 5672;
+const DEFAULT_AMQPS_PORT: u16 = 5671;
 
 //  TODO: move below constants gto be part of static configuration of connection
 // per channel buffer
@@ -420,104 +421,100 @@ impl TryFrom<&str> for OpenConnectionArguments {
 
     /// Create a new OpenConnectionArguments from a URI &str. Mostly follows the [AMQP URI spec](https://www.rabbitmq.com/uri-spec.html). See below for exceptions.
     ///
-    /// If the URI is invalid, a ConnectionOpenArgsError error is returned.
+    /// If the URI is invalid, a UriError error is returned.
     ///
     /// If no port is specified, the default port of 5672 is used (as per the spec).
-    /// If no host is speecified or is zero-length, a ConnectionOpenArgsError error is returned. Note that this is different from the spec, which allows for EmptyHost. This is because the host is used to create a TCP connection, and an empty host is invalid.
+    /// If no host is speecified or is zero-length, a UriError error is returned. Note that this is different from the spec, which allows for EmptyHost. This is because the host is used to create a TCP connection, and an empty host is invalid.
     ///
     fn try_from(uri: &str) -> Result<Self> {
-        let parsed_uri_result = URIReference::try_from(uri);
+        let pu = URIReference::try_from(uri)?;
 
-        println!("parsed_uri_result: {:?}", parsed_uri_result);
-
-        if let Ok(pu) = parsed_uri_result {
-            // Check scheme
-            if pu.scheme().is_none()
-                || (pu.scheme().unwrap().as_str() != "amqp"
-                    && pu.scheme().unwrap().as_str() != "amqps")
-            {
-                return Err(Error::ConnectionOpenArgsError(String::from(
-                    "Invalid URI scheme",
-                )));
-            }
-
-            // Check authority
-            let pu_authority_result = pu.authority();
-
-            if pu_authority_result.is_none() {
-                return Err(Error::ConnectionOpenArgsError(String::from(
-                    "Invalid URI authority",
-                )));
-            }
-
-            let pu_authority = pu_authority_result.unwrap();
-
-            // Check username
-            let mut pu_authority_username: Option<&str> = None;
-            if let Some(pu_a_u) = pu_authority.username() {
-                pu_authority_username = Some(pu_a_u.as_str());
-            }
-
-            // Check password
-            let mut pu_authority_password: Option<&str> = None;
-            if let Some(pu_a_p) = pu_authority.password() {
-                pu_authority_password = Some(pu_a_p.as_str());
-            }
-
-            // Check virtual host
-            let pu_path = pu.path().to_string();
-
-            // Check query
-            let pu_query = pu.query();
-
-            // Apply authority
-            let mut args: &mut OpenConnectionArguments = &mut OpenConnectionArguments::new(
-                pu_authority.host().to_string().as_str(),
-                pu_authority.port().unwrap_or(DEFAULT_AMQP_PORT),
-                pu_authority_username.unwrap_or(""),
-                pu_authority_password.unwrap_or(""),
-            );
-
-            // Apply Virtual Host
-            if pu_path.is_empty() {
-                args = args.virtual_host("/");
-            } else {
-                args = args.virtual_host(pu_path.as_str());
-            }
-
-            // Apply query
-            if let Some(pu_q) = pu_query {
-                // Create a hash map for query
-                let pu_q_map: std::collections::HashMap<&str, &str> = pu_q
-                    .split('&')
-                    .map(|s| {
-                        let mut split = s.split('=');
-                        let key = split.next().unwrap();
-                        let value = split.next().unwrap();
-                        (key, value)
-                    })
-                    .collect();
-
-                // Apply heartbeat
-                if let Some(pu_q_hb) = pu_q_map.get("heartbeat") {
-                    if let Ok(pu_q_hb_parsed) = pu_q_hb.parse::<u16>() {
-                        args = args.heartbeat(pu_q_hb_parsed);
-                    } else {
-                        return Err(Error::ConnectionOpenArgsError(format!(
-                            "Invalid Heartbeat provided in uri: {}",
-                            uri
-                        )));
-                    }
-                }
-            }
-
-            return Ok(args.finish());
+        // Check scheme
+        if pu.scheme().is_none()
+            || (pu.scheme().unwrap().as_str() != "amqp" && pu.scheme().unwrap().as_str() != "amqps")
+        {
+            return Err(Error::UriError(String::from("Invalid URI scheme")));
         }
 
-        Err(Error::ConnectionOpenArgsError(format!(
-            "Invalid URI: {}",
-            uri
-        )))
+
+        // Set the default port depending on the scheme. The unwrap should be safe due to the checks above. 
+        // Will panic if any invalid scheme is not rejected before this point
+        let default_port: &u16 = match pu.scheme().unwrap().as_str() {
+            "amqp" => &DEFAULT_AMQP_PORT,
+            "amqps" => &DEFAULT_AMQPS_PORT,
+            _ => panic!("Error occurred while setting default port based on amq scheme. This should never happen.")
+            
+        };
+
+        // Check authority
+        let pu_authority_result = pu.authority();
+
+        if pu_authority_result.is_none() {
+            return Err(Error::UriError(String::from("Invalid URI authority")));
+        }
+
+        let pu_authority = pu_authority_result.unwrap();
+
+        // Check username
+        let mut pu_authority_username: Option<&str> = None;
+        if let Some(pu_a_u) = pu_authority.username() {
+            pu_authority_username = Some(pu_a_u.as_str());
+        }
+
+        // Check password
+        let mut pu_authority_password: Option<&str> = None;
+        if let Some(pu_a_p) = pu_authority.password() {
+            pu_authority_password = Some(pu_a_p.as_str());
+        }
+
+        // Check virtual host
+        let pu_path = pu.path().to_string();
+
+        // Check query
+        let pu_query = pu.query();
+
+        // Apply authority
+        let mut args: &mut OpenConnectionArguments = &mut OpenConnectionArguments::new(
+            pu_authority.host().to_string().as_str(),
+            pu_authority.port().unwrap_or(*default_port),
+            pu_authority_username.unwrap_or(""),
+            pu_authority_password.unwrap_or(""),
+        );
+
+        // Apply Virtual Host
+        if pu_path.is_empty() {
+            args = args.virtual_host("/");
+        } else {
+            args = args.virtual_host(pu_path.as_str());
+        }
+
+        // Apply query
+        if let Some(pu_q) = pu_query {
+            // Create a hash map for query
+            let pu_q_map: std::collections::HashMap<&str, &str> = pu_q
+                .split('&')
+                .map(|s| {
+                    let mut split = s.split('=');
+                    let key = split.next().unwrap();
+                    let value = split.next().unwrap();
+                    (key, value)
+                })
+                .collect();
+
+            // Apply heartbeat
+            if let Some(pu_q_hb) = pu_q_map.get("heartbeat") {
+                if let Ok(pu_q_hb_parsed) = pu_q_hb.parse::<u16>() {
+                    args = args.heartbeat(pu_q_hb_parsed);
+                } else {
+                    return Err(Error::UriError(format!(
+                        "Invalid Heartbeat provided in uri: {}",
+                        uri
+                    )));
+                }
+            }
+        }
+
+        Ok(args.finish())
     }
 }
 
