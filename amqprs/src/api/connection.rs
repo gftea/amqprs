@@ -47,7 +47,7 @@ use amqp_serde::types::{
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
 
-use uriparse::{URIReference, URI};
+use uriparse::URIReference;
 
 use crate::{
     frame::{
@@ -330,6 +330,7 @@ impl OpenConnectionArguments {
     ///
     /// To support legacy functionality, this method will only set the host and port.
     ///
+    ///
     /// # Default
     ///
     /// "localhost:5672"
@@ -341,13 +342,15 @@ impl OpenConnectionArguments {
         let mut split = uri.split(':');
 
         self.host(split.next().unwrap());
-        self.port(
-            split
-                .next()
-                .unwrap_or(DEFAULT_AMQP_PORT.to_string().as_str())
-                .parse()
-                .unwrap(),
-        );
+
+        let port_result = split.next();
+
+        if let Some(port) = port_result {
+            self.port(port.parse().unwrap_or(DEFAULT_AMQP_PORT));
+        } else {
+            self.port(DEFAULT_AMQP_PORT);
+        }
+
         self
     }
 
@@ -433,8 +436,8 @@ impl TryFrom<&str> for OpenConnectionArguments {
                 || (pu.scheme().unwrap().as_str() != "amqp"
                     && pu.scheme().unwrap().as_str() != "amqps")
             {
-                return Err(Error::ConnectionOpenArgsError(format!(
-                    "Invalid URI scheme"
+                return Err(Error::ConnectionOpenArgsError(String::from(
+                    "Invalid URI scheme",
                 )));
             }
 
@@ -442,8 +445,8 @@ impl TryFrom<&str> for OpenConnectionArguments {
             let pu_authority_result = pu.authority();
 
             if pu_authority_result.is_none() {
-                return Err(Error::ConnectionOpenArgsError(format!(
-                    "Invalid URI authority"
+                return Err(Error::ConnectionOpenArgsError(String::from(
+                    "Invalid URI authority",
                 )));
             }
 
@@ -476,7 +479,7 @@ impl TryFrom<&str> for OpenConnectionArguments {
             );
 
             // Apply Virtual Host
-            if pu_path == "" {
+            if pu_path.is_empty() {
                 args = args.virtual_host("/");
             } else {
                 args = args.virtual_host(pu_path.as_str());
