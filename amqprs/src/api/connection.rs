@@ -1361,6 +1361,7 @@ mod tests {
         tracing::subscriber::set_default(subscriber)
     }
 
+    #[cfg(feature = "urispec")]
     #[tokio::test]
     async fn test_openconnectionarguments_try_from() {
         let args = OpenConnectionArguments::try_from("amqp://user:pass@host:10000/vhost").unwrap();
