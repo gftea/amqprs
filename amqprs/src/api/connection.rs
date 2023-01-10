@@ -80,6 +80,7 @@ use uriparse::URIReference;
 
 const DEFAULT_AMQP_PORT: u16 = 5672;
 const DEFAULT_AMQPS_PORT: u16 = 5671;
+const DEFAULT_HEARTBEAT: u16 = 60;
 
 //  TODO: move below constants gto be part of static configuration of connection
 // per channel buffer
@@ -437,83 +438,81 @@ impl TryFrom<&str> for OpenConnectionArguments {
             return Err(Error::UriError(String::from("Invalid URI scheme")));
         }
 
+        let scheme = pu.scheme().ok_or_else(|| Error::UriError(String::from("No URI scheme")))?.as_str();
+
+        if !["amqp", "amqrs"].contains(&scheme) {
+            return Err(Error::UriError(format!("Unsupported URI scheme: {}", scheme)));
+        }
+
+
+
 
         // Set the default port depending on the scheme. The unwrap should be safe due to the checks above. 
         // Will panic if any invalid scheme is not rejected before this point
-        let default_port: &u16 = match pu.scheme().unwrap().as_str() {
-            "amqp" => &DEFAULT_AMQP_PORT,
-            "amqps" => &DEFAULT_AMQPS_PORT,
+        let default_port: u16 = match pu.scheme().unwrap().as_str() {
+            "amqp" => DEFAULT_AMQP_PORT,
+            "amqps" => DEFAULT_AMQPS_PORT,
             _ => panic!("Error occurred while setting default port based on amq scheme. This should never happen.")
             
         };
 
         // Check authority
-        let pu_authority_result = pu.authority();
-
-        if pu_authority_result.is_none() {
-            return Err(Error::UriError(String::from("Invalid URI authority")));
-        }
-
-        let pu_authority = pu_authority_result.unwrap();
+        let pu_authority  = pu.authority().ok_or_else(|| Error::UriError(String::from("Invalid URI authority")))?;
 
         // Check username
-        let mut pu_authority_username: Option<&str> = None;
-        if let Some(pu_a_u) = pu_authority.username() {
-            pu_authority_username = Some(pu_a_u.as_str());
-        }
+        // let mut pu_authority_username: Option<&str> = None;
+        // if let Some(pu_a_u) = pu_authority.username() {
+        //     pu_authority_username = Some(pu_a_u.as_str());
+        // }
 
         // Check password
-        let mut pu_authority_password: Option<&str> = None;
-        if let Some(pu_a_p) = pu_authority.password() {
-            pu_authority_password = Some(pu_a_p.as_str());
-        }
+        // let mut pu_authority_password: Option<&str> = None;
+        // if let Some(pu_a_p) = pu_authority.password() {
+        //     pu_authority_password = Some(pu_a_p.as_str());
+        // }
 
-        // Check virtual host
-        let pu_path = pu.path().to_string();
+        let pu_authority_username = pu_authority.username().map(|v| v.as_str()).unwrap_or_else(|| "guest");
+        let pu_authority_password = pu_authority.password().map(|v| v.as_str()).unwrap_or_else(|| "guest");
 
-        // Check query
-        let pu_query = pu.query();
-
+        
         // Apply authority
         let mut args: &mut OpenConnectionArguments = &mut OpenConnectionArguments::new(
             pu_authority.host().to_string().as_str(),
-            pu_authority.port().unwrap_or(*default_port),
-            pu_authority_username.unwrap_or(""),
-            pu_authority_password.unwrap_or(""),
+            pu_authority.port().unwrap_or(default_port),
+            pu_authority_username,
+            pu_authority_password,
         );
-
-        // Apply Virtual Host
+        // Check & apply virtual host
+        let pu_path = pu.path().to_string();
         if pu_path.is_empty() {
             args = args.virtual_host("/");
         } else {
             args = args.virtual_host(pu_path.as_str());
         }
 
-        // Apply query
-        if let Some(pu_q) = pu_query {
-            // Create a hash map for query
-            let pu_q_map: std::collections::HashMap<&str, &str> = pu_q
-                .split('&')
-                .map(|s| {
-                    let mut split = s.split('=');
-                    let key = split.next().unwrap();
-                    let value = split.next().unwrap();
-                    (key, value)
-                })
-                .collect();
+        // Check & apply query
+        let pu_q = pu.query().map(|v| v.as_str()).ok_or(|| "").unwrap_or("");
 
-            // Apply heartbeat
-            if let Some(pu_q_hb) = pu_q_map.get("heartbeat") {
-                if let Ok(pu_q_hb_parsed) = pu_q_hb.parse::<u16>() {
-                    args = args.heartbeat(pu_q_hb_parsed);
-                } else {
-                    return Err(Error::UriError(format!(
-                        "Invalid Heartbeat provided in uri: {}",
-                        uri
-                    )));
-                }
-            }
+        // Return early if there is no query since all that is left is to process the query
+        if pu_q.is_empty() {
+            return Ok(args.finish());
         }
+        
+        // Create a hash map for query
+        // TODO: This map needs to be of type (or similar) <&str, Vec<&str>> to support multiple values for the same key, which is both possible and plausible in the URI spec
+        // This is being left as a TODO because there is a bit of research to do in order to determine what actions when multiple value are provided.
+        let pu_q_map: std::collections::HashMap<&str, &str> = pu_q.split('&')
+            .map(|s| {
+                let mut split = s.split('=');
+                let key = split.next().unwrap();
+                let value = split.next().unwrap();
+                (key, value)
+            })
+            .collect();
+
+        // Apply heartbeat
+        let heartbeat = pu_q_map.get("heartbeat").map(|v| v.parse::<u16>().unwrap_or(DEFAULT_HEARTBEAT)).unwrap_or(DEFAULT_HEARTBEAT);
+        args = args.heartbeat(heartbeat);
 
         Ok(args.finish())
     }
