@@ -445,11 +445,9 @@ impl TryFrom<&str> for OpenConnectionArguments {
         }
 
 
-
-
         // Set the default port depending on the scheme. The unwrap should be safe due to the checks above. 
         // Will panic if any invalid scheme is not rejected before this point
-        let default_port: u16 = match pu.scheme().unwrap().as_str() {
+        let default_port: u16 = match scheme {
             "amqp" => DEFAULT_AMQP_PORT,
             "amqps" => DEFAULT_AMQPS_PORT,
             _ => panic!("Error occurred while setting default port based on amq scheme. This should never happen.")
@@ -458,19 +456,6 @@ impl TryFrom<&str> for OpenConnectionArguments {
 
         // Check authority
         let pu_authority  = pu.authority().ok_or_else(|| Error::UriError(String::from("Invalid URI authority")))?;
-
-        // Check username
-        // let mut pu_authority_username: Option<&str> = None;
-        // if let Some(pu_a_u) = pu_authority.username() {
-        //     pu_authority_username = Some(pu_a_u.as_str());
-        // }
-
-        // Check password
-        // let mut pu_authority_password: Option<&str> = None;
-        // if let Some(pu_a_p) = pu_authority.password() {
-        //     pu_authority_password = Some(pu_a_p.as_str());
-        // }
-
         let pu_authority_username = pu_authority.username().map(|v| v.as_str()).unwrap_or_else(|| "guest");
         let pu_authority_password = pu_authority.password().map(|v| v.as_str()).unwrap_or_else(|| "guest");
 
