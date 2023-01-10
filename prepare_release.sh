@@ -10,20 +10,20 @@ if ! [[ $version =~ $semver_regex ]]; then
     exit 1  
 fi
 
-read -p "Are you going to release $version? " ans
+read -p "Are you going to release v${version}? " ans
 if [ "$ans" != "y" ]; then
     exit 0
 fi
 
 read -p 'commit? ' ans
 if [ "$ans" = "y" ]; then
-    git commit -a -m "prepare release ${version}"
-    git tag -a ${version} -m "${version}"
+    git commit -a -m "prepare release v${version}"
+    git tag -a "v${version}" -m "v${version}"
     git log -1
 fi
 read -p 'push tag? ' ans
 if [ "$ans" = "y" ]; then
-    git push origin ${version}
+    git push origin "v${version}"
 fi
 read -p 'push commit? ' ans
 if [ "$ans" = "y" ]; then
