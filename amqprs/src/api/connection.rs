@@ -432,12 +432,6 @@ impl TryFrom<&str> for OpenConnectionArguments {
         let pu = URIReference::try_from(uri)?;
 
         // Check scheme
-        if pu.scheme().is_none()
-            || (pu.scheme().unwrap().as_str() != "amqp" && pu.scheme().unwrap().as_str() != "amqps")
-        {
-            return Err(Error::UriError(String::from("Invalid URI scheme")));
-        }
-
         let scheme = pu.scheme().ok_or_else(|| Error::UriError(String::from("No URI scheme")))?.as_str();
 
         if !["amqp", "amqrs"].contains(&scheme) {
@@ -456,12 +450,12 @@ impl TryFrom<&str> for OpenConnectionArguments {
 
         // Check authority
         let pu_authority  = pu.authority().ok_or_else(|| Error::UriError(String::from("Invalid URI authority")))?;
-        let pu_authority_username = pu_authority.username().map(|v| v.as_str()).unwrap_or_else(|| "guest");
-        let pu_authority_password = pu_authority.password().map(|v| v.as_str()).unwrap_or_else(|| "guest");
+        let pu_authority_username = pu_authority.username().map(|v| v.as_str()).unwrap_or("guest");
+        let pu_authority_password = pu_authority.password().map(|v| v.as_str()).unwrap_or("guest");
 
         
         // Apply authority
-        let mut args: &mut OpenConnectionArguments = &mut OpenConnectionArguments::new(
+        let mut  args = OpenConnectionArguments::new(
             pu_authority.host().to_string().as_str(),
             pu_authority.port().unwrap_or(default_port),
             pu_authority_username,
@@ -470,9 +464,9 @@ impl TryFrom<&str> for OpenConnectionArguments {
         // Check & apply virtual host
         let pu_path = pu.path().to_string();
         if pu_path.is_empty() {
-            args = args.virtual_host("/");
+            args.virtual_host("/");
         } else {
-            args = args.virtual_host(pu_path.as_str());
+            args.virtual_host(pu_path.as_str());
         }
 
         // Check & apply query
@@ -480,7 +474,7 @@ impl TryFrom<&str> for OpenConnectionArguments {
 
         // Return early if there is no query since all that is left is to process the query
         if pu_q.is_empty() {
-            return Ok(args.finish());
+            return Ok(args);
         }
         
         // Create a hash map for query
@@ -497,9 +491,9 @@ impl TryFrom<&str> for OpenConnectionArguments {
 
         // Apply heartbeat
         let heartbeat = pu_q_map.get("heartbeat").map(|v| v.parse::<u16>().unwrap_or(DEFAULT_HEARTBEAT)).unwrap_or(DEFAULT_HEARTBEAT);
-        args = args.heartbeat(heartbeat);
+        args.heartbeat(heartbeat);
 
-        Ok(args.finish())
+        Ok(args)
     }
 }
 
