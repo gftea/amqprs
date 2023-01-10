@@ -4,11 +4,15 @@ use crate::net;
 
 use std::fmt;
 use tokio::sync::{mpsc::error::SendError, oneshot::error::RecvError};
+#[cfg(feature = "urispec")]
+use uriparse::uri_reference::URIReferenceError;
 
 /// A list of errors can be returned by the APIs.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {
+    /// Error when using an amqp(s) uri. Usually due to incorrect usage by user.
+    UriError(String),
     /// Error during openning a connection.
     ConnectionOpenError(String),
     /// Error during closing a connection.
@@ -26,6 +30,13 @@ pub enum Error {
     /// Error in sending or receiving messages via internal communication channel.
     /// Usually due to incorrect usage by user.
     InternalChannelError(String),
+}
+
+#[cfg(feature = "urispec")]
+impl From<URIReferenceError> for Error {
+    fn from(err: URIReferenceError) -> Self {
+        Self::UriError(err.to_string())
+    }
 }
 
 impl From<net::Error> for Error {
@@ -47,6 +58,9 @@ impl From<RecvError> for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Error::UriError(msg) => {
+                write!(f, "AMQP(S) URI error: {}", msg)
+            }
             Error::NetworkError(msg) => write!(f, "AMQP network error: {}", msg),
             Error::ConnectionOpenError(msg) => write!(f, "AMQP connection open error: {}", msg),
             Error::ConnectionCloseError(msg) => write!(f, "AMQP connection close error: {}", msg),

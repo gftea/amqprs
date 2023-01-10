@@ -16,7 +16,7 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() {
-//! let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+//! let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
 //! // open a connection with given arguments
 //! let connection = Connection::open(&args).await.unwrap();
 //!
@@ -75,6 +75,12 @@ use crate::api::compliance_asserts::assert_path;
 use crate::frame::FRAME_MIN_SIZE;
 #[cfg(feature = "traces")]
 use tracing::{debug, error, info};
+#[cfg(feature = "urispec")]
+use uriparse::URIReference;
+
+const DEFAULT_AMQP_PORT: u16 = 5672;
+const DEFAULT_AMQPS_PORT: u16 = 5671;
+const DEFAULT_HEARTBEAT: u16 = 60;
 
 //  TODO: move below constants gto be part of static configuration of connection
 // per channel buffer
@@ -221,7 +227,7 @@ struct SharedConnectionInner {
 /// # use amqprs::connection::OpenConnectionArguments;
 ///
 /// // Create a new one and update the fields, then return desired config
-/// let args = OpenConnectionArguments::new("localhost:5672","user", "bitnami")
+/// let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
 ///     .virtual_host("myhost")
 ///     .connection_name("myconnection")
 ///     .finish();
@@ -234,7 +240,7 @@ struct SharedConnectionInner {
 /// # use amqprs::connection::OpenConnectionArguments;
 ///
 /// // create a new and mutable argument
-/// let mut args = OpenConnectionArguments::new("localhost:5672","user", "bitnami");
+/// let mut args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
 /// // update fields of the mutable argument
 /// args.virtual_host("myhost").connection_name("myconnection");
 /// ```
@@ -244,8 +250,12 @@ struct SharedConnectionInner {
 
 #[derive(Clone)]
 pub struct OpenConnectionArguments {
-    /// The server URI format "\<ip addr\>\:\<port\>". Default: "localhost:5672".
-    uri: String,
+    /// The server URI. See [RabbitMQ URI spec](https://www.rabbitmq.com/uri-spec.html).
+    uri: Option<String>,
+    /// The server host. Default: "localhost".
+    host: String,
+    /// The server port. Default: 5672 by [AMQP 0-9-1 spec](https://www.rabbitmq.com/amqp-0-9-1-reference.html).
+    port: u16,
     /// Default: "/". See [RabbitMQ vhosts](https://www.rabbitmq.com/vhosts.html).
     virtual_host: String,
     /// Default: [`None`], auto generate a connection name, otherwise use given connection name.
@@ -264,7 +274,9 @@ pub struct OpenConnectionArguments {
 impl Default for OpenConnectionArguments {
     fn default() -> Self {
         Self {
-            uri: String::from("localhost:5672"),
+            uri: None,
+            host: String::from("localhost"),
+            port: DEFAULT_AMQP_PORT,
             virtual_host: String::from("/"),
             connection_name: None,
             credentials: SecurityCredentials::new_plain("guest", "guest"),
@@ -282,9 +294,11 @@ impl OpenConnectionArguments {
     ///
     /// Use virtual host "/", SASL/PLAIN authentication and auto generated connection name.
     ///
-    pub fn new(uri: &str, username: &str, password: &str) -> Self {
+    pub fn new(host: &str, port: u16, username: &str, password: &str) -> Self {
         Self {
-            uri: uri.to_owned(),
+            uri: None,
+            host: host.to_owned(),
+            port,
             virtual_host: String::from("/"),
             connection_name: None,
             credentials: SecurityCredentials::new_plain(username, password),
@@ -294,13 +308,51 @@ impl OpenConnectionArguments {
         }
     }
 
+    /// Set the host of the server.
+    ///
+    /// # Default
+    ///
+    /// "localhost"
+    pub fn host(&mut self, host: &str) -> &mut Self {
+        self.host = host.to_owned();
+        self
+    }
+
+    /// Set the port of the server.
+    ///
+    /// # Default
+    ///
+    /// 5672 by [AMQP 0-9-1 spec](https://www.rabbitmq.com/amqp-0-9-1-reference.html).
+    pub fn port(&mut self, port: u16) -> &mut Self {
+        self.port = port;
+        self
+    }
+
     /// Set the URI of the server. Format: "\<ip addr\>\:\<port\>"
+    ///
+    /// To support legacy functionality, this method will only set the host and port.
+    ///
     ///
     /// # Default
     ///
     /// "localhost:5672"
+    #[deprecated(since = "0.4.1", note = "Use `host` and `port` instead")]
     pub fn uri(&mut self, uri: &str) -> &mut Self {
-        self.uri = uri.to_owned();
+        self.uri = Some(uri.to_owned());
+
+        // Set host and port by splitting by ':', this does not accept IPv6 addresses or all URI formats
+        let mut split = uri.split(':');
+
+        self.host(split.next().unwrap());
+
+        let port_result = split.next();
+
+        if let Some(port) = port_result {
+            self.port(port.parse().unwrap_or(DEFAULT_AMQP_PORT));
+        } else {
+            self.port(DEFAULT_AMQP_PORT);
+        }
+
         self
     }
 
@@ -365,6 +417,86 @@ impl OpenConnectionArguments {
     }
 }
 
+#[cfg(feature = "urispec")]
+impl TryFrom<&str> for OpenConnectionArguments {
+    type Error = Error;
+
+    /// Create a new OpenConnectionArguments from a URI &str. Mostly follows the [AMQP URI spec](https://www.rabbitmq.com/uri-spec.html). See below for exceptions.
+    ///
+    /// If the URI is invalid, a UriError error is returned.
+    ///
+    /// If no port is specified, the default port of 5672 is used (as per the spec).
+    /// If no host is speecified or is zero-length, a UriError error is returned. Note that this is different from the spec, which allows for EmptyHost. This is because the host is used to create a TCP connection, and an empty host is invalid.
+    ///
+    fn try_from(uri: &str) -> Result<Self> {
+        let pu = URIReference::try_from(uri)?;
+
+        // Check scheme
+        let scheme = pu.scheme().ok_or_else(|| Error::UriError(String::from("No URI scheme")))?.as_str();
+
+        if !["amqp", "amqrs"].contains(&scheme) {
+            return Err(Error::UriError(format!("Unsupported URI scheme: {}", scheme)));
+        }
+
+
+        // Set the default port depending on the scheme. The unwrap should be safe due to the checks above. 
+        // Will panic if any invalid scheme is not rejected before this point
+        let default_port: u16 = match scheme {
+            "amqp" => DEFAULT_AMQP_PORT,
+            "amqps" => DEFAULT_AMQPS_PORT,
+            _ => panic!("Error occurred while setting default port based on amq scheme. This should never happen.")
+            
+        };
+
+        // Check authority
+        let pu_authority  = pu.authority().ok_or_else(|| Error::UriError(String::from("Invalid URI authority")))?;
+        let pu_authority_username = pu_authority.username().map(|v| v.as_str()).unwrap_or("guest");
+        let pu_authority_password = pu_authority.password().map(|v| v.as_str()).unwrap_or("guest");
+
+        
+        // Apply authority
+        let mut  args = OpenConnectionArguments::new(
+            pu_authority.host().to_string().as_str(),
+            pu_authority.port().unwrap_or(default_port),
+            pu_authority_username,
+            pu_authority_password,
+        );
+        // Check & apply virtual host
+        let pu_path = pu.path().to_string();
+        if pu_path.is_empty() {
+            args.virtual_host("/");
+        } else {
+            args.virtual_host(pu_path.as_str());
+        }
+
+        // Check & apply query
+        let pu_q = pu.query().map(|v| v.as_str()).ok_or(|| "").unwrap_or("");
+
+        // Return early if there is no query since all that is left is to process the query
+        if pu_q.is_empty() {
+            return Ok(args);
+        }
+        
+        // Create a hash map for query
+        // TODO: This map needs to be of type (or similar) <&str, Vec<&str>> to support multiple values for the same key, which is both possible and plausible in the URI spec
+        // This is being left as a TODO because there is a bit of research to do in order to determine what actions when multiple value are provided.
+        let pu_q_map: std::collections::HashMap<&str, &str> = pu_q.split('&')
+            .map(|s| {
+                let mut split = s.split('=');
+                let key = split.next().unwrap();
+                let value = split.next().unwrap();
+                (key, value)
+            })
+            .collect();
+
+        // Apply heartbeat
+        let heartbeat = pu_q_map.get("heartbeat").map(|v| v.parse::<u16>().unwrap_or(DEFAULT_HEARTBEAT)).unwrap_or(DEFAULT_HEARTBEAT);
+        args.heartbeat(heartbeat);
+
+        Ok(args)
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////////
 
 impl Connection {
@@ -378,14 +510,18 @@ impl Connection {
         #[cfg(feature = "tls")]
         let mut io_conn = match &args.tls_adaptor {
             Some(tls_adaptor) => {
-                SplitConnection::open_tls(&args.uri, &tls_adaptor.domain, &tls_adaptor.connector)
-                    .await?
+                SplitConnection::open_tls(
+                    &format!("{}:{}", args.host, args.port),
+                    &tls_adaptor.domain,
+                    &tls_adaptor.connector,
+                )
+                .await?
             }
 
-            None => SplitConnection::open(&args.uri).await?,
+            None => SplitConnection::open(&format!("{}:{}", args.host, args.port)).await?,
         };
         #[cfg(not(feature = "tls"))]
-        let mut io_conn = SplitConnection::open(&args.uri).await?;
+        let mut io_conn = SplitConnection::open(&format!("{}:{}", args.host, args.port)).await?;
 
         // C:protocol-header
         Self::negotiate_protocol(&mut io_conn).await?;
@@ -393,7 +529,10 @@ impl Connection {
         // if no given connection name, generate one
         let connection_name = match args.connection_name {
             Some(ref given_name) => given_name.clone(),
-            None => generate_connection_name(&format!("{}{}", args.uri, args.virtual_host)),
+            None => generate_connection_name(&format!(
+                "{}:{}{}",
+                args.host, args.port, args.virtual_host
+            )),
         };
         // construct client properties
         let mut client_properties = AmqpPeerProperties::new();
@@ -1058,6 +1197,7 @@ fn generate_connection_name(domain: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{generate_connection_name, Connection, OpenConnectionArguments};
+    use crate::api::error::Error;
     use crate::security::SecurityCredentials;
     use std::{collections::HashSet, thread};
     use tokio::time;
@@ -1068,7 +1208,7 @@ mod tests {
         let _guard = setup_logging(Level::INFO);
         {
             // test close on drop
-            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+            let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
 
             let connection = Connection::open(&args).await.unwrap();
             {
@@ -1089,7 +1229,7 @@ mod tests {
 
         for _ in 0..10 {
             let handle = tokio::spawn(async {
-                let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+                let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
 
                 time::sleep(time::Duration::from_millis(200)).await;
                 let connection = Connection::open(&args).await.unwrap();
@@ -1107,7 +1247,7 @@ mod tests {
     async fn test_multi_channel_open_close() {
         let _guard = setup_logging(Level::INFO);
         {
-            let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+            let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
                 .connection_name("test_multi_channel_open_close")
                 .finish();
 
@@ -1150,7 +1290,7 @@ mod tests {
     async fn test_duplicated_conn_name_is_accpeted_by_server() {
         let _guard = setup_logging(Level::INFO);
 
-        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
             .connection_name("amq.cname-test")
             .finish();
 
@@ -1165,7 +1305,7 @@ mod tests {
     async fn test_auth_amqplain() {
         let _guard = setup_logging(Level::INFO);
 
-        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
             .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
             .finish();
         Connection::open(&args).await.unwrap();
@@ -1176,7 +1316,7 @@ mod tests {
     async fn test_open_already_opened_channel() {
         let _guard = setup_logging(Level::INFO);
 
-        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
             .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
             .finish();
         let connection = Connection::open(&args).await.unwrap();
@@ -1197,5 +1337,76 @@ mod tests {
         let subscriber = tracing_subscriber::fmt().with_max_level(level).finish();
         // use that subscriber to process traces emitted after this point
         tracing::subscriber::set_default(subscriber)
+    }
+
+    #[cfg(feature = "urispec")]
+    #[tokio::test]
+    async fn test_openconnectionarguments_try_from() {
+        let args = OpenConnectionArguments::try_from("amqp://user:pass@host:10000/vhost").unwrap();
+        assert_eq!(args.host, "host");
+        assert_eq!(args.port, 10000);
+        assert_eq!(args.virtual_host, "/vhost");
+
+        let args =
+            OpenConnectionArguments::try_from("amqp://user%61:%61pass@ho%61st:10000/v%2fhost")
+                .unwrap();
+        assert_eq!(args.host, "ho%61st");
+        assert_eq!(args.port, 10000);
+        assert_eq!(args.virtual_host, "/v%2fhost");
+
+        let args = OpenConnectionArguments::try_from("amqp://").unwrap();
+        assert_eq!(args.host, "");
+        assert_eq!(args.port, 5672);
+        assert_eq!(args.virtual_host, "/");
+
+        let args = OpenConnectionArguments::try_from("amqp://:@/").unwrap();
+        assert_eq!(args.host, "");
+        assert_eq!(args.port, 5672);
+        assert_eq!(args.virtual_host, "/");
+
+        let args = OpenConnectionArguments::try_from("amqp://user@").unwrap();
+        assert_eq!(args.host, "");
+        assert_eq!(args.port, 5672);
+        assert_eq!(args.virtual_host, "/");
+
+        let args = OpenConnectionArguments::try_from("amqp://user:pass@").unwrap();
+        assert_eq!(args.host, "");
+        assert_eq!(args.port, 5672);
+        assert_eq!(args.virtual_host, "/");
+
+        let args = OpenConnectionArguments::try_from("amqp://host").unwrap();
+        assert_eq!(args.host, "host");
+        assert_eq!(args.port, 5672);
+        assert_eq!(args.virtual_host, "/");
+
+        let args = OpenConnectionArguments::try_from("amqp://:10000").unwrap();
+        assert_eq!(args.host, "");
+        assert_eq!(args.port, 10000);
+        assert_eq!(args.virtual_host, "/");
+
+        let args = OpenConnectionArguments::try_from("amqp://host:10000").unwrap();
+        assert_eq!(args.host, "host");
+        assert_eq!(args.port, 10000);
+        assert_eq!(args.virtual_host, "/");
+
+        // Results in an error because of invalid URI scheme
+        let args = OpenConnectionArguments::try_from("fsdkfjflsd::/fsdfsdfsd:sfsd/");
+        assert!(args.is_err());
+
+        // Results in an error because of Completely invalid URI
+        let args = OpenConnectionArguments::try_from("fsdkfjflsd/fsdfsdfsdsfsd/");
+        assert!(args.is_err());
+
+        let args = OpenConnectionArguments::try_from("amqp://[::1]").unwrap();
+        assert_eq!(args.host, "[::1]");
+        assert_eq!(args.port, 5672);
+        assert_eq!(args.virtual_host, "/");
+        assert_eq!(args.heartbeat, 60);
+
+        let args = OpenConnectionArguments::try_from("amqp://[::1]?heartbeat=30").unwrap();
+        assert_eq!(args.host, "[::1]");
+        assert_eq!(args.port, 5672);
+        assert_eq!(args.virtual_host, "/");
+        assert_eq!(args.heartbeat, 30);
     }
 }

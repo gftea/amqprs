@@ -17,7 +17,7 @@ pub fn setup_logging(level: Level) -> DefaultGuard {
 
 #[cfg(not(feature = "tls"))]
 pub fn build_conn_args() -> OpenConnectionArguments {
-    OpenConnectionArguments::new("localhost:5672", "user", "bitnami")
+    OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
 }
 #[cfg(feature = "tls")]
 pub fn build_conn_args() -> OpenConnectionArguments {
@@ -30,7 +30,7 @@ pub fn build_conn_args() -> OpenConnectionArguments {
     let client_private_key = current_dir.join("client_AMQPRS_TEST_key.pem");
     // domain should match the certificate/key files
     let domain = "AMQPRS_TEST";
-    OpenConnectionArguments::new("localhost:5671", "user", "bitnami")
+    OpenConnectionArguments::new("localhost", 5671, "user", "bitnami")
         .tls_adaptor(
             amqprs::tls::TlsAdaptor::with_client_auth(
                 Some(root_ca_cert.as_path()),

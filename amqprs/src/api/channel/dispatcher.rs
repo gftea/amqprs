@@ -518,7 +518,7 @@ mod tests {
     async fn test_purge_consumer_resource() {
         let _guard = setup_logging(Level::INFO);
 
-        let args = OpenConnectionArguments::new("localhost:5672", "user", "bitnami");
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
         let connection = Connection::open(&args).await.unwrap();
 
         let exchange_name = "amq.topic";
