@@ -426,13 +426,16 @@ impl Channel {
         Ok(consumer_tag)
     }
 
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack)
+    /// Similar as [`basic_consume`] but run the consumer in a blocking context.
     ///
     /// Returns consumer tag if succeed.
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.  
+    /// Returns error if any failure in comunication with server.
+    /// 
+    /// [`basic_consume`]: struct.Channel.html#method.basic_consume
+
     pub async fn basic_consume_blocking<F>(
         &self,
         consumer: F,

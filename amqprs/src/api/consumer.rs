@@ -50,10 +50,11 @@ pub trait AsyncConsumer {
     ///    to corresponding blocking task.
     ///    Also check [bridging async and blocking code](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html#related-apis-and-patterns-for-bridging-asynchronous-and-blocking-code).
     ///
-    /// 2. Create blocking consumer by implementing trait [`BlockingConsumer`], and use [`basic_consume_blocking`]
+    /// 2. Create blocking consumer by implementing trait [`BlockingConsumer`], and use [`Channel::basic_consume_blocking`]
     ///    to start consuming message in a blocking context.
     ///
-    /// [`basic_consume_blocking`]: struct.Channel.html#method.basic_consume_blocking
+    /// [`Channel::basic_consume_blocking`]: ../channel/struct.Channel.html#method.basic_consume_blocking
+
     async fn consume(
         &mut self, // use `&mut self` to make trait object to be `Sync`
         channel: &Channel,
@@ -106,9 +107,10 @@ impl AsyncConsumer for DefaultConsumer {
 }
 
 //////////////////////////////////////////////////////////////////////////////
-/// Similar as `AsyncConsumer` but run in a blocking context, aiming for CPU bound task.
+/// Similar as [`AsyncConsumer`] but run in a blocking context, aiming for CPU bound task.
 pub trait BlockingConsumer {
-    /// Each blocking consumer will be run in a separate Thread.
+    /// Except that a blocking consumer will be run in a separate Thread, otherwise see explanation
+    /// in  [`AsyncConsumer::consume`].
     ///
     /// If there are too many blocking consumers, user is recommended to use a thread pool for all
     /// blocking tasks. See possible solution in [`non-blocking and blocking consumer`].
