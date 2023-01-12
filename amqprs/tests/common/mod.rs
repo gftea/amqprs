@@ -5,7 +5,7 @@ use tracing::{subscriber::DefaultGuard, Level};
 pub fn setup_logging(level: Level) -> DefaultGuard {
     // global subscriber as fallback
     let subscriber = tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
+        .with_max_level(Level::TRACE)
         .finish();
     tracing::subscriber::set_global_default(subscriber).ok();
 

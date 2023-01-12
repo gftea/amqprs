@@ -13,6 +13,7 @@ use crate::{
         error::Error,
         FieldTable, Result,
     },
+    consumer::BlockingConsumer,
     frame::{
         Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody, ContentHeader,
         ContentHeaderCommon, Frame, Get, GetOk, Nack, Publish, Qos, QosOk, Recover, RecoverOk,
@@ -147,6 +148,7 @@ impl BasicConsumeArguments {
         /// Chainable setter method.
         arguments, FieldTable
     }
+
     /// Finish chained configuration and return new arguments.
     pub fn finish(&mut self) -> Self {
         #[cfg(feature = "compliance_assert")]
@@ -415,10 +417,40 @@ impl Channel {
     /// Returns error if any failure in comunication with server.  
     pub async fn basic_consume<F>(&self, consumer: F, args: BasicConsumeArguments) -> Result<String>
     where
-        // TODO: this is blocking callback, spawn blocking task in connection manager
-        // to provide async callback, and spawn async task  in connection manager
         F: AsyncConsumer + Send + 'static,
     {
+        let consumer_tag = self.request_basic_consume(args).await?;
+
+        self.spawn_consumer(consumer_tag.clone(), consumer).await?;
+
+        Ok(consumer_tag)
+    }
+
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack)
+    ///
+    /// Returns consumer tag if succeed.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.  
+    pub async fn basic_consume_blocking<F>(
+        &self,
+        consumer: F,
+        args: BasicConsumeArguments,
+    ) -> Result<String>
+    where
+        F: BlockingConsumer + Send + 'static,
+    {
+        let consumer_tag = self.request_basic_consume(args).await?;
+
+        self.spawn_blocking_consumer(consumer_tag.clone(), consumer)
+            .await?;
+
+        Ok(consumer_tag)
+    }
+
+    /// Send basic consume request to server
+    async fn request_basic_consume(&self, args: BasicConsumeArguments) -> Result<String> {
         let BasicConsumeArguments {
             queue,
             consumer_tag,
@@ -428,7 +460,6 @@ impl Channel {
             no_wait,
             arguments,
         } = args;
-
         let mut consume = Consume::new(
             0,
             queue.try_into().unwrap(),
@@ -439,11 +470,6 @@ impl Channel {
         consume.set_no_ack(no_ack);
         consume.set_exclusive(exclusive);
         consume.set_nowait(no_wait);
-
-        // before start consume, park the dispatcher first,
-        // unpark the dispatcher after we have added consumer into callback queue
-        // self.park_notify.notify_one();
-
         let consumer_tag = if args.no_wait {
             self.shared
                 .outgoing_tx
@@ -462,13 +488,10 @@ impl Channel {
             )?;
             method.consumer_tag.into()
         };
-
-        self.spawn_consumer(consumer_tag.clone(), consumer).await?;
-
         Ok(consumer_tag)
     }
 
-    /// Spawn consumer task
+    /// Spawn async consumer task
     async fn spawn_consumer<F>(&self, consumer_tag: String, mut consumer: F) -> Result<()>
     where
         F: AsyncConsumer + Send + 'static,
@@ -480,10 +503,15 @@ impl Channel {
 
         let ctag = consumer_tag.clone();
         let channel = self.clone();
+
         // spawn consumer task
         tokio::spawn(async move {
             #[cfg(feature = "tracing")]
-            trace!("starts task for consumer {} on channel {}", ctag, channel);
+            trace!(
+                "starts task for async consumer {} on channel {}",
+                ctag,
+                channel
+            );
 
             loop {
                 match consumer_rx.recv().await {
@@ -499,14 +527,68 @@ impl Channel {
                     }
                     None => {
                         #[cfg(feature = "tracing")]
-                        debug!("exit task of consumer {}", ctag);
+                        debug!("exit task of async consumer {}", ctag);
                         break;
                     }
                 }
             }
         });
 
-        // register consumer to dispatcher
+        self.register_consumer(consumer_tag, consumer_tx).await?;
+        Ok(())
+    }
+
+    /// Spawn blocking consumer task
+    async fn spawn_blocking_consumer<F>(&self, consumer_tag: String, mut consumer: F) -> Result<()>
+    where
+        F: BlockingConsumer + Send + 'static,
+    {
+        let (consumer_tx, mut consumer_rx): (
+            mpsc::Sender<ConsumerMessage>,
+            mpsc::Receiver<ConsumerMessage>,
+        ) = mpsc::channel(CONSUMER_MESSAGE_BUFFER_SIZE);
+
+        let ctag = consumer_tag.clone();
+        let channel = self.clone();
+
+        // spawn blocking consumer task
+        tokio::task::spawn_blocking(move || {
+            #[cfg(feature = "tracing")]
+            trace!(
+                "starts task for blocking consumer {} on channel {}",
+                ctag,
+                channel
+            );
+
+            loop {
+                match consumer_rx.blocking_recv() {
+                    Some(mut msg) => {
+                        consumer.consume(
+                            &channel,
+                            msg.deliver.take().unwrap(),
+                            msg.basic_properties.take().unwrap(),
+                            msg.content.take().unwrap(),
+                        );
+                    }
+                    None => {
+                        #[cfg(feature = "tracing")]
+                        debug!("exit task of blocking consumer {}", ctag);
+                        break;
+                    }
+                }
+            }
+        });
+
+        self.register_consumer(consumer_tag, consumer_tx).await?;
+        Ok(())
+    }
+
+    /// register consumer in dispatcher
+    async fn register_consumer(
+        &self,
+        consumer_tag: String,
+        consumer_tx: mpsc::Sender<ConsumerMessage>,
+    ) -> Result<()> {
         self.shared
             .dispatcher_mgmt_tx
             .send(DispatcherManagementCommand::RegisterContentConsumer(
@@ -532,6 +614,26 @@ impl Channel {
             .await?;
         Ok(())
     }
+
+    /// Blocking version of [`basic_ack`], should be invoked in blocking context.
+    ///
+    /// # Panics
+    ///
+    /// Panic if invoked in async context.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.    
+    /// 
+    /// [`basic_ack`]: struct.Channel.html#method.basic_ack
+    pub fn basic_ack_blocking(&self, args: BasicAckArguments) -> Result<()> {
+        let ack = Ack::new(args.delivery_tag, args.multiple);
+        self.shared
+            .outgoing_tx
+            .blocking_send((self.shared.channel_id, ack.into_frame()))?;
+        Ok(())
+    }
+
     /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.nack)
     ///
     /// # Errors
@@ -547,6 +649,28 @@ impl Channel {
             .await?;
         Ok(())
     }
+
+    /// Blocking version of [`basic_nack`], should be invoked in blocking context.
+    ///
+    /// # Panics
+    ///
+    /// Panic if invoked in async context.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.    
+    /// 
+    /// [`basic_nack`]: struct.Channel.html#method.basic_nack
+    pub fn basic_nack_blocking(&self, args: BasicNackArguments) -> Result<()> {
+        let mut nack = Nack::new(args.delivery_tag);
+        nack.set_multiple(args.multiple);
+        nack.set_requeue(args.requeue);
+        self.shared
+            .outgoing_tx
+            .blocking_send((self.shared.channel_id, nack.into_frame()))?;
+        Ok(())
+    }
+
     /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.reject)
     ///
     /// # Errors

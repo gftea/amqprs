@@ -6,7 +6,7 @@ use amqprs::{
         QueueBindArguments, QueueDeclareArguments,
     },
     connection::Connection,
-    consumer::DefaultConsumer,
+    consumer::{DefaultConsumer, DefaultBlockingConsumer},
     BasicProperties, DELIVERY_MODE_TRANSIENT,
 };
 use tokio::time;
@@ -68,6 +68,62 @@ async fn test_multi_consumer() {
     time::sleep(time::Duration::from_secs(1)).await;
 
     // explicitly close
+    pub_channel.close().await.unwrap();
+    consumer_channel.close().await.unwrap();
+    connection.close().await.unwrap();
+}
+
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 5)]
+async fn test_blocking_consumer() {
+    let _guard = common::setup_logging(Level::INFO);
+
+    // open a connection to RabbitMQ server
+    let args = common::build_conn_args();
+    let connection = Connection::open(&args).await.unwrap();
+
+    // open a channel dedicated for consumer on the connection
+    let consumer_channel = connection.open_channel(None).await.unwrap();
+
+    let exchange_name = "amq.topic";
+    // declare a queue
+    let (queue_name, ..) = consumer_channel
+        .queue_declare(QueueDeclareArguments::default())
+        .await
+        .unwrap()
+        .unwrap();
+
+    // bind the queue to exchange
+    let routing_key = "amqprs_test_blocking_consumer";
+    consumer_channel
+        .queue_bind(QueueBindArguments::new(
+            &queue_name,
+            exchange_name,
+            routing_key,
+        ))
+        .await
+        .unwrap();
+
+    // start blocking consumer
+    let args = BasicConsumeArguments::new(&queue_name, "amqprs_test_blocking_consumer");
+
+    consumer_channel
+        .basic_consume_blocking(DefaultBlockingConsumer::new(args.no_ack), args)
+        .await
+        .unwrap();
+
+
+    // open a channel dedicated for publisher on the connection
+    let pub_channel = connection.open_channel(None).await.unwrap();
+    // publish test messages
+    publish_test_messages(&pub_channel, exchange_name, routing_key, 5).await;
+
+    // keep the `channel` and `connection` object from dropping
+    // NOTE: channel/connection will be closed when drop
+    time::sleep(time::Duration::from_secs(1)).await;
+
+    // explicitly close
+    pub_channel.close().await.unwrap();
     consumer_channel.close().await.unwrap();
     connection.close().await.unwrap();
 }

@@ -1,5 +1,5 @@
 //! Utility functions for compliance assert
-//! See [Specs](see https://www.rabbitmq.com/resources/specs/amqp0-9-1.extended.xml)
+//! See [Specs](https://www.rabbitmq.com/resources/specs/amqp0-9-1.extended.xml)
 
 #[inline]
 pub(crate) fn assert_regexp(value: &str) {

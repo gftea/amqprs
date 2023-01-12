@@ -1,13 +1,14 @@
 //! Callback interfaces of asynchronous content data consumer.
 //!
-//! The consumer is required by [`Channel::basic_consume`].
-//! User should create its own consumer by implementing the trait [`AsyncConsumer`].
+//! The consumer is required by [`Channel::basic_consume`] or [`Channel::basic_consume_blocking`].
+//! User should create its own consumer by implementing the trait [`AsyncConsumer`] or [`BlockingConsumer`].
 //!
 //! # Examples
 //!
-//! See implementation of [`DefaultConsumer`].
+//! See implementation of [`DefaultConsumer`] and [`DefaultBlockingConsumer`].
 //!
-//! [`Channel::consume`]: ../channel/struct.Channel.html#method.basic_consume
+//! [`Channel::basic_consume`]: ../channel/struct.Channel.html#method.basic_consume
+//! [`Channel::basic_consume_blocking`]: ../channel/struct.Channel.html#method.basic_consume_blocking
 //!
 use super::channel::{BasicAckArguments, Channel};
 use crate::frame::{BasicProperties, Deliver};
@@ -39,15 +40,20 @@ pub trait AsyncConsumer {
     ///
     /// # Non-blocking and blocking consumer
     ///
-    /// This method is invoked in a async task context, so its implementation should NOT be CPU bound.
-    ///
-    /// To handle CPU bound task, user can spawn a blocking task using
-    /// [tokio::spawn_blocking](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html)
-    /// for CPU bound job, and use [tokio's mpsc channel](https://docs.rs/tokio/latest/tokio/sync/mpsc/index.html#communicating-between-sync-and-async-code)
-    /// to cummunicate between sync and async code.
-    ///
-    /// Also check [bridging async and blocking code](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html#related-apis-and-patterns-for-bridging-asynchronous-and-blocking-code).
-    ///     
+    /// This method is invoked in a async task context, so its implementation should NOT be CPU bound, otherwise it will starving the async runtime.
+    /// 
+    /// For CPU bound task (blocking consumer), possible solution below
+    /// 1. User can spawn a blocking task using [tokio::spawn_blocking](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html)
+    ///    for CPU bound job, and use [tokio's mpsc channel](https://docs.rs/tokio/latest/tokio/sync/mpsc/index.html#communicating-between-sync-and-async-code)
+    ///    to cummunicate between sync and async code. 
+    ///    If too many blocking tasks, user can create a thread pool shared by all blocking tasks, and this method is only to forward message
+    ///    to corresponding blocking task.
+    ///    Also check [bridging async and blocking code](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html#related-apis-and-patterns-for-bridging-asynchronous-and-blocking-code).
+    /// 
+    /// 2. Create blocking consumer by implementing trait [`BlockingConsumer`], and use [`basic_consume_blocking`] 
+    ///    to start consuming message in a blocking context. 
+    /// 
+    /// [`basic_consume_blocking`]: struct.Channel.html#method.basic_consume_blocking
     async fn consume(
         &mut self, // use `&mut self` to make trait object to be `Sync`
         channel: &Channel,
@@ -95,6 +101,66 @@ impl AsyncConsumer for DefaultConsumer {
             info!("ack to delivery {} on channel {}", deliver, channel);
             let args = BasicAckArguments::new(deliver.delivery_tag(), false);
             channel.basic_ack(args).await.unwrap();
+        }
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+/// Similar as `AsyncConsumer` but run in a blocking context, aiming for CPU bound task.
+pub trait BlockingConsumer {
+    /// Each blocking consumer will be run in a separate Thread. 
+    /// 
+    /// If there are too many blocking consumers, user is recommended to use a thread pool for all
+    /// blocking tasks. See possible solution in [`non-blocking and blocking consumer`].
+    ///
+    /// [`non-blocking and blocking consumer`]: trait.AsyncConsumer.html#non-blocking-and-blocking-consumer
+    fn consume(
+        &mut self, // use `&mut self` to make trait object to be `Sync`
+        channel: &Channel,
+        deliver: Deliver,
+        basic_properties: BasicProperties,
+        content: Vec<u8>,
+    );
+}
+
+/// Default type implements the [`BlockingConsumer`].
+///
+/// It is used for demo and debugging purposes only.
+pub struct DefaultBlockingConsumer {
+    no_ack: bool,
+}
+
+impl DefaultBlockingConsumer {
+    /// Return a new consumer.
+    ///
+    /// See [Acknowledgement Modes](https://www.rabbitmq.com/consumers.html#acknowledgement-modes)
+    ///
+    /// no_ack = [`true`] means automatic ack and should NOT send ACK to server.
+    ///
+    /// no_ack = [`false`] means manual ack, and should send ACK message to server.
+    pub fn new(no_ack: bool) -> Self {
+        Self { no_ack }
+    }
+}
+
+impl BlockingConsumer for DefaultBlockingConsumer {
+    fn consume(
+        &mut self,
+        channel: &Channel,
+        deliver: Deliver,
+        _basic_properties: BasicProperties,
+        _content: Vec<u8>,
+    ) {
+        #[cfg(feature = "tracing")]
+        info!("consume delivery {} on channel {}", deliver, channel);
+
+        // ack explicitly if manual ack
+        if !self.no_ack {
+            #[cfg(feature = "tracing")]
+            info!("ack to delivery {} on channel {}", deliver, channel);
+            let args = BasicAckArguments::new(deliver.delivery_tag(), false);
+            // should call blocking version of API because we are in blocing context 
+            channel.basic_ack_blocking(args).unwrap();
         }
     }
 }
