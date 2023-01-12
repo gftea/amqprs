@@ -1,6 +1,6 @@
 [package]
 name = "amqprs"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 rust-version = "1.56"
 license = "MIT"
@@ -12,6 +12,11 @@ categories = ["network-programming", "asynchronous"]
 documentation = "https://docs.rs/amqprs/latest/amqprs/"
 
 exclude = ["*.profraw", "*.profdata"]
+
+[package.metadata.docs.rs]
+# Whether to pass `--all-features` to Cargo (default: false)
+all-features = true
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
