@@ -37,7 +37,6 @@ pub struct CloseChannel {
 }
 
 impl CloseChannel {
-
     pub fn reply_code(&self) -> u16 {
         self.reply_code
     }

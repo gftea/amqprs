@@ -41,18 +41,18 @@ pub trait AsyncConsumer {
     /// # Non-blocking and blocking consumer
     ///
     /// This method is invoked in a async task context, so its implementation should NOT be CPU bound, otherwise it will starving the async runtime.
-    /// 
+    ///
     /// For CPU bound task (blocking consumer), possible solution below
     /// 1. User can spawn a blocking task using [tokio::spawn_blocking](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html)
     ///    for CPU bound job, and use [tokio's mpsc channel](https://docs.rs/tokio/latest/tokio/sync/mpsc/index.html#communicating-between-sync-and-async-code)
-    ///    to cummunicate between sync and async code. 
+    ///    to cummunicate between sync and async code.
     ///    If too many blocking tasks, user can create a thread pool shared by all blocking tasks, and this method is only to forward message
     ///    to corresponding blocking task.
     ///    Also check [bridging async and blocking code](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html#related-apis-and-patterns-for-bridging-asynchronous-and-blocking-code).
-    /// 
-    /// 2. Create blocking consumer by implementing trait [`BlockingConsumer`], and use [`basic_consume_blocking`] 
-    ///    to start consuming message in a blocking context. 
-    /// 
+    ///
+    /// 2. Create blocking consumer by implementing trait [`BlockingConsumer`], and use [`basic_consume_blocking`]
+    ///    to start consuming message in a blocking context.
+    ///
     /// [`basic_consume_blocking`]: struct.Channel.html#method.basic_consume_blocking
     async fn consume(
         &mut self, // use `&mut self` to make trait object to be `Sync`
@@ -108,8 +108,8 @@ impl AsyncConsumer for DefaultConsumer {
 //////////////////////////////////////////////////////////////////////////////
 /// Similar as `AsyncConsumer` but run in a blocking context, aiming for CPU bound task.
 pub trait BlockingConsumer {
-    /// Each blocking consumer will be run in a separate Thread. 
-    /// 
+    /// Each blocking consumer will be run in a separate Thread.
+    ///
     /// If there are too many blocking consumers, user is recommended to use a thread pool for all
     /// blocking tasks. See possible solution in [`non-blocking and blocking consumer`].
     ///
@@ -159,7 +159,7 @@ impl BlockingConsumer for DefaultBlockingConsumer {
             #[cfg(feature = "tracing")]
             info!("ack to delivery {} on channel {}", deliver, channel);
             let args = BasicAckArguments::new(deliver.delivery_tag(), false);
-            // should call blocking version of API because we are in blocing context 
+            // should call blocking version of API because we are in blocing context
             channel.basic_ack_blocking(args).unwrap();
         }
     }

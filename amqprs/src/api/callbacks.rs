@@ -29,7 +29,7 @@ use crate::{
 };
 use async_trait::async_trait;
 #[cfg(feature = "traces")]
-use tracing::{error, warn, info};
+use tracing::{error, info, warn};
 
 /////////////////////////////////////////////////////////////////////////////
 /// Callback interfaces for asynchronous `Connection` class message.

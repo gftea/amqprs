@@ -253,7 +253,10 @@ impl Frame {
                 Ok(Some((
                     total_size,
                     channel,
-                    Frame::ContentHeader(Box::new(ContentHeader::new(header_common, basic_properties))),
+                    Frame::ContentHeader(Box::new(ContentHeader::new(
+                        header_common,
+                        basic_properties,
+                    ))),
                 )))
             }
             FRAME_CONTENT_BODY => {

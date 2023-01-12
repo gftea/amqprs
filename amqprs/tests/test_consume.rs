@@ -6,7 +6,7 @@ use amqprs::{
         QueueBindArguments, QueueDeclareArguments,
     },
     connection::Connection,
-    consumer::{DefaultConsumer, DefaultBlockingConsumer},
+    consumer::{DefaultBlockingConsumer, DefaultConsumer},
     BasicProperties, DELIVERY_MODE_TRANSIENT,
 };
 use tokio::time;
@@ -73,7 +73,6 @@ async fn test_multi_consumer() {
     connection.close().await.unwrap();
 }
 
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
 async fn test_blocking_consumer() {
     let _guard = common::setup_logging(Level::INFO);
@@ -111,7 +110,6 @@ async fn test_blocking_consumer() {
         .basic_consume_blocking(DefaultBlockingConsumer::new(args.no_ack), args)
         .await
         .unwrap();
-
 
     // open a channel dedicated for publisher on the connection
     let pub_channel = connection.open_channel(None).await.unwrap();

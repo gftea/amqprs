@@ -16,7 +16,7 @@ async fn test_customized_heartbeat() {
     let mut args = common::build_conn_args();
     // set heartbeat = 10s
     args.heartbeat(10);
-    
+
     let connection = Connection::open(&args).await.unwrap();
 
     // open a channel on the connection

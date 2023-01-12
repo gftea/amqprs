@@ -624,7 +624,7 @@ impl Channel {
     /// # Errors
     ///
     /// Returns error if any failure in comunication with server.    
-    /// 
+    ///
     /// [`basic_ack`]: struct.Channel.html#method.basic_ack
     pub fn basic_ack_blocking(&self, args: BasicAckArguments) -> Result<()> {
         let ack = Ack::new(args.delivery_tag, args.multiple);
@@ -659,7 +659,7 @@ impl Channel {
     /// # Errors
     ///
     /// Returns error if any failure in comunication with server.    
-    /// 
+    ///
     /// [`basic_nack`]: struct.Channel.html#method.basic_nack
     pub fn basic_nack_blocking(&self, args: BasicNackArguments) -> Result<()> {
         let mut nack = Nack::new(args.delivery_tag);

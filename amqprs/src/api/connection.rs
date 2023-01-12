@@ -432,30 +432,41 @@ impl TryFrom<&str> for OpenConnectionArguments {
         let pu = URIReference::try_from(uri)?;
 
         // Check scheme
-        let scheme = pu.scheme().ok_or_else(|| Error::UriError(String::from("No URI scheme")))?.as_str();
+        let scheme = pu
+            .scheme()
+            .ok_or_else(|| Error::UriError(String::from("No URI scheme")))?
+            .as_str();
 
         if !["amqp", "amqrs"].contains(&scheme) {
-            return Err(Error::UriError(format!("Unsupported URI scheme: {}", scheme)));
+            return Err(Error::UriError(format!(
+                "Unsupported URI scheme: {}",
+                scheme
+            )));
         }
 
-
-        // Set the default port depending on the scheme. The unwrap should be safe due to the checks above. 
+        // Set the default port depending on the scheme. The unwrap should be safe due to the checks above.
         // Will panic if any invalid scheme is not rejected before this point
         let default_port: u16 = match scheme {
             "amqp" => DEFAULT_AMQP_PORT,
             "amqps" => DEFAULT_AMQPS_PORT,
-            _ => panic!("Error occurred while setting default port based on amq scheme. This should never happen.")
-            
+            _ => panic!("Error occurred while setting default port based on amq scheme. This should never happen.")            
         };
 
         // Check authority
-        let pu_authority  = pu.authority().ok_or_else(|| Error::UriError(String::from("Invalid URI authority")))?;
-        let pu_authority_username = pu_authority.username().map(|v| v.as_str()).unwrap_or("guest");
-        let pu_authority_password = pu_authority.password().map(|v| v.as_str()).unwrap_or("guest");
+        let pu_authority = pu
+            .authority()
+            .ok_or_else(|| Error::UriError(String::from("Invalid URI authority")))?;
+        let pu_authority_username = pu_authority
+            .username()
+            .map(|v| v.as_str())
+            .unwrap_or("guest");
+        let pu_authority_password = pu_authority
+            .password()
+            .map(|v| v.as_str())
+            .unwrap_or("guest");
 
-        
         // Apply authority
-        let mut  args = OpenConnectionArguments::new(
+        let mut args = OpenConnectionArguments::new(
             pu_authority.host().to_string().as_str(),
             pu_authority.port().unwrap_or(default_port),
             pu_authority_username,
@@ -476,11 +487,12 @@ impl TryFrom<&str> for OpenConnectionArguments {
         if pu_q.is_empty() {
             return Ok(args);
         }
-        
+
         // Create a hash map for query
         // TODO: This map needs to be of type (or similar) <&str, Vec<&str>> to support multiple values for the same key, which is both possible and plausible in the URI spec
         // This is being left as a TODO because there is a bit of research to do in order to determine what actions when multiple value are provided.
-        let pu_q_map: std::collections::HashMap<&str, &str> = pu_q.split('&')
+        let pu_q_map: std::collections::HashMap<&str, &str> = pu_q
+            .split('&')
             .map(|s| {
                 let mut split = s.split('=');
                 let key = split.next().unwrap();
@@ -490,7 +502,10 @@ impl TryFrom<&str> for OpenConnectionArguments {
             .collect();
 
         // Apply heartbeat
-        let heartbeat = pu_q_map.get("heartbeat").map(|v| v.parse::<u16>().unwrap_or(DEFAULT_HEARTBEAT)).unwrap_or(DEFAULT_HEARTBEAT);
+        let heartbeat = pu_q_map
+            .get("heartbeat")
+            .map(|v| v.parse::<u16>().unwrap_or(DEFAULT_HEARTBEAT))
+            .unwrap_or(DEFAULT_HEARTBEAT);
         args.heartbeat(heartbeat);
 
         Ok(args)
