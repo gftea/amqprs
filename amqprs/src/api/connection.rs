@@ -245,6 +245,16 @@ struct SharedConnectionInner {
 /// args.virtual_host("myhost").connection_name("myconnection");
 /// ```
 ///
+/// ## Create from URI string if feature "urispec" is enabled
+/// 
+/// 
+/// ```
+/// # use amqprs::connection::OpenConnectionArguments;
+/// # #[cfg(feature = "urispec")]
+/// let args: OpenConnectionArguments = "amqp://user:bitnami@localhost".try_into().unwrap();
+///
+/// ```
+/// 
 /// [`Connection::open`]: struct.Connection.html#method.open
 /// [`finish`]: struct.OpenConnectionArguments.html#method.finish
 
