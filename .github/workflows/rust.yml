@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Start RabbitMQ server
-        run: docker-compose up -d
+        run: ./start_rabbitmq.sh
 
       - name: doc tests (debug, all-features)
         run: cargo test --all-features --doc --verbose
@@ -79,7 +79,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Start RabbitMQ server
-        run: docker-compose up -d
+        run: ./start_rabbitmq.sh
 
       - name: default
         run: cargo test
