@@ -4,12 +4,13 @@
 # all examples
 cargo run --release --example 2>&1 | grep -E '^ ' | grep -v basic_consumer | xargs -n1 cargo run --release --all-features --example
 
-# Test all features combinations
+# features combination
 cargo test 
 cargo test -F traces
 cargo test -F compliance_assert
 cargo test -F tls
 cargo test -F urispec
+cargo test --all-features
 
 
 
