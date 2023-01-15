@@ -1,15 +1,15 @@
 name: codecov
-run-name: 'Test coverage'
+run-name: "Test coverage"
 
 # on: [push, workflow_dispatch]
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -21,14 +21,10 @@ jobs:
 
   #   steps:
   #   - uses: actions/checkout@v3
-    
+
   #   - name: Start RabbitMQ server
-  #     run:  |
-  #       sudo chown -R 1001:root rabbitmq_conf/server
-  #       sudo chmod 755 rabbitmq_conf/server
-  #       sudo chmod 400 rabbitmq_conf/server/*
-  #       docker-compose up -d    
-    
+  #     run: ./start_rabbitmq.sh
+
   #   - name: Cargo test instrumented
   #     run: LLVM_PROFILE_FILE="default_%m.profraw" RUSTFLAGS="-C instrument-coverage -C codegen-units=1" cargo test -p amqprs --all-features --tests
 
@@ -47,11 +43,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
       - name: Start RabbitMQ server
-        run:  |
-          sudo chown -R 1001:root rabbitmq_conf/server
-          sudo chmod 755 rabbitmq_conf/server
-          sudo chmod 400 rabbitmq_conf/server/*
-          docker-compose up -d    
+        run: ./start_rabbitmq.sh
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:

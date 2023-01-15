@@ -1,37 +1,35 @@
 name: integration-test
 
-run-name: 'Run test against real rabbitmq server'
+run-name: "Run test against real rabbitmq server"
 
 # on: [push, workflow_dispatch]
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
-
+    branches: ["main"]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
- 
   builds:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: cargo build (debug, all-features)
-      run: cargo build --all-features --verbose
+      - name: cargo build (debug, all-features)
+        run: cargo build --all-features --verbose
 
-    - name: cargo clippy (all-features)
-      run: cargo clippy --all-features -- -Dwarnings
+      - name: cargo clippy (all-features)
+        run: cargo clippy --all-features -- -Dwarnings
 
-    - name: cargo build (debug, tls)
-      run: cargo build -F tls --verbose
+      - name: cargo build (debug, tls)
+        run: cargo build -F tls --verbose
 
   check_msrv:
     runs-on: ubuntu-latest
@@ -50,55 +48,47 @@ jobs:
           override: true
       - uses: actions-rs/cargo@v1
         with:
-          command: check 
+          command: check
           args: --all-features
 
   test_all_features:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Start RabbitMQ server
-      run:  |
-        sudo chown -R 1001:root rabbitmq_conf/server
-        sudo chmod 755 rabbitmq_conf/server
-        sudo chmod 400 rabbitmq_conf/server/*
-        docker-compose up -d
+      - name: Start RabbitMQ server
+        run: ./start_rabbitmq.sh
 
-    - name: doc tests (debug, all-features)
-      run: cargo test --all-features --doc --verbose
+      - name: doc tests (debug, all-features)
+        run: cargo test --all-features --doc --verbose
 
-    - name: unit tests (debug, all-features)
-      run: cargo test --all-features --lib --verbose
-    
-    - name: integration tests (release, all-features)
-      run: cargo test --release --all-features --test '*'
+      - name: unit tests (debug, all-features)
+        run: cargo test --all-features --lib --verbose
 
-    - name: examples (release, all-features)
-      run: cargo run --release --example 2>&1 | grep -E '^ ' | grep -v basic_consumer | xargs -n1 cargo run --release --all-features --example
+      - name: integration tests (release, all-features)
+        run: cargo test --release --all-features --test '*'
+
+      - name: examples (release, all-features)
+        run: cargo run --release --example 2>&1 | grep -E '^ ' | grep -v basic_consumer | xargs -n1 cargo run --release --all-features --example
 
   test_features_combination:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Start RabbitMQ server
-      run:  |
-        sudo chown -R 1001:root rabbitmq_conf/server
-        sudo chmod 755 rabbitmq_conf/server
-        sudo chmod 400 rabbitmq_conf/server/*
-        docker-compose up -d
+      - name: Start RabbitMQ server
+        run: ./start_rabbitmq.sh
 
-    - name: default
-      run: cargo test
+      - name: default
+        run: cargo test
 
-    - name: traces
-      run: cargo test -F traces
+      - name: traces
+        run: cargo test -F traces
 
-    - name: compliance_assert
-      run: cargo test -F compliance_assert
+      - name: compliance_assert
+        run: cargo test -F compliance_assert
 
-    - name: tls feature
-      run: cargo test -F tls      
+      - name: tls feature
+        run: cargo test -F tls

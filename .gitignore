@@ -2,3 +2,7 @@
 /.vscode
 *.profraw
 *.profdata
+
+# Local RabbitMQ Configuration & Secrets
+rabbitmq_conf/client
+rabbitmq_conf/server
