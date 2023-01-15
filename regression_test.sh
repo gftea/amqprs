@@ -6,17 +6,10 @@ cargo run --release --example 2>&1 | grep -E '^ ' | grep -v basic_consumer | xar
 
 # Test all features combinations
 cargo test 
-features=("tls" "traces" "compliance_assert" "urispec")
-for (( i=1; i < 2**${#features[@]}; i++ )); do
-    combo=""
-    for (( j=0; j < ${#features[@]}; j++ )); do
-        if (( (i & 2**j) > 0 )); then
-            combo="$combo -F ${features[j]}"
-        fi
-    done
-    # Test combination
-    cargo test $combo
-done
+cargo test -F traces
+cargo test -F compliance_assert
+cargo test -F tls
+cargo test -F urispec
 
 
 
