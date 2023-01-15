@@ -79,11 +79,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Start RabbitMQ server
-        run: |
-          sudo chown -R 1001:root rabbitmq_conf/server
-          sudo chmod 755 rabbitmq_conf/server
-          sudo chmod 400 rabbitmq_conf/server/*
-          docker-compose up -d
+        run: docker-compose up -d
 
       - name: default
         run: cargo test
