@@ -2,6 +2,11 @@
 
 COMMON_NAME=AMQPRS_TEST
 
+# Create directories for rabbitmq server and client
+#------------------------
+mkdir -p rabbitmq_conf/server
+mkdir -p rabbitmq_conf/client
+
 # generate tls cert/key
 #------------------------
 git clone https://github.com/rabbitmq/tls-gen tls-gen
