@@ -484,3 +484,66 @@ impl Channel {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use tracing::Level;
+
+    use crate::{
+        callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
+        channel::BasicPublishArguments,
+        connection::{Connection, OpenConnectionArguments},
+        BasicProperties, DELIVERY_MODE_TRANSIENT,
+    };
+
+    use super::{QueueBindArguments, QueueDeclareArguments, QueueUnbindArguments, QueuePurgeArguments, QueueDeleteArguments};
+
+    #[tokio::test]
+    async fn test_queue_apis() {
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(Level::DEBUG)
+            .finish();
+        tracing::subscriber::set_global_default(subscriber).ok();
+
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
+
+        let connection = Connection::open(&args).await.unwrap();
+        connection
+            .register_callback(DefaultConnectionCallback)
+            .await
+            .unwrap();
+
+        let channel = connection.open_channel(None).await.unwrap();
+        channel
+            .register_callback(DefaultChannelCallback)
+            .await
+            .unwrap();
+
+        let (queue_name, ..) = channel
+            .queue_declare(QueueDeclareArguments::default())
+            .await
+            .unwrap()
+            .unwrap();
+        channel
+            .queue_bind(QueueBindArguments::new(
+                &queue_name,
+                "amq.topic",
+                "eiffel.#",
+            ))
+            .await
+            .unwrap();
+
+
+        // purge
+        channel.queue_purge(QueuePurgeArguments::new(&queue_name)).await.unwrap();
+
+        // unbind
+        channel.queue_unbind(QueueUnbindArguments::new(&queue_name, "amq.topic", "eiffel.#")).await.unwrap();
+
+        // delete
+        channel.queue_delete(QueueDeleteArguments::new(&queue_name)).await.unwrap();
+
+        channel.close().await.unwrap();
+        connection.close().await.unwrap();
+    }
+}

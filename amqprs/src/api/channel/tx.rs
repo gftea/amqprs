@@ -37,7 +37,7 @@ impl Channel {
             self.shared.outgoing_tx,
             (self.shared.channel_id, select.into_frame()),
             responder_rx,
-            Frame::SelectOk,
+            Frame::TxSelectOk,
             Error::ChannelUseError
         )?;
         Ok(())
@@ -58,7 +58,7 @@ impl Channel {
             self.shared.outgoing_tx,
             (self.shared.channel_id, select.into_frame()),
             responder_rx,
-            Frame::SelectOk,
+            Frame::TxCommitOk,
             Error::ChannelUseError
         )?;
         Ok(())
@@ -82,9 +82,68 @@ impl Channel {
             self.shared.outgoing_tx,
             (self.shared.channel_id, select.into_frame()),
             responder_rx,
-            Frame::SelectOk,
+            Frame::TxRollbackOk,
             Error::ChannelUseError
         )?;
         Ok(())
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use tracing::Level;
+
+    use crate::{
+        callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
+        channel::BasicPublishArguments,
+        connection::{Connection, OpenConnectionArguments},
+        BasicProperties, DELIVERY_MODE_TRANSIENT,
+    };
+
+    #[tokio::test]
+    async fn test_tx_apis() {
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(Level::DEBUG)
+            .finish();
+        tracing::subscriber::set_global_default(subscriber).ok();
+
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
+
+        let connection = Connection::open(&args).await.unwrap();
+        connection
+            .register_callback(DefaultConnectionCallback)
+            .await
+            .unwrap();
+
+        let channel = connection.open_channel(None).await.unwrap();
+        channel
+            .register_callback(DefaultChannelCallback)
+            .await
+            .unwrap();
+
+        // start transaction
+        channel.tx_select().await.unwrap();
+
+        let args = BasicPublishArguments::new("amq.topic", "amqprs.test.transaction");
+
+        let basic_properties = BasicProperties::default()
+            .with_delivery_mode(DELIVERY_MODE_TRANSIENT)
+            .finish();
+
+        let content = String::from("AMQPRS test transactions").into_bytes();
+
+        channel
+            .basic_publish(basic_properties, content, args)
+            .await
+            .unwrap();
+        channel.tx_commit().await.unwrap();
+        
+        // rollback
+        channel.tx_rollback().await.unwrap();
+
+        channel.close().await.unwrap();
+        connection.close().await.unwrap();
+    }
+
+
 }

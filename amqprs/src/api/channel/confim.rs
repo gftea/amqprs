@@ -52,3 +52,65 @@ impl Channel {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use tokio::time;
+    use tracing::Level;
+
+    use crate::{
+        callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
+        channel::BasicPublishArguments,
+        connection::{Connection, OpenConnectionArguments},
+        BasicProperties, DELIVERY_MODE_TRANSIENT,
+    };
+
+    use super::ConfirmSelectArguments;
+
+    #[tokio::test]
+    async fn test_publish_confirm_mode() {
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(Level::INFO)
+            .finish();
+        tracing::subscriber::set_global_default(subscriber).ok();
+
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
+
+        let connection = Connection::open(&args).await.unwrap();
+        connection
+            .register_callback(DefaultConnectionCallback)
+            .await
+            .unwrap();
+
+        let channel = connection.open_channel(None).await.unwrap();
+        channel
+            .register_callback(DefaultChannelCallback)
+            .await
+            .unwrap();
+
+        // set to publish confirm mode
+        channel
+            .confirm_select(ConfirmSelectArguments::default())
+            .await
+            .unwrap();
+
+        let args = BasicPublishArguments::new("amq.topic", "amqprs.test.transaction");
+
+        let basic_properties = BasicProperties::default()
+            .with_delivery_mode(DELIVERY_MODE_TRANSIENT)
+            .finish();
+
+        let content = String::from("AMQPRS test publish confirm").into_bytes();
+
+        channel
+            .basic_publish(basic_properties, content, args)
+            .await
+            .unwrap();
+
+        time::sleep(Duration::from_millis(100)).await;
+        channel.close().await.unwrap();
+        connection.close().await.unwrap();
+    }
+}
