@@ -2,6 +2,15 @@
 
 COMMON_NAME=AMQPRS_TEST
 
+# Create directories for rabbitmq server and client and alter permissions
+#------------------------
+mkdir -p rabbitmq_conf/server
+mkdir -p rabbitmq_conf/client
+sudo chown -R 1001:root rabbitmq_conf/server
+sudo chmod 755 rabbitmq_conf/server
+sudo chmod 400 rabbitmq_conf/server/*
+sudo chmod 444 rabbitmq_conf/client/*
+
 # generate tls cert/key
 #------------------------
 git clone https://github.com/rabbitmq/tls-gen tls-gen
@@ -31,6 +40,7 @@ sudo chown -R 1001:root rabbitmq_conf/server
 # strict permissions is mandatory for TLS cert/key files
 sudo chmod 755 rabbitmq_conf/server
 sudo chmod 400 rabbitmq_conf/server/*
+sudo chmod 444 rabbitmq_conf/client/*
 
 # start rabbitmq server
 docker-compose down
