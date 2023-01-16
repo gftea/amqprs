@@ -92,3 +92,6 @@ jobs:
 
       - name: tls feature
         run: cargo test -F tls
+
+      - name: urispec feature
+        run: cargo test -F urispec
