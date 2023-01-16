@@ -58,12 +58,12 @@ mod tests {
     use std::time::Duration;
 
     use tokio::time;
-    use tracing::Level;
 
     use crate::{
         callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
         channel::BasicPublishArguments,
         connection::{Connection, OpenConnectionArguments},
+        test_utils::setup_logging,
         BasicProperties, DELIVERY_MODE_TRANSIENT,
     };
 
@@ -71,10 +71,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_publish_confirm_mode() {
-        let subscriber = tracing_subscriber::fmt()
-            .with_max_level(Level::INFO)
-            .finish();
-        tracing::subscriber::set_global_default(subscriber).ok();
+        setup_logging();
 
         let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
 

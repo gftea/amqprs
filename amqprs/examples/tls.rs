@@ -8,7 +8,8 @@ use amqprs::{
     BasicProperties,
 };
 use tokio::time;
-use tracing::{warn, Level};
+use tracing::warn;
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[cfg(feature = "tls")]
 use amqprs::tls::TlsAdaptor;
@@ -16,10 +17,12 @@ use amqprs::tls::TlsAdaptor;
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
     // construct a subscriber that prints formatted traces to stdout
-    let subscriber = tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).unwrap();
+    // global subscriber with log level according to RUST_LOG
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(EnvFilter::from_default_env())
+        .try_init()
+        .ok();
 
     if !cfg!(feature = "tls") {
         warn!("skip to run the example, because tls feature not enabled");

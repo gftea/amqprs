@@ -10,7 +10,7 @@ mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_publish_return() {
-    let _guard = common::setup_logging(Level::INFO);
+    common::setup_logging();
 
     // open a connection to RabbitMQ server
     let args = common::build_conn_args();

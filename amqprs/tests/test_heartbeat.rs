@@ -10,7 +10,7 @@ mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_customized_heartbeat() {
-    let _guard = common::setup_logging(Level::DEBUG);
+    common::setup_logging();
 
     // open a connection to RabbitMQ server,
     let mut args = common::build_conn_args();

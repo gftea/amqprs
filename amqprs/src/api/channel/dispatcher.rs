@@ -146,7 +146,7 @@ impl ChannelDispatcher {
         for key in purge_keys {
             self.consumer_resources.remove(&key);
             #[cfg(feature = "traces")]
-            info!(
+            debug!(
                 "purge stale consumer resource {} on channel {}",
                 key, self.channel
             );
@@ -344,7 +344,7 @@ impl ChannelDispatcher {
                                             },
                                             None => {
                                                 #[cfg(feature="traces")]
-                                                info!("can't find consumer {}, message is buffered", consumer_tag);
+                                                debug!("can't find consumer {}, message is buffered", consumer_tag);
                                                 consumer.push_message(consumer_message);
                                                 // try to yield for expected consumer registration command,
                                                 // it might reduceas buffering
@@ -500,7 +500,6 @@ impl ChannelDispatcher {
 #[cfg(test)]
 mod tests {
     use tokio::time;
-    use tracing::{subscriber::DefaultGuard, Level};
 
     use crate::{
         channel::{
@@ -509,6 +508,7 @@ mod tests {
         },
         connection::{Connection, OpenConnectionArguments},
         consumer::DefaultConsumer,
+        test_utils::setup_logging,
         BasicProperties,
     };
 
@@ -516,7 +516,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_purge_consumer_resource() {
-        let _guard = setup_logging(Level::INFO);
+        setup_logging();
 
         let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
         let connection = Connection::open(&args).await.unwrap();
@@ -579,20 +579,5 @@ mod tests {
 
         // the consumer resource should be purged within `CONSUMER_PURGE_INTERVAL + CONSUMER_EXPIRY_PERIOD`
         time::sleep(CONSUMER_PURGE_INTERVAL + CONSUMER_EXPIRY_PERIOD).await;
-    }
-
-    //////////////////////////////////////////////////////////////////
-    // construct a subscriber that prints formatted traces to stdout
-    fn setup_logging(level: Level) -> DefaultGuard {
-        // global subscriber as fallback
-        let subscriber = tracing_subscriber::fmt()
-            .with_max_level(Level::ERROR)
-            .finish();
-        tracing::subscriber::set_global_default(subscriber).ok();
-
-        // thread local subscriber
-        let subscriber = tracing_subscriber::fmt().with_max_level(level).finish();
-        // use that subscriber to process traces emitted after this point
-        tracing::subscriber::set_default(subscriber)
     }
 }

@@ -15,7 +15,7 @@ mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
 async fn test_multi_consumer() {
-    let _guard = common::setup_logging(Level::INFO);
+    common::setup_logging();
 
     // open a connection to RabbitMQ server
     let args = common::build_conn_args();
@@ -75,7 +75,7 @@ async fn test_multi_consumer() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
 async fn test_blocking_consumer() {
-    let _guard = common::setup_logging(Level::INFO);
+    common::setup_logging();
 
     // open a connection to RabbitMQ server
     let args = common::build_conn_args();
@@ -128,7 +128,7 @@ async fn test_blocking_consumer() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
 async fn test_consume_redelivered_messages() {
-    let _guard = common::setup_logging(Level::INFO);
+    common::setup_logging();
 
     // open a connection to RabbitMQ server
     let args = common::build_conn_args();
@@ -200,7 +200,7 @@ async fn test_consume_redelivered_messages() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
 async fn test_cancel_consumer() {
-    let _guard = common::setup_logging(Level::INFO);
+    common::setup_logging();
 
     // open a connection to RabbitMQ server
     let args = common::build_conn_args();

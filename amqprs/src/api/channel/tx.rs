@@ -91,7 +91,6 @@ impl Channel {
 
 #[cfg(test)]
 mod tests {
-    use tracing::Level;
 
     use crate::{
         callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
@@ -102,11 +101,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_tx_apis() {
-        let subscriber = tracing_subscriber::fmt()
-            .with_max_level(Level::DEBUG)
-            .finish();
-        tracing::subscriber::set_global_default(subscriber).ok();
-
         let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
 
         let connection = Connection::open(&args).await.unwrap();
@@ -137,13 +131,11 @@ mod tests {
             .await
             .unwrap();
         channel.tx_commit().await.unwrap();
-        
+
         // rollback
         channel.tx_rollback().await.unwrap();
 
         channel.close().await.unwrap();
         connection.close().await.unwrap();
     }
-
-
 }

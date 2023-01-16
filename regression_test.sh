@@ -1,6 +1,6 @@
 #!/bin/bash
 #// regression test before release
-
+set -x
 # all examples
 cargo run --release --example 2>&1 | grep -E '^ ' | grep -v basic_consumer | xargs -n1 cargo run --release --all-features --example
 

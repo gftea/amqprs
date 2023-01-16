@@ -1,18 +1,15 @@
 use amqprs::connection::OpenConnectionArguments;
 use tracing::{subscriber::DefaultGuard, Level};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 // construct a subscriber that prints formatted traces to stdout
-pub fn setup_logging(level: Level) -> DefaultGuard {
-    // global subscriber as fallback
-    let subscriber = tracing_subscriber::fmt()
-        .with_max_level(Level::TRACE)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).ok();
-
-    // thread local subscriber
-    let subscriber = tracing_subscriber::fmt().with_max_level(level).finish();
-    // use that subscriber to process traces emitted after this point
-    tracing::subscriber::set_default(subscriber)
+pub fn setup_logging() {
+    // global subscriber with log level according to RUST_LOG
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(EnvFilter::from_default_env())
+        .try_init()
+        .ok();
 }
 
 #[cfg(not(feature = "tls"))]

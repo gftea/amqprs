@@ -31,4 +31,9 @@ __Testing depends on RabbitMQ docker container.__
 
 # run tests
 ./regression_test.sh
+
+# enable traces in test. 
+# Note that it only takes effect if "traces" feature is enabled
+RUST_LOG=debug ./regression_test.sh
+
 ```

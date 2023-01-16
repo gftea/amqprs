@@ -246,15 +246,15 @@ struct SharedConnectionInner {
 /// ```
 ///
 /// ## Create from URI string if feature "urispec" is enabled
-/// 
-/// 
+///
+///
 /// ```
 /// # use amqprs::connection::OpenConnectionArguments;
 /// # #[cfg(feature = "urispec")]
 /// let args: OpenConnectionArguments = "amqp://user:bitnami@localhost".try_into().unwrap();
 ///
 /// ```
-/// 
+///
 /// [`Connection::open`]: struct.Connection.html#method.open
 /// [`finish`]: struct.OpenConnectionArguments.html#method.finish
 
@@ -1222,15 +1222,14 @@ fn generate_connection_name(domain: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{generate_connection_name, Connection, OpenConnectionArguments};
-    use crate::api::error::Error;
     use crate::security::SecurityCredentials;
+    use crate::test_utils::setup_logging;
     use std::{collections::HashSet, thread};
     use tokio::time;
-    use tracing::{subscriber::DefaultGuard, Level};
 
     #[tokio::test]
     async fn test_channel_open_close() {
-        let _guard = setup_logging(Level::INFO);
+        setup_logging();
         {
             // test close on drop
             let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
@@ -1248,7 +1247,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
     async fn test_multi_conn_open_close() {
-        let _guard = setup_logging(Level::INFO);
+        setup_logging();
 
         let mut handles = vec![];
 
@@ -1270,7 +1269,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
     async fn test_multi_channel_open_close() {
-        let _guard = setup_logging(Level::INFO);
+        setup_logging();
         {
             let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
                 .connection_name("test_multi_channel_open_close")
@@ -1313,7 +1312,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_duplicated_conn_name_is_accpeted_by_server() {
-        let _guard = setup_logging(Level::INFO);
+        setup_logging();
 
         let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
             .connection_name("amq.cname-test")
@@ -1328,7 +1327,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_auth_amqplain() {
-        let _guard = setup_logging(Level::INFO);
+        setup_logging();
 
         let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
             .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
@@ -1339,7 +1338,7 @@ mod tests {
     #[tokio::test]
     #[should_panic(expected = "failed to register channel resource")]
     async fn test_open_already_opened_channel() {
-        let _guard = setup_logging(Level::INFO);
+        setup_logging();
 
         let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
             .credentials(SecurityCredentials::new_amqplain("user", "bitnami"))
@@ -1348,20 +1347,6 @@ mod tests {
         let id = Some(9);
         let _ch1 = connection.open_channel(id).await.unwrap();
         let _ch2 = connection.open_channel(id).await.unwrap();
-    }
-    //////////////////////////////////////////////////////////////////
-    // construct a subscriber that prints formatted traces to stdout
-    fn setup_logging(level: Level) -> DefaultGuard {
-        // global subscriber as fallback
-        let subscriber = tracing_subscriber::fmt()
-            .with_max_level(Level::ERROR)
-            .finish();
-        tracing::subscriber::set_global_default(subscriber).ok();
-
-        // thread local subscriber
-        let subscriber = tracing_subscriber::fmt().with_max_level(level).finish();
-        // use that subscriber to process traces emitted after this point
-        tracing::subscriber::set_default(subscriber)
     }
 
     #[cfg(feature = "urispec")]

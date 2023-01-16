@@ -1,22 +1,22 @@
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
-    channel::{
-        BasicConsumeArguments, BasicPublishArguments, QueueBindArguments, QueueDeclareArguments,
-    },
+    channel::{BasicConsumeArguments, QueueBindArguments, QueueDeclareArguments},
     connection::{Connection, OpenConnectionArguments},
     consumer::DefaultConsumer,
-    BasicProperties,
 };
-use tokio::{sync::Notify, time};
-use tracing::Level;
+use tokio::sync::Notify;
+
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
     // construct a subscriber that prints formatted traces to stdout
-    let subscriber = tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).unwrap();
+    // global subscriber with log level according to RUST_LOG
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(EnvFilter::from_default_env())
+        .try_init()
+        .ok();
 
     // open a connection to RabbitMQ server
     let connection = Connection::open(&OpenConnectionArguments::new(

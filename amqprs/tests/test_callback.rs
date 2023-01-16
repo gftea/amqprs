@@ -10,7 +10,7 @@ mod common;
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[should_panic = "InternalChannelError(\"channel closed\")"]
 async fn test_connection_callback() {
-    let _guard = common::setup_logging(Level::INFO);
+    common::setup_logging();
 
     // open a connection to RabbitMQ server
     let args = common::build_conn_args();
@@ -37,7 +37,7 @@ async fn test_connection_callback() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[should_panic = "InternalChannelError(\"channel closed\")"]
 async fn test_channel_callback() {
-    let _guard = common::setup_logging(Level::INFO);
+    common::setup_logging();
 
     // open a connection to RabbitMQ server
     let args = common::build_conn_args();

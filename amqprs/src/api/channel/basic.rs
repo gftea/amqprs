@@ -433,7 +433,7 @@ impl Channel {
     /// # Errors
     ///
     /// Returns error if any failure in comunication with server.
-    /// 
+    ///
     /// [`basic_consume`]: struct.Channel.html#method.basic_consume
 
     pub async fn basic_consume_blocking<F>(
@@ -845,9 +845,7 @@ impl Channel {
 
 #[cfg(test)]
 mod tests {
-    use tokio::time;
-    use tracing::Level;
-
+    use crate::test_utils::setup_logging;
     use crate::{
         api::{
             channel::{QueueBindArguments, QueueDeclareArguments},
@@ -857,15 +855,13 @@ mod tests {
         frame::BasicProperties,
         DELIVERY_MODE_TRANSIENT,
     };
+    use tokio::time;
 
     use super::{BasicConsumeArguments, BasicPublishArguments};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
     async fn test_basic_consume_auto_ack() {
-        let subscriber = tracing_subscriber::fmt()
-            .with_max_level(Level::INFO)
-            .finish();
-        let _guard = tracing::subscriber::set_default(subscriber);
+        setup_logging();
 
         let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
             .connection_name("test_basic_consume_auto_ack")
@@ -905,6 +901,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_basic_consume_manual_ack() {
+        setup_logging();
         {
             let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
                 .connection_name("test_basic_consume_manual_ack")
@@ -940,6 +937,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_basic_publish() {
+        setup_logging();
         {
             let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami")
                 .connection_name("test_basic_publish")

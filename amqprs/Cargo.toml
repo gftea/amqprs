@@ -50,4 +50,4 @@ webpki-roots = { version = "0.22", optional = true }
 
 [dev-dependencies]
 tracing = { version = "0.1" }
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
