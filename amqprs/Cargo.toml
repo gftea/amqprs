@@ -27,7 +27,7 @@ tls = ["tokio-rustls", "rustls-pemfile", "webpki-roots"]
 urispec = ["uriparse"]
 
 [dependencies]
-tokio = { version = "1.23", features = [
+tokio = { version = "1", features = [
     "rt",
     "rt-multi-thread",
     "sync",
@@ -36,12 +36,12 @@ tokio = { version = "1.23", features = [
     "time",
     "macros",
 ] }
-bytes = { version = "1.0" }
+bytes = { version = "1.2" }
 serde = { version = "1.0", features = ["derive"] }
 amqp_serde = { version = "0.2" }
 async-trait = "0.1"
 tracing = { version = "0.1", optional = true }
-uriparse = { version = "0.6.4", optional = true }
+uriparse = { version = "0.6", optional = true }
 
 # SSL/TLS dependencies
 tokio-rustls = { version = "0.23", optional = true }
