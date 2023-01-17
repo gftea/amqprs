@@ -1,5 +1,5 @@
 use amqp_serde::types::AmqpDeliveryTag;
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, Receiver};
 #[cfg(feature = "tracing")]
 use tracing::{debug, trace};
 
@@ -415,15 +415,13 @@ impl Channel {
     /// # Errors
     ///
     /// Returns error if any failure in comunication with server.  
-    pub async fn basic_consume<F>(&self, consumer: F, args: BasicConsumeArguments) -> Result<String>
-    where
-        F: AsyncConsumer + Send + 'static,
-    {
+    pub async fn basic_consume(
+        &self,
+        args: BasicConsumeArguments,
+    ) -> Result<Receiver<ConsumerMessage>> {
         let consumer_tag = self.request_basic_consume(args).await?;
 
-        self.spawn_consumer(consumer_tag.clone(), consumer).await?;
-
-        Ok(consumer_tag)
+        Ok(self.spawn_consumer(consumer_tag).await?)
     }
 
     /// Similar as [`basic_consume`] but run the consumer in a blocking context.
@@ -495,11 +493,8 @@ impl Channel {
     }
 
     /// Spawn async consumer task
-    async fn spawn_consumer<F>(&self, consumer_tag: String, mut consumer: F) -> Result<()>
-    where
-        F: AsyncConsumer + Send + 'static,
-    {
-        let (consumer_tx, mut consumer_rx): (
+    async fn spawn_consumer(&self, consumer_tag: String) -> Result<Receiver<ConsumerMessage>> {
+        let (consumer_tx, consumer_rx): (
             mpsc::Sender<ConsumerMessage>,
             mpsc::Receiver<ConsumerMessage>,
         ) = mpsc::channel(CONSUMER_MESSAGE_BUFFER_SIZE);
@@ -507,38 +502,8 @@ impl Channel {
         let ctag = consumer_tag.clone();
         let channel = self.clone();
 
-        // spawn consumer task
-        tokio::spawn(async move {
-            #[cfg(feature = "tracing")]
-            trace!(
-                "starts task for async consumer {} on channel {}",
-                ctag,
-                channel
-            );
-
-            loop {
-                match consumer_rx.recv().await {
-                    Some(mut msg) => {
-                        consumer
-                            .consume(
-                                &channel,
-                                msg.deliver.take().unwrap(),
-                                msg.basic_properties.take().unwrap(),
-                                msg.content.take().unwrap(),
-                            )
-                            .await;
-                    }
-                    None => {
-                        #[cfg(feature = "tracing")]
-                        debug!("exit task of async consumer {}", ctag);
-                        break;
-                    }
-                }
-            }
-        });
-
         self.register_consumer(consumer_tag, consumer_tx).await?;
-        Ok(())
+        Ok(consumer_rx)
     }
 
     /// Spawn blocking consumer task

@@ -44,7 +44,7 @@ use tracing::{debug, error, info};
 pub(crate) const CONSUMER_MESSAGE_BUFFER_SIZE: usize = 32;
 
 /// Aggregated buffer for a `deliver + content` sequence.
-pub(crate) struct ConsumerMessage {
+pub struct ConsumerMessage {
     deliver: Option<Deliver>,
     basic_properties: Option<BasicProperties>,
     content: Option<Vec<u8>>,
