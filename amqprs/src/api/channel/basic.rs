@@ -391,12 +391,13 @@ impl BasicPublishArguments {
 impl Channel {
     /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.qos)
     ///
-    /// # Errors
+    /// ## Errors
     ///
     /// Returns error if any failure in comunication with server.      
     pub async fn basic_qos(&mut self, args: BasicQosArguments) -> Result<()> {
         let qos = Qos::new(args.prefetch_size, args.prefetch_count, args.global);
         let responder_rx = self.register_responder(QosOk::header()).await?;
+        self.set_prefetch_count(args.prefetch_count);
 
         let _method = synchronous_request!(
             self.shared.outgoing_tx,
@@ -410,30 +411,31 @@ impl Channel {
 
     /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack)
     ///
-    /// Returns consumer tag if succeed.
+    /// Returns the consumer tag on success.
     ///
-    /// # Errors
+    /// ## Errors
     ///
-    /// Returns error if any failure in comunication with server.  
-    pub async fn basic_consume(
-        &self,
-        args: BasicConsumeArguments,
-    ) -> Result<Receiver<ConsumerMessage>> {
+    /// Returns an error if a failure occurs while comunicating with the server.
+    pub async fn basic_consume<F>(&self, consumer: F, args: BasicConsumeArguments) -> Result<String>
+    where
+        F: AsyncConsumer + Send + 'static,
+    {
         let consumer_tag = self.request_basic_consume(args).await?;
 
-        Ok(self.spawn_consumer(consumer_tag).await?)
+        self.spawn_consumer(consumer_tag.clone(), consumer).await?;
+
+        Ok(consumer_tag)
     }
 
     /// Similar as [`basic_consume`] but run the consumer in a blocking context.
     ///
-    /// Returns consumer tag if succeed.
+    /// Returns the consumer tag on success.
     ///
-    /// # Errors
+    /// ## Errors
     ///
-    /// Returns error if any failure in comunication with server.
+    /// Returns an error if a failure occurs while comunicating with the server.
     ///
     /// [`basic_consume`]: struct.Channel.html#method.basic_consume
-
     pub async fn basic_consume_blocking<F>(
         &self,
         consumer: F,
@@ -448,6 +450,59 @@ impl Channel {
             .await?;
 
         Ok(consumer_tag)
+    }
+
+    /// Similar to [`basic_consume`] but returns the raw [`Receiver`]
+    ///
+    /// Returns the consumer tag and the [`Receiver`] on success.
+    ///
+    /// You must call [`basic_cancel`] before the [`Receiver`] is dropped.
+    ///
+    /// Also make sure that you call [`basic_qos`] before calling this method
+    /// to set a coherent value for your mspc channel's buffer.
+    ///
+    /// ```
+    /// # use amqprs::channel::BasicConsumeArguments;
+    ///
+    /// let queue_name = "my-queue";
+    ///
+    /// let args = BasicConsumeArguments::new(&queue_name, "basic_consumer")
+    ///     .no_ack(true)
+    ///     .finish();
+    ///
+    /// let (ctag, mut messages_rx) = channel.basic_consume_rx(args).await.unwrap();
+    ///
+    /// while let Some(msg) = messages_rx.recv().await {
+    ///     // do smthing with msg
+    /// }
+    ///
+    /// if let Err(e) = channel.basic_cancel(BasicCancelArguments::new(ctag)).await {
+    ///     // handle err
+    /// };
+    ///
+    /// ```
+    ///
+    /// ## Errors
+    ///
+    /// Returns an error if a failure occurs while comunicating with the server.
+    pub async fn basic_consume_rx(
+        &self,
+        args: BasicConsumeArguments,
+    ) -> Result<(String, Receiver<ConsumerMessage>)> {
+        let consumer_tag = self.request_basic_consume(args).await?;
+
+        let (consumer_tx, consumer_rx): (
+            mpsc::Sender<ConsumerMessage>,
+            mpsc::Receiver<ConsumerMessage>,
+        ) = mpsc::channel(std::cmp::max(
+            CONSUMER_MESSAGE_BUFFER_SIZE,
+            self.prefetch_count().into(),
+        ));
+
+        self.register_consumer(consumer_tag.clone(), consumer_tx)
+            .await?;
+
+        Ok((consumer_tag, consumer_rx))
     }
 
     /// Send basic consume request to server
@@ -493,17 +548,53 @@ impl Channel {
     }
 
     /// Spawn async consumer task
-    async fn spawn_consumer(&self, consumer_tag: String) -> Result<Receiver<ConsumerMessage>> {
-        let (consumer_tx, consumer_rx): (
+    async fn spawn_consumer<F>(&self, consumer_tag: String, mut consumer: F) -> Result<()>
+    where
+        F: AsyncConsumer + Send + 'static,
+    {
+        let (consumer_tx, mut consumer_rx): (
             mpsc::Sender<ConsumerMessage>,
             mpsc::Receiver<ConsumerMessage>,
-        ) = mpsc::channel(CONSUMER_MESSAGE_BUFFER_SIZE);
+        ) = mpsc::channel(std::cmp::max(
+            CONSUMER_MESSAGE_BUFFER_SIZE,
+            self.prefetch_count().into(),
+        ));
 
         let ctag = consumer_tag.clone();
         let channel = self.clone();
 
+        // spawn consumer task
+        tokio::spawn(async move {
+            #[cfg(feature = "tracing")]
+            trace!(
+                "starts task for async consumer {} on channel {}",
+                ctag,
+                channel
+            );
+
+            loop {
+                match consumer_rx.recv().await {
+                    Some(mut msg) => {
+                        consumer
+                            .consume(
+                                &channel,
+                                msg.deliver.take().unwrap(),
+                                msg.basic_properties.take().unwrap(),
+                                msg.content.take().unwrap(),
+                            )
+                            .await;
+                    }
+                    None => {
+                        #[cfg(feature = "tracing")]
+                        debug!("exit task of async consumer {}", ctag);
+                        break;
+                    }
+                }
+            }
+        });
+
         self.register_consumer(consumer_tag, consumer_tx).await?;
-        Ok(consumer_rx)
+        Ok(())
     }
 
     /// Spawn blocking consumer task
@@ -514,7 +605,10 @@ impl Channel {
         let (consumer_tx, mut consumer_rx): (
             mpsc::Sender<ConsumerMessage>,
             mpsc::Receiver<ConsumerMessage>,
-        ) = mpsc::channel(CONSUMER_MESSAGE_BUFFER_SIZE);
+        ) = mpsc::channel(std::cmp::max(
+            CONSUMER_MESSAGE_BUFFER_SIZE,
+            self.prefetch_count().into(),
+        ));
 
         let ctag = consumer_tag.clone();
         let channel = self.clone();

@@ -64,9 +64,11 @@ async fn main() {
         .no_ack(true)
         .finish();
 
-    let mut messages_rx = channel.basic_consume(args).await.unwrap();
+    channel
+        .basic_consume(DefaultConsumer::new(args.no_ack), args)
+        .await
+        .unwrap();
 
-    while let Some(_msg) = messages_rx.recv().await {
-        // do smthing with msg
-    }
+    let guard = Notify::new();
+    guard.notified().await;
 }

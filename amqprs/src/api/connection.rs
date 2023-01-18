@@ -37,7 +37,7 @@
 use std::{
     fmt,
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU16, AtomicUsize, Ordering},
         Arc,
     },
 };
@@ -875,6 +875,7 @@ impl Connection {
     pub fn is_open(&self) -> bool {
         self.shared.is_open.load(Ordering::Relaxed)
     }
+
     /// Returns interval of heartbeat in seconds.
     pub fn heartbeat(&self) -> u16 {
         self.shared.heartbeat
@@ -1003,8 +1004,10 @@ impl Connection {
         )?;
 
         // create channel instance
+        // set default prefetch count to 10
         let channel = Channel::new(
             AtomicBool::new(true),
+            AtomicU16::new(10),
             self.clone(),
             channel_id,
             self.shared.outgoing_tx.clone(),

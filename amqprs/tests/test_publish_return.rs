@@ -1,11 +1,10 @@
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
-    channel::{BasicPublishArguments, ExchangeDeclareArguments},
+    channel::BasicPublishArguments,
     connection::Connection,
     BasicProperties,
 };
 use tokio::time;
-use tracing::Level;
 mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

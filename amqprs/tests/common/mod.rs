@@ -1,5 +1,4 @@
 use amqprs::connection::OpenConnectionArguments;
-use tracing::{subscriber::DefaultGuard, Level};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 // construct a subscriber that prints formatted traces to stdout
