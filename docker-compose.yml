@@ -28,7 +28,15 @@ services:
     volumes:
       - "./rabbitmq_conf/custom.conf:/bitnami/rabbitmq/conf/custom.conf"
       - "./rabbitmq_conf/server:/bitnami/tls-test"
+      - rmq_data:/bitnami/rabbitmq
         
 networks:
   integration-net:
     driver: bridge
+
+volumes:
+  rmq_data:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=35840m"
