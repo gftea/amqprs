@@ -391,7 +391,7 @@ impl BasicPublishArguments {
 impl Channel {
     /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.qos)
     ///
-    /// ## Errors
+    /// # Errors
     ///
     /// Returns error if any failure in comunication with server.      
     pub async fn basic_qos(&mut self, args: BasicQosArguments) -> Result<()> {
@@ -413,7 +413,7 @@ impl Channel {
     ///
     /// Returns the consumer tag on success.
     ///
-    /// ## Errors
+    /// # Errors
     ///
     /// Returns an error if a failure occurs while comunicating with the server.
     pub async fn basic_consume<F>(&self, consumer: F, args: BasicConsumeArguments) -> Result<String>
@@ -431,7 +431,7 @@ impl Channel {
     ///
     /// Returns the consumer tag on success.
     ///
-    /// ## Errors
+    /// # Errors
     ///
     /// Returns an error if a failure occurs while comunicating with the server.
     ///
@@ -456,33 +456,88 @@ impl Channel {
     ///
     /// Returns the consumer tag and the [`Receiver`] on success.
     ///
-    /// You must call [`basic_cancel`] before the [`Receiver`] is dropped.
+    /// If you were to stop consuming before the channel has been closed internally,
+    /// you must call [`basic_cancel`] to make sure resources are cleaned up properly.
     ///
     /// Also make sure that you call [`basic_qos`] before calling this method
     /// to set a coherent value for your mspc channel's buffer.
     ///
     /// ```
-    /// # use amqprs::channel::BasicConsumeArguments;
-    ///
-    /// let queue_name = "my-queue";
-    ///
+    /// # use amqprs::{
+    /// #     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
+    /// #     channel::{BasicCancelArguments, BasicConsumeArguments, BasicPublishArguments, QueueDeclareArguments},
+    /// #     connection::{Connection, OpenConnectionArguments},
+    /// #     BasicProperties,
+    /// # };
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let connection = Connection::open(&OpenConnectionArguments::new(
+    /// #     "localhost",
+    /// #     5672,
+    /// #     "user",
+    /// #     "bitnami",
+    /// # ))
+    /// # .await
+    /// # .unwrap();
+    /// #
+    /// # connection
+    /// #     .register_callback(DefaultConnectionCallback)
+    /// #     .await
+    /// #     .unwrap();
+    /// #
+    /// # let channel = connection.open_channel(None).await.unwrap();
+    /// # channel
+    /// #     .register_callback(DefaultChannelCallback)
+    /// #     .await
+    /// #     .unwrap();
+    /// #
+    /// #
+    /// # let (queue_name, _, _) = channel
+    /// #     .queue_declare(QueueDeclareArguments::default())
+    /// #     .await
+    /// #     .unwrap()
+    /// #     .unwrap();
+    /// #
+    /// #
+    /// # let content = String::from(
+    /// #     r#"
+    /// #         {
+    /// #             "publisher": "example"
+    /// #             "data": "Hello, amqprs!"
+    /// #         }
+    /// #     "#,
+    /// # )
+    /// # .into_bytes();
+    /// #
+    /// # // create arguments for basic_publish
+    /// # let args = BasicPublishArguments::new("", &queue_name);
+    /// #
+    /// # channel
+    /// #     .basic_publish(BasicProperties::default(), content, args)
+    /// #     .await
+    /// #     .unwrap();
     /// let args = BasicConsumeArguments::new(&queue_name, "basic_consumer")
     ///     .no_ack(true)
     ///     .finish();
     ///
     /// let (ctag, mut messages_rx) = channel.basic_consume_rx(args).await.unwrap();
     ///
+    /// // you will need to run this in `tokio::spawn` if you want
+    /// // to do other things in parallel of message consumption
     /// while let Some(msg) = messages_rx.recv().await {
     ///     // do smthing with msg
+    /// #   break;
     /// }
     ///
-    /// if let Err(e) = channel.basic_cancel(BasicCancelArguments::new(ctag)).await {
+    /// // Only needed when `messages_rx.recv().await` hasn't yet returned `None`
+    /// if let Err(e) = channel.basic_cancel(BasicCancelArguments::new(&ctag)).await {
     ///     // handle err
     /// };
-    ///
+    /// # }
     /// ```
     ///
-    /// ## Errors
+    /// # Errors
     ///
     /// Returns an error if a failure occurs while comunicating with the server.
     pub async fn basic_consume_rx(
