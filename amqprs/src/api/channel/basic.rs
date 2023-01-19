@@ -448,9 +448,9 @@ impl Channel {
         Ok(consumer_tag)
     }
 
-    /// Similar to [`basic_consume`] but returns the raw [`Receiver`]
+    /// Similar to [`basic_consume`] but returns the raw unbounded [`UnboundedReceiver`]
     ///
-    /// Returns the consumer tag and the [`Receiver`] on success.
+    /// Returns the consumer tag and the [`UnboundedReceiver`] on success.
     ///
     /// If you were to stop consuming before the channel has been closed internally,
     /// you must call [`basic_cancel`] to make sure resources are cleaned up properly.
@@ -538,6 +538,9 @@ impl Channel {
     /// Returns an error if a failure occurs while comunicating with the server.
     ///
     /// [`basic_consume`]: struct.Channel.html#method.basic_consume
+    /// [`basic_cancel`]: struct.Channel.html#method.basic_cancel
+    /// [`basic_qos`]: struct.Channel.html#method.basic_qos
+    /// [`UnboundedReceiver`]: https://docs.rs/tokio/latest/tokio/sync/mpsc/struct.UnboundedReceiver.html
     pub async fn basic_consume_rx(
         &self,
         args: BasicConsumeArguments,

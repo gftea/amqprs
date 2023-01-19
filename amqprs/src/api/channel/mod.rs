@@ -41,14 +41,18 @@ use crate::{
 #[cfg(feature = "tracing")]
 use tracing::{debug, error, info};
 
-/// Aggregated buffer for a `deliver + content` sequence.
+/// Combined message received by a consumer
+/// 
+/// Although all the fields are `Option<T>` type, the library guarantee
+/// when user gets a message from receiver half of a consumer, 
+/// all the fields have value of `Some<T>`.
 pub struct ConsumerMessage {
     pub deliver: Option<Deliver>,
     pub basic_properties: Option<BasicProperties>,
     pub content: Option<Vec<u8>>,
 }
 
-/// Aggregated buffer for a `return + content` sequence from server.
+/// Message buffer for a `return + content` sequence from server.
 pub(crate) struct ReturnMessage {
     ret: Option<Return>,
     basic_properties: Option<BasicProperties>,
