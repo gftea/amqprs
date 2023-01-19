@@ -455,8 +455,8 @@ impl Channel {
     /// If you were to stop consuming before the channel has been closed internally,
     /// you must call [`basic_cancel`] to make sure resources are cleaned up properly.
     ///
-    /// Also make sure that you call [`basic_qos`] before calling this method
-    /// to set a coherent value for your mspc channel's buffer.
+    /// It is recommended to call [`basic_qos`] before using this method as the underlying
+    /// message buffer is unbounded.
     ///
     /// ```
     /// # use amqprs::{
