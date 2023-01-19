@@ -1,5 +1,5 @@
 use amqp_serde::types::AmqpDeliveryTag;
-use tokio::sync::mpsc::{self};
+use tokio::sync::mpsc;
 #[cfg(feature = "tracing")]
 use tracing::{debug, trace};
 
