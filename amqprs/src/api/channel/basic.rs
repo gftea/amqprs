@@ -536,6 +536,8 @@ impl Channel {
     /// # Errors
     ///
     /// Returns an error if a failure occurs while comunicating with the server.
+    ///
+    /// [`basic_consume`]: struct.Channel.html#method.basic_consume
     pub async fn basic_consume_rx(
         &self,
         args: BasicConsumeArguments,
