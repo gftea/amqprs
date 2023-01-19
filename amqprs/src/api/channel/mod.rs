@@ -41,13 +41,11 @@ use crate::{
 #[cfg(feature = "tracing")]
 use tracing::{debug, error, info};
 
-pub(crate) const CONSUMER_MESSAGE_BUFFER_SIZE: usize = 32;
-
 /// Aggregated buffer for a `deliver + content` sequence.
-pub(crate) struct ConsumerMessage {
-    deliver: Option<Deliver>,
-    basic_properties: Option<BasicProperties>,
-    content: Option<Vec<u8>>,
+pub struct ConsumerMessage {
+    pub deliver: Option<Deliver>,
+    pub basic_properties: Option<BasicProperties>,
+    pub content: Option<Vec<u8>>,
 }
 
 /// Aggregated buffer for a `return + content` sequence from server.
@@ -59,7 +57,7 @@ pub(crate) struct ReturnMessage {
 /// Command to register consumer of asynchronous delivered contents.
 pub(crate) struct RegisterContentConsumer {
     consumer_tag: String,
-    consumer_tx: mpsc::Sender<ConsumerMessage>,
+    consumer_tx: mpsc::UnboundedSender<ConsumerMessage>,
 }
 
 /// Command to deregister consumer of asynchronous delivered contents.
@@ -74,7 +72,7 @@ pub(crate) struct DeregisterContentConsumer {
 /// Server will respond `get-ok` + `message propertities` + `content body` in sequence,
 /// so the sender should be mpsc instead of oneshot.
 pub(crate) struct RegisterGetContentResponder {
-    tx: mpsc::Sender<IncomingMessage>,
+    tx: mpsc::UnboundedSender<IncomingMessage>,
 }
 
 /// Command to register oneshot sender for response from server.
@@ -131,7 +129,7 @@ pub(crate) struct SharedChannelInner {
     /// tx half to send managment command to `ReaderHandler` task
     conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
     /// tx half to send management command to `ChannelDispatcher` task
-    dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
+    dispatcher_mgmt_tx: mpsc::UnboundedSender<DispatcherManagementCommand>,
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -147,7 +145,7 @@ impl Channel {
         channel_id: AmqpChannelId,
         outgoing_tx: mpsc::Sender<OutgoingMessage>,
         conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
-        dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
+        dispatcher_mgmt_tx: mpsc::UnboundedSender<DispatcherManagementCommand>,
     ) -> Self {
         Self {
             master: true,
@@ -181,8 +179,7 @@ impl Channel {
         };
         self.shared
             .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::RegisterChannelCallback(cmd))
-            .await?;
+            .send(DispatcherManagementCommand::RegisterChannelCallback(cmd))?;
         Ok(())
     }
 
@@ -202,8 +199,7 @@ impl Channel {
         };
         self.shared
             .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::RegisterOneshotResponder(cmd))
-            .await?;
+            .send(DispatcherManagementCommand::RegisterOneshotResponder(cmd))?;
         acker_rx.await?;
         Ok(responder_rx)
     }
@@ -367,7 +363,7 @@ impl SharedChannelInner {
         channel_id: AmqpChannelId,
         outgoing_tx: mpsc::Sender<OutgoingMessage>,
         conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
-        dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
+        dispatcher_mgmt_tx: mpsc::UnboundedSender<DispatcherManagementCommand>,
     ) -> Self {
         Self {
             is_open,

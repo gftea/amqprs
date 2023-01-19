@@ -5,10 +5,7 @@ use tracing::{debug, trace};
 
 use crate::{
     api::{
-        channel::{
-            ConsumerMessage, DispatcherManagementCommand, RegisterContentConsumer,
-            CONSUMER_MESSAGE_BUFFER_SIZE,
-        },
+        channel::{ConsumerMessage, DispatcherManagementCommand, RegisterContentConsumer},
         consumer::AsyncConsumer,
         error::Error,
         FieldTable, Result,
@@ -410,11 +407,11 @@ impl Channel {
 
     /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack)
     ///
-    /// Returns consumer tag if succeed.
+    /// Returns the consumer tag on success.
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.  
+    /// Returns an error if a failure occurs while comunicating with the server.
     pub async fn basic_consume<F>(&self, consumer: F, args: BasicConsumeArguments) -> Result<String>
     where
         F: AsyncConsumer + Send + 'static,
@@ -428,14 +425,13 @@ impl Channel {
 
     /// Similar as [`basic_consume`] but run the consumer in a blocking context.
     ///
-    /// Returns consumer tag if succeed.
+    /// Returns the consumer tag on success.
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.
+    /// Returns an error if a failure occurs while comunicating with the server.
     ///
     /// [`basic_consume`]: struct.Channel.html#method.basic_consume
-
     pub async fn basic_consume_blocking<F>(
         &self,
         consumer: F,
@@ -450,6 +446,113 @@ impl Channel {
             .await?;
 
         Ok(consumer_tag)
+    }
+
+    /// Similar to [`basic_consume`] but returns the raw [`Receiver`]
+    ///
+    /// Returns the consumer tag and the [`Receiver`] on success.
+    ///
+    /// If you were to stop consuming before the channel has been closed internally,
+    /// you must call [`basic_cancel`] to make sure resources are cleaned up properly.
+    ///
+    /// It is recommended to call [`basic_qos`] before using this method as the underlying
+    /// message buffer is unbounded.
+    ///
+    /// ```
+    /// # use amqprs::{
+    /// #     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
+    /// #     channel::{BasicCancelArguments, BasicConsumeArguments, BasicPublishArguments, QueueDeclareArguments},
+    /// #     connection::{Connection, OpenConnectionArguments},
+    /// #     BasicProperties,
+    /// # };
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let connection = Connection::open(&OpenConnectionArguments::new(
+    /// #     "localhost",
+    /// #     5672,
+    /// #     "user",
+    /// #     "bitnami",
+    /// # ))
+    /// # .await
+    /// # .unwrap();
+    /// #
+    /// # connection
+    /// #     .register_callback(DefaultConnectionCallback)
+    /// #     .await
+    /// #     .unwrap();
+    /// #
+    /// # let channel = connection.open_channel(None).await.unwrap();
+    /// # channel
+    /// #     .register_callback(DefaultChannelCallback)
+    /// #     .await
+    /// #     .unwrap();
+    /// #
+    /// #
+    /// # let (queue_name, _, _) = channel
+    /// #     .queue_declare(QueueDeclareArguments::default())
+    /// #     .await
+    /// #     .unwrap()
+    /// #     .unwrap();
+    /// #
+    /// #
+    /// # let content = String::from(
+    /// #     r#"
+    /// #         {
+    /// #             "publisher": "example"
+    /// #             "data": "Hello, amqprs!"
+    /// #         }
+    /// #     "#,
+    /// # )
+    /// # .into_bytes();
+    /// #
+    /// # // create arguments for basic_publish
+    /// # let args = BasicPublishArguments::new("", &queue_name);
+    /// #
+    /// # channel
+    /// #     .basic_publish(BasicProperties::default(), content, args)
+    /// #     .await
+    /// #     .unwrap();
+    /// let args = BasicConsumeArguments::new(&queue_name, "basic_consumer")
+    ///     .no_ack(true)
+    ///     .finish();
+    ///
+    /// let (ctag, mut messages_rx) = channel.basic_consume_rx(args).await.unwrap();
+    ///
+    /// // you will need to run this in `tokio::spawn` or `tokio::task::spawn_blocking` 
+    /// // if you want to do other things in parallel of message consumption.
+    /// while let Some(msg) = messages_rx.recv().await {
+    ///     // do smthing with msg
+    /// #   break;
+    /// }
+    ///
+    /// // Only needed when `messages_rx.recv().await` hasn't yet returned `None`
+    /// if let Err(e) = channel.basic_cancel(BasicCancelArguments::new(&ctag)).await {
+    ///     // handle err
+    /// };
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a failure occurs while comunicating with the server.
+    ///
+    /// [`basic_consume`]: struct.Channel.html#method.basic_consume
+    pub async fn basic_consume_rx(
+        &self,
+        args: BasicConsumeArguments,
+    ) -> Result<(String, mpsc::UnboundedReceiver<ConsumerMessage>)> {
+        let consumer_tag = self.request_basic_consume(args).await?;
+
+        let (consumer_tx, consumer_rx): (
+            mpsc::UnboundedSender<ConsumerMessage>,
+            mpsc::UnboundedReceiver<ConsumerMessage>,
+        ) = mpsc::unbounded_channel();
+
+        self.register_consumer(consumer_tag.clone(), consumer_tx)
+            .await?;
+
+        Ok((consumer_tag, consumer_rx))
     }
 
     /// Send basic consume request to server
@@ -500,9 +603,9 @@ impl Channel {
         F: AsyncConsumer + Send + 'static,
     {
         let (consumer_tx, mut consumer_rx): (
-            mpsc::Sender<ConsumerMessage>,
-            mpsc::Receiver<ConsumerMessage>,
-        ) = mpsc::channel(CONSUMER_MESSAGE_BUFFER_SIZE);
+            mpsc::UnboundedSender<ConsumerMessage>,
+            mpsc::UnboundedReceiver<ConsumerMessage>,
+        ) = mpsc::unbounded_channel();
 
         let ctag = consumer_tag.clone();
         let channel = self.clone();
@@ -547,9 +650,9 @@ impl Channel {
         F: BlockingConsumer + Send + 'static,
     {
         let (consumer_tx, mut consumer_rx): (
-            mpsc::Sender<ConsumerMessage>,
-            mpsc::Receiver<ConsumerMessage>,
-        ) = mpsc::channel(CONSUMER_MESSAGE_BUFFER_SIZE);
+            mpsc::UnboundedSender<ConsumerMessage>,
+            mpsc::UnboundedReceiver<ConsumerMessage>,
+        ) = mpsc::unbounded_channel();
 
         let ctag = consumer_tag.clone();
         let channel = self.clone();
@@ -590,17 +693,14 @@ impl Channel {
     async fn register_consumer(
         &self,
         consumer_tag: String,
-        consumer_tx: mpsc::Sender<ConsumerMessage>,
+        consumer_tx: mpsc::UnboundedSender<ConsumerMessage>,
     ) -> Result<()> {
-        self.shared
-            .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::RegisterContentConsumer(
-                RegisterContentConsumer {
-                    consumer_tag,
-                    consumer_tx,
-                },
-            ))
-            .await?;
+        self.shared.dispatcher_mgmt_tx.send(
+            DispatcherManagementCommand::RegisterContentConsumer(RegisterContentConsumer {
+                consumer_tag,
+                consumer_tx,
+            }),
+        )?;
         Ok(())
     }
 
@@ -725,8 +825,7 @@ impl Channel {
         let cmd = DeregisterContentConsumer { consumer_tag };
         self.shared
             .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::DeregisterContentConsumer(cmd))
-            .await?;
+            .send(DispatcherManagementCommand::DeregisterContentConsumer(cmd))?;
         Ok(consumer_tag2)
     }
 
@@ -740,14 +839,11 @@ impl Channel {
     pub async fn basic_get(&self, args: BasicGetArguments) -> Result<Option<GetMessage>> {
         let get = Get::new(0, args.queue.try_into().unwrap(), args.no_ack);
 
-        let (tx, mut rx) = mpsc::channel(3);
+        let (tx, mut rx) = mpsc::unbounded_channel();
         let command = RegisterGetContentResponder { tx };
-        self.shared
-            .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::RegisterGetContentResponder(
-                command,
-            ))
-            .await?;
+        self.shared.dispatcher_mgmt_tx.send(
+            DispatcherManagementCommand::RegisterGetContentResponder(command),
+        )?;
 
         self.shared
             .outgoing_tx

@@ -6,7 +6,7 @@ use amqprs::{
     connection::Connection,
     BasicProperties,
 };
-use tracing::{info, Level};
+use tracing::info;
 mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

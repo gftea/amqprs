@@ -34,7 +34,7 @@ struct ConsumerResource {
     fifo: VecDeque<ConsumerMessage>,
     /// tx channel to forward a delivery to a consumer task.
     /// dispatcher task holds the tx half, and the consumer task holds the rx half.
-    tx: Option<mpsc::Sender<ConsumerMessage>>,
+    tx: Option<mpsc::UnboundedSender<ConsumerMessage>>,
     /// expiry time of fifo buffer
     expiration: Option<time::Instant>,
 }
@@ -50,14 +50,14 @@ impl ConsumerResource {
 
     fn register_tx(
         &mut self,
-        tx: mpsc::Sender<ConsumerMessage>,
-    ) -> Option<mpsc::Sender<ConsumerMessage>> {
+        tx: mpsc::UnboundedSender<ConsumerMessage>,
+    ) -> Option<mpsc::UnboundedSender<ConsumerMessage>> {
         // once consumer's tx half is registered, clear the expiry timer
         self.expiration.take();
         self.tx.replace(tx)
     }
 
-    fn get_tx(&self) -> Option<&mpsc::Sender<ConsumerMessage>> {
+    fn get_tx(&self) -> Option<&mpsc::UnboundedSender<ConsumerMessage>> {
         self.tx.as_ref()
     }
 
@@ -89,10 +89,10 @@ enum State {
 /// It also dispatch messages to consumers.
 pub(crate) struct ChannelDispatcher {
     channel: Channel,
-    dispatcher_rx: mpsc::Receiver<IncomingMessage>,
-    dispatcher_mgmt_rx: mpsc::Receiver<DispatcherManagementCommand>,
+    dispatcher_rx: mpsc::UnboundedReceiver<IncomingMessage>,
+    dispatcher_mgmt_rx: mpsc::UnboundedReceiver<DispatcherManagementCommand>,
     consumer_resources: HashMap<String, ConsumerResource>,
-    get_content_responder: Option<mpsc::Sender<IncomingMessage>>,
+    get_content_responder: Option<mpsc::UnboundedSender<IncomingMessage>>,
     responders: HashMap<&'static MethodHeader, oneshot::Sender<IncomingMessage>>,
     callback: Option<Box<dyn ChannelCallback + Send + 'static>>,
     state: State,
@@ -101,8 +101,8 @@ pub(crate) struct ChannelDispatcher {
 impl ChannelDispatcher {
     pub(crate) fn new(
         channel: Channel,
-        dispatcher_rx: mpsc::Receiver<IncomingMessage>,
-        dispatcher_mgmt_rx: mpsc::Receiver<DispatcherManagementCommand>,
+        dispatcher_rx: mpsc::UnboundedReceiver<IncomingMessage>,
+        dispatcher_mgmt_rx: mpsc::UnboundedReceiver<DispatcherManagementCommand>,
     ) -> Self {
         Self {
             channel,
@@ -205,7 +205,7 @@ impl ChannelDispatcher {
                                     #[cfg(feature="traces")]
                                     trace!("consumer {} total buffered messages: {}", cmd.consumer_tag, consumer.fifo.len());
                                     let msg = consumer.pop_message().unwrap();
-                                    if let Err(_err) = consumer.get_tx().unwrap().send(msg).await {
+                                    if let Err(_err) = consumer.get_tx().unwrap().send(msg) {
                                         #[cfg(feature="traces")]
                                         error!("failed to forward message to consumer {}", cmd.consumer_tag);
                                     }
@@ -293,14 +293,14 @@ impl ChannelDispatcher {
 
                                 self.get_content_responder.take()
                                 .expect("get responder must be registered")
-                                .send(get_empty.into_frame()).await.unwrap();
+                                .send(get_empty.into_frame()).unwrap();
                             }
                             Frame::GetOk(_, get_ok) => {
                                 self.state = State::GetOk;
 
                                 self.get_content_responder.as_ref()
                                 .expect("get responder must be registered")
-                                .send(get_ok.into_frame()).await.unwrap();
+                                .send(get_ok.into_frame()).unwrap();
                             }
                             Frame::Return(_, ret) => {
                                 self.state = State::Return;
@@ -316,7 +316,7 @@ impl ChannelDispatcher {
                                     State::GetOk => {
                                         self.get_content_responder.as_ref()
                                         .expect("get responder must be registered")
-                                        .send(header.into_frame()).await.unwrap();
+                                        .send(header.into_frame()).unwrap();
                                     },
                                     State::Return => return_buffer.basic_properties = Some(header.basic_properties),
                                     _  => unreachable!("invalid dispatcher state"),
@@ -336,7 +336,7 @@ impl ChannelDispatcher {
                                         let consumer = self.get_or_new_consumer_resource(&consumer_tag);
                                         match consumer.get_tx() {
                                             Some(consumer_tx) => {
-                                                if (consumer_tx.send(consumer_message).await).is_err() {
+                                                if (consumer_tx.send(consumer_message)).is_err() {
                                                     #[cfg(feature="traces")]
                                                     error!("failed to dispatch message to consumer {} on channel {}",
                                                     consumer_tag, self.channel);
@@ -355,7 +355,7 @@ impl ChannelDispatcher {
                                     State::GetOk => {
                                         self.get_content_responder.take()
                                         .expect("get responder must be registered")
-                                        .send(body.into_frame()).await.unwrap();
+                                        .send(body.into_frame()).unwrap();
                                     },
                                     State::Return => {
                                         if let Some(ref mut cb) = self.callback {
