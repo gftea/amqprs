@@ -37,7 +37,7 @@
 use std::{
     fmt,
     sync::{
-        atomic::{AtomicBool, AtomicU16, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
 };
@@ -81,11 +81,6 @@ use uriparse::URIReference;
 const DEFAULT_AMQP_PORT: u16 = 5672;
 const DEFAULT_AMQPS_PORT: u16 = 5671;
 const DEFAULT_HEARTBEAT: u16 = 60;
-
-//  TODO: move below constants gto be part of static configuration of connection
-// per channel buffer
-const DISPATCHER_MESSAGE_BUFFER_SIZE: usize = 256;
-const DISPATCHER_MANAGEMENT_COMMAND_BUFFER_SIZE: usize = 8;
 
 // per connection buffer
 const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 8192;
@@ -978,9 +973,8 @@ impl Connection {
         // channel id 0 can't be used, it is reserved for connection
         assert_ne!(Some(DEFAULT_CONN_CHANNEL), channel_id);
 
-        let (dispatcher_tx, dispatcher_rx) = mpsc::channel(DISPATCHER_MESSAGE_BUFFER_SIZE);
-        let (dispatcher_mgmt_tx, dispatcher_mgmt_rx) =
-            mpsc::channel(DISPATCHER_MANAGEMENT_COMMAND_BUFFER_SIZE);
+        let (dispatcher_tx, dispatcher_rx) = mpsc::unbounded_channel();
+        let (dispatcher_mgmt_tx, dispatcher_mgmt_rx) = mpsc::unbounded_channel();
 
         // acquire the channel id to be used to open channel
         let channel_id = self
@@ -1007,7 +1001,6 @@ impl Connection {
         // set default prefetch count to 10
         let channel = Channel::new(
             AtomicBool::new(true),
-            AtomicU16::new(10),
             self.clone(),
             channel_id,
             self.shared.outgoing_tx.clone(),

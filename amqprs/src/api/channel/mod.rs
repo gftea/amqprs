@@ -22,7 +22,7 @@
 use std::{
     fmt,
     sync::{
-        atomic::{AtomicBool, AtomicU16, Ordering},
+        atomic::{AtomicBool, Ordering},
         Arc,
     },
 };
@@ -41,8 +41,6 @@ use crate::{
 #[cfg(feature = "tracing")]
 use tracing::{debug, error, info};
 
-pub(crate) const CONSUMER_MESSAGE_BUFFER_SIZE: usize = 32;
-
 /// Aggregated buffer for a `deliver + content` sequence.
 pub struct ConsumerMessage {
     pub deliver: Option<Deliver>,
@@ -59,7 +57,7 @@ pub(crate) struct ReturnMessage {
 /// Command to register consumer of asynchronous delivered contents.
 pub(crate) struct RegisterContentConsumer {
     consumer_tag: String,
-    consumer_tx: mpsc::Sender<ConsumerMessage>,
+    consumer_tx: mpsc::UnboundedSender<ConsumerMessage>,
 }
 
 /// Command to deregister consumer of asynchronous delivered contents.
@@ -74,7 +72,7 @@ pub(crate) struct DeregisterContentConsumer {
 /// Server will respond `get-ok` + `message propertities` + `content body` in sequence,
 /// so the sender should be mpsc instead of oneshot.
 pub(crate) struct RegisterGetContentResponder {
-    tx: mpsc::Sender<IncomingMessage>,
+    tx: mpsc::UnboundedSender<IncomingMessage>,
 }
 
 /// Command to register oneshot sender for response from server.
@@ -124,8 +122,6 @@ pub struct Channel {
 pub(crate) struct SharedChannelInner {
     /// open state
     is_open: AtomicBool,
-    /// prefetch count
-    prefetch_count: AtomicU16,
     /// channel id
     channel_id: AmqpChannelId,
     /// tx half to send message to `WriteHandler` task
@@ -133,7 +129,7 @@ pub(crate) struct SharedChannelInner {
     /// tx half to send managment command to `ReaderHandler` task
     conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
     /// tx half to send management command to `ChannelDispatcher` task
-    dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
+    dispatcher_mgmt_tx: mpsc::UnboundedSender<DispatcherManagementCommand>,
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -145,19 +141,17 @@ impl Channel {
     /// [`Connection::open_channel`]: ../connection/struct.Connection.html#method.open_channel
     pub(in crate::api) fn new(
         is_open: AtomicBool,
-        prefetch_count: AtomicU16,
         connection: Connection,
         channel_id: AmqpChannelId,
         outgoing_tx: mpsc::Sender<OutgoingMessage>,
         conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
-        dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
+        dispatcher_mgmt_tx: mpsc::UnboundedSender<DispatcherManagementCommand>,
     ) -> Self {
         Self {
             master: true,
             connection,
             shared: Arc::new(SharedChannelInner::new(
                 is_open,
-                prefetch_count,
                 channel_id,
                 outgoing_tx,
                 conn_mgmt_tx,
@@ -185,8 +179,7 @@ impl Channel {
         };
         self.shared
             .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::RegisterChannelCallback(cmd))
-            .await?;
+            .send(DispatcherManagementCommand::RegisterChannelCallback(cmd))?;
         Ok(())
     }
 
@@ -206,8 +199,7 @@ impl Channel {
         };
         self.shared
             .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::RegisterOneshotResponder(cmd))
-            .await?;
+            .send(DispatcherManagementCommand::RegisterOneshotResponder(cmd))?;
         acker_rx.await?;
         Ok(responder_rx)
     }
@@ -227,14 +219,6 @@ impl Channel {
     }
     pub(crate) fn set_is_open(&self, is_open: bool) {
         self.shared.is_open.store(is_open, Ordering::Relaxed);
-    }
-
-    pub(crate) fn set_prefetch_count(&self, value: u16) {
-        self.shared.prefetch_count.store(value, Ordering::Relaxed);
-    }
-
-    pub(crate) fn prefetch_count(&self) -> u16 {
-        self.shared.prefetch_count.load(Ordering::Relaxed)
     }
 
     /// Asks the server to pause or restart the flow of content data.
@@ -376,15 +360,13 @@ impl fmt::Display for Channel {
 impl SharedChannelInner {
     fn new(
         is_open: AtomicBool,
-        prefetch_count: AtomicU16,
         channel_id: AmqpChannelId,
         outgoing_tx: mpsc::Sender<OutgoingMessage>,
         conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
-        dispatcher_mgmt_tx: mpsc::Sender<DispatcherManagementCommand>,
+        dispatcher_mgmt_tx: mpsc::UnboundedSender<DispatcherManagementCommand>,
     ) -> Self {
         Self {
             is_open,
-            prefetch_count,
             channel_id,
             outgoing_tx,
             conn_mgmt_tx,

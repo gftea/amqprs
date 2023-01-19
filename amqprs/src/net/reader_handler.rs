@@ -182,7 +182,7 @@ impl ReaderHandler {
                 let dispatcher = self.channel_manager.get_dispatcher(&channel_id);
                 match dispatcher {
                     Some(dispatcher) => {
-                        dispatcher.send(frame).await?;
+                        dispatcher.send(frame)?;
                         Ok(())
                     }
                     None => {

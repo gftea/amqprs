@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use amqp_serde::types::{AmqpChannelId, ShortUint};
-use tokio::sync::{mpsc::Sender, oneshot};
+use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
 use crate::frame::MethodHeader;
 
@@ -14,11 +14,11 @@ pub(crate) struct ChannelResource {
 
     /// connection's default channel does not have dispatcher
     /// each channel has one and only one dispatcher
-    pub dispatcher: Option<Sender<IncomingMessage>>,
+    pub dispatcher: Option<UnboundedSender<IncomingMessage>>,
 }
 
 impl ChannelResource {
-    pub(crate) fn new(dispatcher: Option<Sender<IncomingMessage>>) -> Self {
+    pub(crate) fn new(dispatcher: Option<UnboundedSender<IncomingMessage>>) -> Self {
         Self {
             responders: HashMap::new(),
             dispatcher,
@@ -89,7 +89,10 @@ impl ChannelManager {
         self.resource.remove(channel_id)
     }
 
-    pub fn get_dispatcher(&self, channel_id: &AmqpChannelId) -> Option<&Sender<IncomingMessage>> {
+    pub fn get_dispatcher(
+        &self,
+        channel_id: &AmqpChannelId,
+    ) -> Option<&UnboundedSender<IncomingMessage>> {
         self.resource.get(channel_id)?.dispatcher.as_ref()
     }
 

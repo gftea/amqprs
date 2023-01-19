@@ -1,14 +1,11 @@
 use amqp_serde::types::AmqpDeliveryTag;
-use tokio::sync::mpsc::{self, Receiver};
+use tokio::sync::mpsc::{self};
 #[cfg(feature = "tracing")]
 use tracing::{debug, trace};
 
 use crate::{
     api::{
-        channel::{
-            ConsumerMessage, DispatcherManagementCommand, RegisterContentConsumer,
-            CONSUMER_MESSAGE_BUFFER_SIZE,
-        },
+        channel::{ConsumerMessage, DispatcherManagementCommand, RegisterContentConsumer},
         consumer::AsyncConsumer,
         error::Error,
         FieldTable, Result,
@@ -397,7 +394,6 @@ impl Channel {
     pub async fn basic_qos(&mut self, args: BasicQosArguments) -> Result<()> {
         let qos = Qos::new(args.prefetch_size, args.prefetch_count, args.global);
         let responder_rx = self.register_responder(QosOk::header()).await?;
-        self.set_prefetch_count(args.prefetch_count);
 
         let _method = synchronous_request!(
             self.shared.outgoing_tx,
@@ -543,16 +539,13 @@ impl Channel {
     pub async fn basic_consume_rx(
         &self,
         args: BasicConsumeArguments,
-    ) -> Result<(String, Receiver<ConsumerMessage>)> {
+    ) -> Result<(String, mpsc::UnboundedReceiver<ConsumerMessage>)> {
         let consumer_tag = self.request_basic_consume(args).await?;
 
         let (consumer_tx, consumer_rx): (
-            mpsc::Sender<ConsumerMessage>,
-            mpsc::Receiver<ConsumerMessage>,
-        ) = mpsc::channel(std::cmp::max(
-            CONSUMER_MESSAGE_BUFFER_SIZE,
-            self.prefetch_count().into(),
-        ));
+            mpsc::UnboundedSender<ConsumerMessage>,
+            mpsc::UnboundedReceiver<ConsumerMessage>,
+        ) = mpsc::unbounded_channel();
 
         self.register_consumer(consumer_tag.clone(), consumer_tx)
             .await?;
@@ -608,12 +601,9 @@ impl Channel {
         F: AsyncConsumer + Send + 'static,
     {
         let (consumer_tx, mut consumer_rx): (
-            mpsc::Sender<ConsumerMessage>,
-            mpsc::Receiver<ConsumerMessage>,
-        ) = mpsc::channel(std::cmp::max(
-            CONSUMER_MESSAGE_BUFFER_SIZE,
-            self.prefetch_count().into(),
-        ));
+            mpsc::UnboundedSender<ConsumerMessage>,
+            mpsc::UnboundedReceiver<ConsumerMessage>,
+        ) = mpsc::unbounded_channel();
 
         let ctag = consumer_tag.clone();
         let channel = self.clone();
@@ -658,12 +648,9 @@ impl Channel {
         F: BlockingConsumer + Send + 'static,
     {
         let (consumer_tx, mut consumer_rx): (
-            mpsc::Sender<ConsumerMessage>,
-            mpsc::Receiver<ConsumerMessage>,
-        ) = mpsc::channel(std::cmp::max(
-            CONSUMER_MESSAGE_BUFFER_SIZE,
-            self.prefetch_count().into(),
-        ));
+            mpsc::UnboundedSender<ConsumerMessage>,
+            mpsc::UnboundedReceiver<ConsumerMessage>,
+        ) = mpsc::unbounded_channel();
 
         let ctag = consumer_tag.clone();
         let channel = self.clone();
@@ -704,17 +691,14 @@ impl Channel {
     async fn register_consumer(
         &self,
         consumer_tag: String,
-        consumer_tx: mpsc::Sender<ConsumerMessage>,
+        consumer_tx: mpsc::UnboundedSender<ConsumerMessage>,
     ) -> Result<()> {
-        self.shared
-            .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::RegisterContentConsumer(
-                RegisterContentConsumer {
-                    consumer_tag,
-                    consumer_tx,
-                },
-            ))
-            .await?;
+        self.shared.dispatcher_mgmt_tx.send(
+            DispatcherManagementCommand::RegisterContentConsumer(RegisterContentConsumer {
+                consumer_tag,
+                consumer_tx,
+            }),
+        )?;
         Ok(())
     }
 
@@ -839,8 +823,7 @@ impl Channel {
         let cmd = DeregisterContentConsumer { consumer_tag };
         self.shared
             .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::DeregisterContentConsumer(cmd))
-            .await?;
+            .send(DispatcherManagementCommand::DeregisterContentConsumer(cmd))?;
         Ok(consumer_tag2)
     }
 
@@ -854,14 +837,11 @@ impl Channel {
     pub async fn basic_get(&self, args: BasicGetArguments) -> Result<Option<GetMessage>> {
         let get = Get::new(0, args.queue.try_into().unwrap(), args.no_ack);
 
-        let (tx, mut rx) = mpsc::channel(3);
+        let (tx, mut rx) = mpsc::unbounded_channel();
         let command = RegisterGetContentResponder { tx };
-        self.shared
-            .dispatcher_mgmt_tx
-            .send(DispatcherManagementCommand::RegisterGetContentResponder(
-                command,
-            ))
-            .await?;
+        self.shared.dispatcher_mgmt_tx.send(
+            DispatcherManagementCommand::RegisterGetContentResponder(command),
+        )?;
 
         self.shared
             .outgoing_tx
