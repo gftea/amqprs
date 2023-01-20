@@ -519,7 +519,7 @@ impl Channel {
     ///
     /// let (ctag, mut messages_rx) = channel.basic_consume_rx(args).await.unwrap();
     ///
-    /// // you will need to run this in `tokio::spawn` or `tokio::task::spawn_blocking` 
+    /// // you will need to run this in `tokio::spawn` or `tokio::task::spawn_blocking`
     /// // if you want to do other things in parallel of message consumption.
     /// while let Some(msg) = messages_rx.recv().await {
     ///     // do smthing with msg
@@ -611,7 +611,7 @@ impl Channel {
         ) = mpsc::unbounded_channel();
 
         let ctag = consumer_tag.clone();
-        let channel = self.clone();
+        let channel = self.clone_as_secondary();
 
         // spawn consumer task
         tokio::spawn(async move {
@@ -658,7 +658,7 @@ impl Channel {
         ) = mpsc::unbounded_channel();
 
         let ctag = consumer_tag.clone();
-        let channel = self.clone();
+        let channel = self.clone_as_secondary();
 
         // spawn blocking consumer task
         tokio::task::spawn_blocking(move || {

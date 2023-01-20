@@ -170,17 +170,40 @@ impl ServerProperties {
     }
 }
 
+struct DropGuard {
+    outgoing_tx: mpsc::Sender<OutgoingMessage>,
+    is_open: Arc<AtomicBool>,
+    connection_name: String,
+}
+
+impl DropGuard {
+    fn new(
+        outgoing_tx: mpsc::Sender<OutgoingMessage>,
+        is_open: Arc<AtomicBool>,
+        connection_name: String,
+    ) -> Self {
+        Self {
+            outgoing_tx,
+            is_open,
+            connection_name,
+        }
+    }
+}
+
 /// Type represents an connection.
 ///
 /// See documentation of each method.
 /// See also documentation of [module][`self`] .
 ///
+#[derive(Clone)]
 pub struct Connection {
     shared: Arc<SharedConnectionInner>,
-    /// A master connection is the one created by user, when drop, it will request
-    /// to close the connection.
-    /// A cloned connection has master = `false`.
-    master: bool,
+    /// `is_open` is not part of `shared` because DropGuard also
+    /// need to access it.
+    is_open: Arc<AtomicBool>,
+    /// connection given to user has [Some] value,
+    /// internal clones within library has [None] value,
+    _guard: Option<Arc<DropGuard>>,
 }
 
 #[derive(Debug)]
@@ -190,7 +213,6 @@ struct SharedConnectionInner {
     channel_max: ShortUint,
     frame_max: LongUint,
     heartbeat: ShortUint,
-    is_open: AtomicBool,
     outgoing_tx: mpsc::Sender<OutgoingMessage>,
     conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
 }
@@ -607,14 +629,22 @@ impl Connection {
             channel_max,
             frame_max,
             heartbeat,
-            is_open: AtomicBool::new(true),
             outgoing_tx,
             conn_mgmt_tx,
         });
 
+        // open state of connection
+        let is_open = Arc::new(AtomicBool::new(true));
+
+        let _guard = Some(Arc::new(DropGuard::new(
+            shared.outgoing_tx.clone(),
+            is_open.clone(),
+            shared.connection_name.clone(),
+        )));
         let new_amqp_conn = Self {
             shared,
-            master: true,
+            is_open,
+            _guard,
         };
 
         // spawn handlers for reader and writer of network connection
@@ -863,12 +893,12 @@ impl Connection {
     }
 
     pub(crate) fn set_is_open(&self, is_open: bool) {
-        self.shared.is_open.store(is_open, Ordering::Relaxed);
+        self.is_open.store(is_open, Ordering::Relaxed);
     }
 
     /// Returns `true` if connection is open.
     pub fn is_open(&self) -> bool {
-        self.shared.is_open.load(Ordering::Relaxed)
+        self.is_open.load(Ordering::Relaxed)
     }
 
     /// Returns interval of heartbeat in seconds.
@@ -941,7 +971,7 @@ impl Connection {
         // spawn task for read connection handler
         let rh = ReaderHandler::new(
             reader,
-            self.clone(),
+            self.clone_no_drop_guard(),
             self.shared.outgoing_tx.clone(),
             conn_mgmt_rx,
             self.shared.channel_max,
@@ -952,7 +982,12 @@ impl Connection {
         });
 
         // spawn task for write connection handler
-        let wh = WriterHandler::new(writer, outgoing_rx, shutdown_listener, self.clone());
+        let wh = WriterHandler::new(
+            writer,
+            outgoing_rx,
+            shutdown_listener,
+            self.clone_no_drop_guard(),
+        );
         tokio::spawn(async move {
             wh.run_until_shutdown(heartbeat).await;
         });
@@ -1001,14 +1036,15 @@ impl Connection {
         // set default prefetch count to 10
         let channel = Channel::new(
             AtomicBool::new(true),
-            self.clone(),
+            self.clone_no_drop_guard(),
             channel_id,
             self.shared.outgoing_tx.clone(),
             self.shared.conn_mgmt_tx.clone(),
             dispatcher_mgmt_tx,
         );
 
-        let dispatcher = ChannelDispatcher::new(channel.clone(), dispatcher_rx, dispatcher_mgmt_rx);
+        let dispatcher =
+            ChannelDispatcher::new(channel.clone_as_secondary(), dispatcher_rx, dispatcher_mgmt_rx);
         dispatcher.spawn().await;
         #[cfg(feature = "traces")]
         info!("open channel {}", channel);
@@ -1059,17 +1095,14 @@ impl Connection {
     /// # Errors
     ///
     /// Returns error if any failure in communication with server.
-    pub async fn close(mut self) -> Result<()> {
+    pub async fn close(self) -> Result<()> {
         if let Ok(true) =
-            self.shared
-                .is_open
+            self.is_open
                 .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
         {
             #[cfg(feature = "traces")]
             info!("close connection {}", self);
             self.close_handshake().await?;
-            // not necessary, but to skip atomic compare at `drop`
-            self.master = false;
         }
         Ok(())
     }
@@ -1091,53 +1124,41 @@ impl Connection {
 
         Ok(())
     }
-}
 
-impl Clone for Connection {
-    fn clone(&self) -> Self {
+    pub(crate) fn clone_no_drop_guard(&self) -> Self {
         Self {
             shared: self.shared.clone(),
-            master: false,
+            is_open: self.is_open.clone(),
+            _guard: None,
         }
     }
 }
 
-impl Drop for Connection {
-    /// When drops, try to gracefully shutdown the connection if it is still open.
-    /// It is not guaranteed to succeed in a clean way.
-    ///
-    /// User is recommended to explicitly close connection.
-    /// See [module][`self`] documentation.
-    ///
+impl Drop for DropGuard {
     fn drop(&mut self) {
-        if self.master {
-            if let Ok(true) = self.shared.is_open.compare_exchange(
-                true,
-                false,
-                Ordering::Acquire,
-                Ordering::Relaxed,
-            ) {
+        if let Ok(true) =
+            self.is_open
+                .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
+        {
+            let connection_name = self.connection_name.clone();
+            let outgoing_tx = self.outgoing_tx.clone();
+            tokio::spawn(async move {
                 #[cfg(feature = "traces")]
-                debug!("drop connection {}", self);
-                let conn = self.clone();
-                tokio::spawn(async move {
-                    #[cfg(feature = "traces")]
-                    info!("close connection {} at drop", conn);
+                info!("try to close connection {} at drop", connection_name);
 
-                    if let Err(err) = conn.close_handshake().await {
-                        // Compliance: A peer that detects a socket closure without having received a Close-Ok
-                        // handshake method SHOULD log the error.
-                        #[cfg(feature = "traces")]
-                        error!(
-                            "'{}' occurred at closing connection {} after drop",
-                            err, conn
-                        );
-                    } else {
-                        #[cfg(feature = "traces")]
-                        info!("connection {} is closed OK after drop", conn);
-                    }
-                });
-            }
+                let close = Close::default();
+
+                if let Err(err) = outgoing_tx
+                    .send((DEFAULT_CONN_CHANNEL, close.into_frame()))
+                    .await
+                {
+                    #[cfg(feature = "traces")]
+                    error!(
+                        "failed to gracefully close connection {} at drop, cause: '{}'",
+                        connection_name, err
+                    );
+                }
+            });
         }
     }
 }
@@ -1146,9 +1167,9 @@ impl fmt::Display for Connection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{} [{}]",
+            "'{} [{}]'",
             self.connection_name(),
-            if self.is_open() { "open" } else { "close" }
+            if self.is_open() { "open" } else { "closed" }
         )
     }
 }
@@ -1261,6 +1282,24 @@ mod tests {
         for h in handles {
             h.await.unwrap();
         }
+    }
+
+    #[tokio::test]
+    async fn test_connection_clone_and_drop() {
+        setup_logging();
+        {
+            // test close on drop
+            let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
+
+            let conn1 = Connection::open(&args).await.unwrap();
+            let conn2 = conn1.clone();
+            tokio::spawn(async move {
+                assert_eq!(true, conn2.is_open());
+            });
+            assert_eq!(true, conn1.is_open());
+        }
+        // wait for finished, otherwise runtime exit before all tasks are done
+        time::sleep(time::Duration::from_millis(100)).await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]

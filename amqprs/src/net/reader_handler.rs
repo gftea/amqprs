@@ -8,7 +8,7 @@ use tokio::{
     time,
 };
 #[cfg(feature = "traces")]
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, warn, trace};
 
 use crate::{
     api::{callbacks::ConnectionCallback, connection::Connection},
@@ -100,16 +100,24 @@ impl ReaderHandler {
             Frame::CloseOk(method_header, close_ok) => {
                 self.amqp_connection.set_is_open(false);
 
-                let responder = self
+                match self
                     .channel_manager
                     .remove_responder(&channel_id, method_header)
-                    .expect("responder must be registered");
+                {
+                    Some(responder) => responder
+                        .send(close_ok.into_frame())
+                        .map_err(|response| Error::SyncChannel(response.to_string()))?,
+                    None => {
+                        #[cfg(feature = "traces")]
+                        warn!(
+                            "CloseOk responder not found, probably connection {} has dropped",
+                            self.amqp_connection
+                        );
+                    }
+                }
 
-                responder
-                    .send(close_ok.into_frame())
-                    .map_err(|response| Error::SyncChannel(response.to_string()))?;
                 #[cfg(feature = "traces")]
-                info!("close connection {} by client", self.amqp_connection);
+                info!("close connection {} OK", self.amqp_connection);
 
                 // Try to yield for last sent message to be scheduled.
                 yield_now().await;
@@ -247,18 +255,18 @@ impl ReaderHandler {
                         Ok((channel_id, frame)) => {
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
                                 #[cfg(feature="traces")]
-                                error!("failed to handle frame, cause: {}", err);
+                                error!("socket will be closed due to error of handling frame, cause: {}", err);
                                 break;
                             }
                             if !self.amqp_connection.is_open() {
                                 #[cfg(feature="traces")]
-                                info!("connection {} is closed, shutdown handler", self.amqp_connection);
+                                info!("connection {} is closed, shutting down socket I/O handlers", self.amqp_connection);
                                 break;
                             }
                         },
                         Err(err) => {
                             #[cfg(feature="traces")]
-                            error!("failed to read frame, cause: {}", err);
+                            error!("socket will be closed due to failure of reading frame, cause: {}", err);
                             break;
                         },
                     }
@@ -279,10 +287,6 @@ impl ReaderHandler {
                 }
             }
         }
-
-        // FIXME: should here do Close/CloseOk to gracefully shutdown connection.
-        // Best effort, ignore returned error
-        self.amqp_connection.close().await.ok();
 
         // `self` will drop, so the `self.shutdown_notifier`
         // all tasks which have `subscribed` to `shutdown_notifier` will be notified

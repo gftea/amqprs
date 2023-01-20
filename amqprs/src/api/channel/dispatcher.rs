@@ -242,7 +242,7 @@ impl ChannelDispatcher {
                             None => {
                                 // exit
                                 #[cfg(feature="traces")]
-                                debug!("dispatcher message channel closed, {}", self.channel);
+                                debug!("dispatcher mpsc channel closed, channel {}", self.channel);
                                 break;
                             },
                             Some(v) => v,
