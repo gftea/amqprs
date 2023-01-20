@@ -19,7 +19,6 @@ async fn test_publish() {
         .register_callback(DefaultConnectionCallback)
         .await
         .unwrap();
-
     // open a channel on the connection
     let channel = connection.open_channel(None).await.unwrap();
     channel

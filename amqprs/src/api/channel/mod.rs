@@ -29,6 +29,7 @@ use std::{
 
 use amqp_serde::types::AmqpChannelId;
 use tokio::sync::{mpsc, oneshot};
+use tracing::trace;
 
 use super::callbacks::ChannelCallback;
 use crate::{
@@ -42,9 +43,9 @@ use crate::{
 use tracing::{debug, error, info};
 
 /// Combined message received by a consumer
-/// 
+///
 /// Although all the fields are `Option<T>` type, the library guarantee
-/// when user gets a message from receiver half of a consumer, 
+/// when user gets a message from receiver half of a consumer,
 /// all the fields have value of `Some<T>`.
 pub struct ConsumerMessage {
     pub deliver: Option<Deliver>,
@@ -109,10 +110,17 @@ pub(crate) enum DispatcherManagementCommand {
 /// Second, register callbacks for the channel by [`Channel::register_callback`].
 ///
 /// Then, the channel is ready to use.
+/// 
+/// # Concurrency
+/// 
+/// Sharing [Channel] instances between tasks/threads should be avoided. 
+/// Applications should be using a [Channel] per task/thread.
+/// Common constraints in [`Java Client`] applies to this library also.
 ///
 /// [`Connection::open_channel`]: ../connection/struct.Connection.html#method.open_channel
 /// [`Channel::register_callback`]: struct.Channel.html#method.register_callback
-///
+/// [`Java Client`]: https://www.rabbitmq.com/api-guide.html#concurrency
+// #[derive(Clone)]
 pub struct Channel {
     shared: Arc<SharedChannelInner>,
     /// A master channel is the one created by user, when drop, it will request
@@ -294,13 +302,11 @@ impl Channel {
         self.shared.conn_mgmt_tx.send(cmd).await?;
         Ok(())
     }
-}
 
-impl Clone for Channel {
-    fn clone(&self) -> Self {
+    pub(crate) fn clone_as_slave(&self) -> Self {
         Self {
             shared: self.shared.clone(),
-            connection: self.connection.clone(),
+            connection: self.connection.clone_no_drop_guard(),
             master: false,
         }
     }
@@ -325,19 +331,19 @@ impl Drop for Channel {
                 Ordering::Relaxed,
             ) {
                 #[cfg(feature = "tracing")]
-                debug!("drop channel {}", self);
+                trace!("drop channel {}", self);
 
-                let channel = self.clone();
+                let channel = self.clone_as_slave();
                 tokio::spawn(async move {
                     #[cfg(feature = "tracing")]
-                    info!("close channel {} at drop", channel);
+                    info!("try to close channel {} at drop", channel);
                     if let Err(err) = channel.close_handshake().await {
                         // Compliance: A peer that detects a socket closure without having received a Channel.Close-Ok
                         // handshake method SHOULD log the error.
                         #[cfg(feature = "tracing")]
                         error!(
-                            "'{}' occurred at closing channel {} after drop",
-                            err, channel,
+                            "failed to gracefully close channel {} at drop, cause: '{}'",
+                            channel, err,
                         );
                     } else {
                         #[cfg(feature = "tracing")]
@@ -376,6 +382,31 @@ impl SharedChannelInner {
             conn_mgmt_tx,
             dispatcher_mgmt_tx,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::marker::PhantomData;
+    use crate::channel::Channel;
+
+    #[tokio::test]
+    async fn test_channel_is_not_cloneable() {
+        // default: `IS_CLONEABLE = false` for all types
+        trait NotCloneable {
+            const IS_CLONEABLE: bool = false;
+        }
+        impl<T> NotCloneable for T {}
+
+        // For all cloneable type `T`, Wrapper<T> is cloneable.
+        // otherwise, it fallbacks to value from trait `NotCloneable`
+        struct Wrapper<T>(PhantomData<T>);
+        #[allow(dead_code)]
+        impl<T: Clone> Wrapper<T> {
+            const IS_CLONEABLE: bool = true;
+        }
+
+        assert_eq!(false, <Wrapper<Channel>>::IS_CLONEABLE);
     }
 }
 

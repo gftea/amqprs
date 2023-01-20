@@ -611,7 +611,7 @@ impl Channel {
         ) = mpsc::unbounded_channel();
 
         let ctag = consumer_tag.clone();
-        let channel = self.clone();
+        let channel = self.clone_as_slave();
 
         // spawn consumer task
         tokio::spawn(async move {
@@ -658,7 +658,7 @@ impl Channel {
         ) = mpsc::unbounded_channel();
 
         let ctag = consumer_tag.clone();
-        let channel = self.clone();
+        let channel = self.clone_as_slave();
 
         // spawn blocking consumer task
         tokio::task::spawn_blocking(move || {
