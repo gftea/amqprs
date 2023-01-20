@@ -198,11 +198,11 @@ impl DropGuard {
 #[derive(Clone)]
 pub struct Connection {
     shared: Arc<SharedConnectionInner>,
+    /// `is_open` is not part of `shared` because DropGuard also
+    /// need to access it.
     is_open: Arc<AtomicBool>,
-
-    /// A master connection is the one created by user, when drop, it will request
-    /// to close the connection.
-    /// A cloned connection has master = `false`.
+    /// connection given to user has [Some] value,
+    /// internal clones within library has [None] value,
     _guard: Option<Arc<DropGuard>>,
 }
 
@@ -1044,7 +1044,7 @@ impl Connection {
         );
 
         let dispatcher =
-            ChannelDispatcher::new(channel.clone_as_slave(), dispatcher_rx, dispatcher_mgmt_rx);
+            ChannelDispatcher::new(channel.clone_as_secondary(), dispatcher_rx, dispatcher_mgmt_rx);
         dispatcher.spawn().await;
         #[cfg(feature = "traces")]
         info!("open channel {}", channel);

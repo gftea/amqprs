@@ -112,9 +112,11 @@ pub(crate) enum DispatcherManagementCommand {
 ///
 /// # Concurrency
 ///
-/// Sharing [Channel] instances between tasks/threads should be avoided.
-/// Applications should be using a [Channel] per task/thread.
-/// Common constraints in [`Java Client`] applies to this library also.
+/// `Channel` is not cloneable because of sharing its instances between 
+/// tasks/threads should be avoided. Applications should be using a `Channel`
+/// per task/thread.
+/// 
+/// See detailed explanation in [`Java Client`], it applies to the library also.
 ///
 /// [`Connection::open_channel`]: ../connection/struct.Connection.html#method.open_channel
 /// [`Channel::register_callback`]: struct.Channel.html#method.register_callback
@@ -122,10 +124,10 @@ pub(crate) enum DispatcherManagementCommand {
 // #[derive(Clone)]
 pub struct Channel {
     shared: Arc<SharedChannelInner>,
-    /// A master channel is the one created by user, when drop, it will request
+    /// A primary channel is the one created by user, when drop, it will request
     /// to close the channel.
-    /// A cloned channel has master = `false`.
-    master: bool,
+    /// A cloned channel has primary = `false`.
+    primary: bool,
     /// associated connection
     connection: Connection,
 }
@@ -159,7 +161,7 @@ impl Channel {
         dispatcher_mgmt_tx: mpsc::UnboundedSender<DispatcherManagementCommand>,
     ) -> Self {
         Self {
-            master: true,
+            primary: true,
             connection,
             shared: Arc::new(SharedChannelInner::new(
                 is_open,
@@ -280,7 +282,7 @@ impl Channel {
                 info!("close channel {}", self);
                 self.close_handshake().await?;
                 // not necessary, but to skip atomic compare at `drop`
-                self.master = false;
+                self.primary = false;
             }
         }
         Ok(())
@@ -302,11 +304,11 @@ impl Channel {
         Ok(())
     }
 
-    pub(crate) fn clone_as_slave(&self) -> Self {
+    pub(crate) fn clone_as_secondary(&self) -> Self {
         Self {
             shared: self.shared.clone(),
             connection: self.connection.clone_no_drop_guard(),
-            master: false,
+            primary: false,
         }
     }
 }
@@ -320,8 +322,8 @@ impl Drop for Channel {
     ///
     /// [`close`]: struct.Channel.html#method.close
     fn drop(&mut self) {
-        // only master channel will spawn task to close channel
-        if self.master {
+        // only primary channel will spawn task to close channel
+        if self.primary {
             // check if channel is open
             if let Ok(true) = self.shared.is_open.compare_exchange(
                 true,
@@ -332,7 +334,7 @@ impl Drop for Channel {
                 #[cfg(feature = "tracing")]
                 trace!("drop channel {}", self);
 
-                let channel = self.clone_as_slave();
+                let channel = self.clone_as_secondary();
                 tokio::spawn(async move {
                     #[cfg(feature = "tracing")]
                     info!("try to close channel {} at drop", channel);
