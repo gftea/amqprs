@@ -1043,7 +1043,8 @@ impl Connection {
             dispatcher_mgmt_tx,
         );
 
-        let dispatcher = ChannelDispatcher::new(channel.clone_as_slave(), dispatcher_rx, dispatcher_mgmt_rx);
+        let dispatcher =
+            ChannelDispatcher::new(channel.clone_as_slave(), dispatcher_rx, dispatcher_mgmt_rx);
         dispatcher.spawn().await;
         #[cfg(feature = "traces")]
         info!("open channel {}", channel);
@@ -1094,7 +1095,7 @@ impl Connection {
     /// # Errors
     ///
     /// Returns error if any failure in communication with server.
-    pub async fn close(mut self) -> Result<()> {
+    pub async fn close(self) -> Result<()> {
         if let Ok(true) =
             self.is_open
                 .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
@@ -1299,7 +1300,7 @@ mod tests {
         }
         // wait for finished, otherwise runtime exit before all tasks are done
         time::sleep(time::Duration::from_millis(100)).await;
-    }    
+    }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
     async fn test_multi_channel_open_close() {

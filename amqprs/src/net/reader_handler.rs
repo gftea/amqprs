@@ -7,9 +7,8 @@ use tokio::{
     task::yield_now,
     time,
 };
-use tracing::warn;
 #[cfg(feature = "traces")]
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, warn, trace};
 
 use crate::{
     api::{callbacks::ConnectionCallback, connection::Connection},
@@ -110,8 +109,11 @@ impl ReaderHandler {
                         .map_err(|response| Error::SyncChannel(response.to_string()))?,
                     None => {
                         #[cfg(feature = "traces")]
-                        warn!("CloseOk responder not found, probably connection {} has dropped", self.amqp_connection);
-                    },
+                        warn!(
+                            "CloseOk responder not found, probably connection {} has dropped",
+                            self.amqp_connection
+                        );
+                    }
                 }
 
                 #[cfg(feature = "traces")]

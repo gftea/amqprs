@@ -29,7 +29,6 @@ use std::{
 
 use amqp_serde::types::AmqpChannelId;
 use tokio::sync::{mpsc, oneshot};
-use tracing::trace;
 
 use super::callbacks::ChannelCallback;
 use crate::{
@@ -40,7 +39,7 @@ use crate::{
     BasicProperties,
 };
 #[cfg(feature = "tracing")]
-use tracing::{debug, error, info};
+use tracing::{trace, error, info};
 
 /// Combined message received by a consumer
 ///
@@ -110,10 +109,10 @@ pub(crate) enum DispatcherManagementCommand {
 /// Second, register callbacks for the channel by [`Channel::register_callback`].
 ///
 /// Then, the channel is ready to use.
-/// 
+///
 /// # Concurrency
-/// 
-/// Sharing [Channel] instances between tasks/threads should be avoided. 
+///
+/// Sharing [Channel] instances between tasks/threads should be avoided.
 /// Applications should be using a [Channel] per task/thread.
 /// Common constraints in [`Java Client`] applies to this library also.
 ///
@@ -387,8 +386,8 @@ impl SharedChannelInner {
 
 #[cfg(test)]
 mod tests {
-    use std::marker::PhantomData;
     use crate::channel::Channel;
+    use std::marker::PhantomData;
 
     #[tokio::test]
     async fn test_channel_is_not_cloneable() {

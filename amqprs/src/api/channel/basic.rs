@@ -519,7 +519,7 @@ impl Channel {
     ///
     /// let (ctag, mut messages_rx) = channel.basic_consume_rx(args).await.unwrap();
     ///
-    /// // you will need to run this in `tokio::spawn` or `tokio::task::spawn_blocking` 
+    /// // you will need to run this in `tokio::spawn` or `tokio::task::spawn_blocking`
     /// // if you want to do other things in parallel of message consumption.
     /// while let Some(msg) = messages_rx.recv().await {
     ///     // do smthing with msg
