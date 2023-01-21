@@ -3,4 +3,5 @@
 members = [
     "amqprs",
     "amqp_serde",
+    "examples",
 ]
