@@ -790,6 +790,20 @@ impl Channel {
             .await?;
         Ok(())
     }
+
+    /// Blocking version of `basic_reject`
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any failure in comunication with server.
+    pub fn basic_reject_blocking(&self, args: BasicRejectArguments) -> Result<()> {
+        let reject = Reject::new(args.delivery_tag, args.requeue);
+        self.shared
+            .outgoing_tx
+            .blocking_send((self.shared.channel_id, reject.into_frame()))?;
+        Ok(())
+    }
+
     /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.cancel)
     ///
     /// Returns consumer tag if succeed.
