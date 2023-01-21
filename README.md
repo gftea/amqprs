@@ -18,8 +18,8 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 
 # [README](amqprs/README.md)
 
-## [Example - Publish and Subscribe](amqprs/examples/basic_pub_sub.rs) 
-## [Example - SSL/TLS](amqprs/examples/tls.rs) 
+## [Example - Publish and Subscribe](examples/src/basic_pub_sub.rs)
+## [Example - SSL/TLS](examples/src/tls.rs)
 
 ## Run Test Locally
 
