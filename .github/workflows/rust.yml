@@ -70,7 +70,7 @@ jobs:
         run: cargo test --release --all-features --test '*'
 
       - name: examples (release, all-features)
-        run: cargo run --release --example 2>&1 | grep -E '^ ' | grep -v basic_consumer | xargs -n1 cargo run --release --all-features --example
+        run: ./examples/run_examples.sh
 
   test_features_combination:
     runs-on: ubuntu-latest

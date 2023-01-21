@@ -69,6 +69,8 @@ async fn main() {
         .await
         .unwrap();
 
+    // consume forever
+    println!("consume forever..., ctrl+c to exit");
     let guard = Notify::new();
     guard.notified().await;
 }

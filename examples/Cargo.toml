@@ -1,0 +1,35 @@
+[package]
+name = "examples"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+# If you copy one of the examples into a new project, you should be using
+# [dependencies] instead, and delete the **path**.
+[dev-dependencies]
+amqprs = { path = "../amqprs" }
+tokio = { version = "1" }
+async-trait = { version = "0.1" }
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# features for example target 
+[features]
+example-tls = ["amqprs/tls", "amqprs/traces"]
+
+[[example]]
+name = "basic_pub_sub"
+path = "src/basic_pub_sub.rs"
+
+[[example]]
+name = "basic_consumer"
+path = "src/basic_consumer.rs"
+
+[[example]]
+name = "callbacks_impl"
+path = "src/callbacks_impl.rs"
+
+[[example]]
+name = "tls"
+path = "src/tls.rs"
+required-features = ["example-tls"]
