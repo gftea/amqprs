@@ -155,14 +155,14 @@ impl<'de> Deserializer<'de> {
             .map_err(|_| Error::Message(format!("len = {}, content = {:02X?}", len, s)))
     }
 
-    // fn next_bytes(&mut self) -> Result<&'de [u8]> {
-    //     let len = self.get_parsed_length()?;
-    //     self.cursor += len;
+    fn next_bytes(&mut self) -> Result<&'de [u8]> {
+        let len = self.get_parsed_length()?;
+        self.cursor += len;
 
-    //     let s = &self.input[..len];
-    //     self.input = &self.input[len..];
-    //     Ok(s)
-    // }
+        let s = &self.input[..len];
+        self.input = &self.input[len..];
+        Ok(s)
+    }
 }
 
 impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
@@ -302,19 +302,19 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     // no length input, so bytes expect length prefix
-    fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value>
+    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        visitor.visit_borrowed_bytes(self.next_bytes()?)
     }
 
     // no length input, so expect length prefix
-    fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value>
+    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        visitor.visit_byte_buf(self.next_bytes()?.to_owned())
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
@@ -692,8 +692,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "not implemented")]
-    fn test_bytes_unimplemented() {
+    fn test_deserialize_bytes_zero_copy() {
         #[derive(Deserialize)]
         struct Frame<'a> {
             _len: u8,
