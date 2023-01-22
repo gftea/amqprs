@@ -655,4 +655,53 @@ mod tests {
         let result: Frame = from_bytes(&input).unwrap();
         assert_eq!(expected, result);
     }
+
+    #[test]
+    #[should_panic(expected = "`Err` value: Incomplete")]
+    fn test_incomplete_error() {
+        #[derive(Deserialize)]
+        struct Frame;
+        let input = b"deadbeaf";
+
+        let _: Frame = from_bytes(&input[..]).unwrap();
+    }
+
+    #[test]
+    fn test_other_data_models() {
+        #[derive(Deserialize)]
+        struct Frame {
+            m_i8: i8,
+            m_i16: i16,
+            m_i32: i32,
+            m_i64: i64,
+            m_u64: u64,
+            m_f64: f64,
+            m_char: (u8, char), // require length field because `char` is variable lengh type,
+            m_bytes: (u8, Vec<u8>), // require length field because `bytes` is variable lengh type,
+            m_opt: Option<u8>,
+            m_unit: (),
+        }
+        let input = vec![
+            0xff, // -1
+            0xff, 0xfe, // -2
+            0xff, 0xff, 0xff, 0xfd, // -3
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc, // -4
+            0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 9223372036854775808
+            0x3F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 1.5
+            0x03, 0xE2, 0x82, 0xAC, // (3, '€')
+            0x04, b'b', b'e', b'e', b'f', // (4, b"beef")
+            b'o', // Some(b'o')
+        ];
+        let result: Frame = from_bytes(&input).unwrap();
+        assert_eq!(-1, result.m_i8);
+        assert_eq!(-2, result.m_i16);
+        assert_eq!(-3, result.m_i32);
+        assert_eq!(-4, result.m_i64);
+        assert_eq!(9223372036854775808, result.m_u64);
+        assert_eq!(1.5, result.m_f64);
+        assert_eq!('€', result.m_char.1);
+        assert_eq!(b"beef".to_vec(), result.m_bytes.1);
+        assert_eq!(Some(b'o'), result.m_opt);
+        assert_eq!((), result.m_unit);
+    }
 }
