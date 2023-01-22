@@ -630,3 +630,57 @@ impl fmt::Display for BasicProperties {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use amqp_serde::types::FieldTable;
+
+    use crate::{BasicProperties, DELIVERY_MODE_TRANSIENT};
+
+    #[test]
+    fn test_basic_properties_internal_flags() {
+        let props = BasicProperties::new(
+            Some("application/text".to_owned()),
+            Some("utf8".to_owned()),
+            Some(FieldTable::new()),
+            Some(DELIVERY_MODE_TRANSIENT),
+            Some(1),
+            Some("beef".to_owned()),
+            Some("callback_queue".to_owned()),
+            Some("Sun Jan 22 17:19:26 CET 2023".to_owned()),
+            Some("101".to_owned()),
+            Some(1674404425),
+            Some("Ping".to_owned()),
+            Some("user".to_owned()),
+            Some("app".to_owned()),
+            Some("my_cluster".to_owned()),
+        );
+
+        assert_eq!([0xff, 0xfc], props.property_flags);
+
+        let mut props = BasicProperties::new(
+            Some("application/text".to_owned()),
+            None,
+            None,
+            None,
+            Some(1),
+            None,
+            None,
+            None,
+            Some("101".to_owned()),
+            None,
+            None,
+            None,
+            Some("app".to_owned()),
+            None,
+        );        
+        assert_eq!([0x88, 0x88], props.property_flags);
+
+        props.with_content_encoding("utf8");
+        assert_eq!([0xC8, 0x88], props.property_flags);
+        
+        props.with_timestamp(1674404425);
+        assert_eq!([0xC8, 0xC8], props.property_flags);
+
+    }
+}
