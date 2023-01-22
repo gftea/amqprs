@@ -514,11 +514,11 @@ pub type AmqpTimeStamp = TimeStamp;
 /////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
-    use crate::types::{DecimalValue, FieldArray, FieldValue};
+    use crate::types::{ByteArray, DecimalValue, FieldArray, FieldValue, LongStr};
 
-    use super::FieldTable;
+    use super::{FieldTable, ShortStr};
     #[test]
-    fn test_field_table_display() {
+    fn test_field_table() {
         let mut table = FieldTable::new();
         table.insert(
             "Cash".try_into().unwrap(),
@@ -527,12 +527,70 @@ mod tests {
 
         assert_eq!("{ Cash: Decimal(3, 123456) }", format!("{}", table));
     }
+
     #[test]
-    fn test_field_array_display() {
-        let field_arr = FieldArray(
-            2,
-            vec![FieldValue::t(true), FieldValue::D(DecimalValue(3, 123456))],
-        );
+    fn test_field_array() {
+        let exp = vec![FieldValue::t(true), FieldValue::D(DecimalValue(3, 123456))];
+        let field_arr: FieldArray = exp.clone().try_into().unwrap();
         assert_eq!("[ true, Decimal(3, 123456) ]", format!("{}", field_arr));
+
+        let arr: Vec<FieldValue> = field_arr.into();
+        assert_eq!(exp, arr);
+    }
+
+    #[test]
+    fn test_bytes_array() {
+        let exp: Vec<u8> = vec![1, 2, 3];
+        let bytes_arr: ByteArray = exp.clone().try_into().unwrap();
+        assert_eq!(3, bytes_arr.0);
+
+        let arr: Vec<u8> = bytes_arr.into();
+        assert_eq!(exp, arr);
+    }
+
+    #[test]
+    fn test_shortstr() {
+        let s = ShortStr::default();
+        assert_eq!(ShortStr(0, "".to_owned()), s);
+
+        let exp = "x".repeat(255);
+        // from str to shortstr
+        let s: ShortStr = exp.clone().try_into().unwrap();
+        assert_eq!(255, s.0);
+        // from shortstr to str
+        let s: String = s.into();
+        assert_eq!(exp, s);
+    }
+
+    #[test]
+    fn test_longstr() {
+        let s = LongStr::default();
+        assert_eq!(LongStr(0, "".to_owned()), s);
+
+        let exp = "x".repeat(256);
+        // from str to shortstr
+        let s: LongStr = exp.clone().try_into().unwrap();
+        assert_eq!(256, s.0);
+        // from shortstr to str
+        let s: String = s.into();
+        assert_eq!(exp, s);
+    }
+
+    #[test]
+    fn test_field_value() {
+        let exp = FieldValue::t(true);
+        assert_eq!(exp, true.into());
+        let t: bool = exp.try_into().unwrap();
+        assert_eq!(true, t);
+
+        let exp = FieldValue::F(FieldTable::default());
+        assert_eq!(exp, FieldTable::default().into());
+        let t: FieldTable = exp.try_into().unwrap();
+        assert_eq!(FieldTable::default(), t);
+
+        let exp = FieldValue::S("X".to_owned().try_into().unwrap());
+        assert_eq!(exp, "X".to_owned().into());
+        let t: String = exp.try_into().unwrap();
+        assert_eq!("X".to_owned(), t);
     }
 }

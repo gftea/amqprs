@@ -487,4 +487,46 @@ mod test {
             result.len()
         );
     }
+
+    #[test]
+    fn test_other_serde_data_models() {
+        #[derive(Serialize)]
+        struct Frame {
+            m_i8: i8,
+            m_i16: i16,
+            m_i32: i32,
+            m_i64: i64,
+            m_u64: u64,
+            m_f64: f64,
+            m_char: (u8, char), // require length field because `char` is variable lengh type,
+            m_owned_bytes: (u8, Vec<u8>), // require length field because `Vec` is variable lengh type,
+            m_opt: Option<u8>,
+            m_unit: (),
+        }
+        let frame = Frame {
+            m_i8: -1,
+            m_i16: -2,
+            m_i32: -3,
+            m_i64: -4,
+            m_u64: 0x80_00_00_00_00_00_00_00,
+            m_f64: 1.5,
+            m_char: (3, '€'),
+            m_owned_bytes: (4, b"beef".to_vec()),
+            m_opt: Some(b'o'),
+            m_unit: (),
+        };
+        let expected = vec![
+            0xff, // -1
+            0xff, 0xfe, // -2
+            0xff, 0xff, 0xff, 0xfd, // -3
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc, // -4
+            0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 9223372036854775808
+            0x3F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 1.5
+            0x03, 0xE2, 0x82, 0xAC, // (3, '€')
+            0x04, b'b', b'e', b'e', b'f', // (4, b"beef")
+            b'o', // Some(b'o')
+        ];
+        let result = to_bytes(&frame).unwrap();
+        assert_eq!(expected, result);
+    }    
 }

@@ -155,14 +155,14 @@ impl<'de> Deserializer<'de> {
             .map_err(|_| Error::Message(format!("len = {}, content = {:02X?}", len, s)))
     }
 
-    fn next_bytes(&mut self) -> Result<&'de [u8]> {
-        let len = self.get_parsed_length()?;
-        self.cursor += len;
+    // fn next_bytes(&mut self) -> Result<&'de [u8]> {
+    //     let len = self.get_parsed_length()?;
+    //     self.cursor += len;
 
-        let s = &self.input[..len];
-        self.input = &self.input[len..];
-        Ok(s)
-    }
+    //     let s = &self.input[..len];
+    //     self.input = &self.input[len..];
+    //     Ok(s)
+    // }
 }
 
 impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
@@ -302,21 +302,19 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     // no length input, so bytes expect length prefix
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        // length should already parsed just before
-        visitor.visit_bytes(self.next_bytes()?)
+        unimplemented!()
     }
 
     // no length input, so expect length prefix
-    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        // length should already parsed just before
-        visitor.visit_byte_buf(self.next_bytes()?.to_owned())
+        unimplemented!()
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
@@ -667,7 +665,51 @@ mod tests {
     }
 
     #[test]
-    fn test_other_data_models() {
+    #[should_panic(expected = "`Err` value: Eof")]
+    fn test_eof() {
+        #[derive(Deserialize)]
+        struct Frame(u32);
+        let input = vec![0x00];
+        let _: Frame = from_bytes(&input[..]).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "`Err` value: ExpectedLength")]
+    fn test_missing_length() {
+        #[derive(Deserialize)]
+        struct Frame(Vec<u8>);
+        let input = vec![0, 1, 2];
+        let _: Frame = from_bytes(&input[..]).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "`Err` value: Syntax")]
+    fn test_syntax_err() {
+        #[derive(Deserialize)]
+        struct Frame(u8, Vec<u8>);
+        let input = vec![9, 0, 0];
+        let _: Frame = from_bytes(&input[..]).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "not implemented")]
+    fn test_bytes_unimplemented() {
+        #[derive(Deserialize)]
+        struct Frame<'a> {
+            _len: u8,
+            m_bytes: &'a [u8], // require length field because `bytes` is variable lengh type,
+        }
+
+        let input = vec![
+            0x04, b'b', b'e', b'e', b'f', // (4, b"beef")
+        ];
+        let result: Frame = from_bytes(&input).unwrap();
+
+        assert_eq!(b"beef", result.m_bytes);
+    }
+
+    #[test]
+    fn test_other_serde_data_models() {
         #[derive(Deserialize)]
         struct Frame {
             m_i8: i8,
@@ -677,10 +719,11 @@ mod tests {
             m_u64: u64,
             m_f64: f64,
             m_char: (u8, char), // require length field because `char` is variable lengh type,
-            m_bytes: (u8, Vec<u8>), // require length field because `bytes` is variable lengh type,
+            m_owned_bytes: (u8, Vec<u8>), // require length field because `Vec` is variable lengh type,
             m_opt: Option<u8>,
             m_unit: (),
         }
+
         let input = vec![
             0xff, // -1
             0xff, 0xfe, // -2
@@ -700,7 +743,7 @@ mod tests {
         assert_eq!(9223372036854775808, result.m_u64);
         assert_eq!(1.5, result.m_f64);
         assert_eq!('€', result.m_char.1);
-        assert_eq!(b"beef".to_vec(), result.m_bytes.1);
+        assert_eq!(b"beef".to_vec(), result.m_owned_bytes.1);
         assert_eq!(Some(b'o'), result.m_opt);
         assert_eq!((), result.m_unit);
     }
