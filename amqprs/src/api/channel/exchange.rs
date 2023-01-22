@@ -433,10 +433,14 @@ impl Channel {
 
 #[cfg(test)]
 mod tests {
-    use super::{ExchangeDeclareArguments, ExchangeDeleteArguments};
+    use super::{
+        ExchangeBindArguments, ExchangeDeclareArguments, ExchangeDeleteArguments,
+        ExchangeUnbindArguments,
+    };
     use crate::{
         api::connection::{Connection, OpenConnectionArguments},
         callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
+        test_utils,
     };
 
     #[tokio::test]
@@ -482,5 +486,56 @@ mod tests {
             .unwrap();
         let args = ExchangeDeleteArguments::new("amq.direct");
         channel.exchange_delete(args).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_exchange_bind_unbind() {
+        test_utils::setup_logging();
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
+
+        let connection = Connection::open(&args).await.unwrap();
+        connection
+            .register_callback(DefaultConnectionCallback)
+            .await
+            .unwrap();
+
+        let channel = connection.open_channel(None).await.unwrap();
+        channel
+            .register_callback(DefaultChannelCallback)
+            .await
+            .unwrap();
+
+        let source = "primary";
+        channel
+            .exchange_declare(
+                ExchangeDeclareArguments::default()
+                    .exchange(source.to_owned())
+                    .exchange_type("topic".to_owned())
+                    .finish(),
+            )
+            .await
+            .unwrap();
+
+        let dest = "secondary";
+        channel
+            .exchange_declare(
+                ExchangeDeclareArguments::default()
+                    .exchange(dest.to_owned())
+                    .exchange_type("topic".to_owned())
+                    .finish(),
+            )
+            .await
+            .unwrap();
+
+        let routing_key = "p.s.proxy";
+        channel
+            .exchange_bind(ExchangeBindArguments::new(dest, source, routing_key))
+            .await
+            .unwrap();
+
+        channel
+            .exchange_unbind(ExchangeUnbindArguments::new(dest, source, routing_key))
+            .await
+            .unwrap();
     }
 }
