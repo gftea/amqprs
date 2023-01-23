@@ -929,11 +929,6 @@ impl Channel {
         publish.set_mandatory(args.mandatory);
         publish.set_immediate(args.immediate);
 
-        self.shared
-            .outgoing_tx
-            .send((self.shared.channel_id, publish.into_frame()))
-            .await?;
-
         let content_header = ContentHeader::new(
             ContentHeaderCommon {
                 class: 60, // basic class
@@ -942,15 +937,12 @@ impl Channel {
             },
             basic_properties,
         );
-        self.shared
-            .outgoing_tx
-            .send((self.shared.channel_id, content_header.into_frame()))
-            .await?;
 
-        let content = ContentBody::new(content);
+        let publish_combo =
+            Frame::PublishCombo(publish, Box::new(content_header), ContentBody::new(content));
         self.shared
             .outgoing_tx
-            .send((self.shared.channel_id, content.into_frame()))
+            .send((self.shared.channel_id, publish_combo))
             .await?;
         Ok(())
     }
