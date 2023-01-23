@@ -18,7 +18,7 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 
 # Example: Consume and Publish
 
-## [Link to full example code](https://github.com/gftea/amqprs/blob/main/examples/src/basic_pub_sub.rs) 
+## [Link to full example code](https://github.com/gftea/amqprs/blob/main/examples/src/basic_pub_sub.rs)
 
 ```rust
 // open a connection to RabbitMQ server
@@ -63,7 +63,7 @@ channel
 //////////////////////////////////////////////////////////////////
 // start consumer with given name
 let args = BasicConsumeArguments::new(
-        &queue_name, 
+        &queue_name,
         "example_basic_pub_sub"
     );
 
@@ -94,13 +94,12 @@ channel
 
 
 // channel/connection will be closed when drop.
-// keep the `channel` and `connection` object from dropping 
+// keep the `channel` and `connection` object from dropping
 // before pub/sub is done.
 time::sleep(time::Duration::from_secs(1)).await;
 // explicitly close
 channel.close().await.unwrap();
 connection.close().await.unwrap();
-
 ```
 
 # Optional Features

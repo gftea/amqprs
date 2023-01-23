@@ -9,6 +9,7 @@ function check_result () {
     fi
 }
 
+# get semver of amqprs
 version=$(egrep '^version = "(.+)"$' -o amqprs/Cargo.toml | cut -d '"' -f2)
 
 # check semver
@@ -18,13 +19,15 @@ if ! [[ $version =~ $semver_regex ]]; then
     exit 1  
 fi
 
-# dry run check
+# dry run publish check
 cargo publish -p amqprs --all-features --dry-run
 check_result
 
+# check contents to be packaged into crate
 cargo package --list
 check_result
 
+# check size of crate
 ls -hl target/package/amqprs-${version}.crate
 check_result
 

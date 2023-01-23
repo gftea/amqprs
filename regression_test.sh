@@ -48,4 +48,3 @@ check_result
 # dry-run publish
 cargo publish -p amqprs --all-features --dry-run
 check_result
-
