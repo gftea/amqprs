@@ -78,10 +78,10 @@ jobs:
       matrix:
         feat:
           - 
-          - traces
-          - compliance_assert
-          - tls
-          - urispec
+          - -F traces
+          - -F compliance_assert
+          - -F tls
+          - -F urispec
     steps:
       - uses: actions/checkout@v3
       - name: Start RabbitMQ server
@@ -90,4 +90,4 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -F ${{ matrix.feat }}
+          args: ${{ matrix.feat }}
