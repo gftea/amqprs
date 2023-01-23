@@ -1,5 +1,5 @@
 name: codecov
-run-name: "Test coverage"
+run-name: "Test Coverage"
 
 # on: [push, workflow_dispatch]
 
@@ -16,28 +16,21 @@ env:
 
 jobs:
   # codecov:
-
   #   runs-on: ubuntu-latest
-
   #   steps:
   #   - uses: actions/checkout@v3
-
   #   - name: Start RabbitMQ server
   #     run: ./start_rabbitmq.sh
-
   #   - name: Cargo test instrumented
   #     run: LLVM_PROFILE_FILE="default_%m.profraw" RUSTFLAGS="-C instrument-coverage -C codegen-units=1" cargo test -p amqprs --all-features --tests
-
   #   - name: Merge coverage data
   #     run: llvm-profdata-14 merge -sparse amqprs/default_*.profraw -o amqprs.profdata
-
   #   - name: Generate coverage report
   #     run: |
   #       object_list=$(for file in $(LLVM_PROFILE_FILE="default_%m.profraw" RUSTFLAGS="-C instrument-coverage -C codegen-units=1" cargo test -p amqprs --all-features --tests --no-run --message-format=json | jq -r "select(.profile.test == true) | .filenames[]"); do printf "%s %s " --object $file; done)
   #       llvm-cov-14 report --use-color --ignore-filename-regex='/.cargo/registry' --ignore-filename-regex='rustc/' --ignore-filename-regex='tests/'  --instr-profile=amqprs.profdata ${object_list}
 
-  coverage:
-    name: Measure coverage
+  codecov:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -62,4 +55,4 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           files: ./lcov.info
-          fail_ci_if_error: false
+          fail_ci_if_error: true
