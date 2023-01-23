@@ -8,7 +8,7 @@ use tokio::{
     time,
 };
 #[cfg(feature = "traces")]
-use tracing::{debug, error, info, warn, trace};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::{
     api::{callbacks::ConnectionCallback, connection::Connection},

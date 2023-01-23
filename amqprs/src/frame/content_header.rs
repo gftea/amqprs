@@ -673,14 +673,13 @@ mod tests {
             None,
             Some("app".to_owned()),
             None,
-        );        
+        );
         assert_eq!([0x88, 0x88], props.property_flags);
 
         props.with_content_encoding("utf8");
         assert_eq!([0xC8, 0x88], props.property_flags);
-        
+
         props.with_timestamp(1674404425);
         assert_eq!([0xC8, 0xC8], props.property_flags);
-
     }
 }

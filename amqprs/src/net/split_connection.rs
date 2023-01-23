@@ -185,11 +185,13 @@ impl BufIoWriter {
         Ok(len)
     }
 
-    // write a AMQP frame over a specific channel
-    pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
-        // TODO: tracing
-        #[cfg(feature = "traces")]
-        trace!("SENT on channel {}: {}", channel, frame);
+    async fn serialize_frame_into_buffer(
+        &mut self,
+        channel: AmqpChannelId,
+        frame: Frame,
+    ) -> Result<()> {
+        // there can be data unsent in buffer
+        let start_index = self.buffer.len();
 
         // reserve bytes for frame header, which to be updated after encoding payload
         let header = FrameHeader {
@@ -204,20 +206,36 @@ impl BufIoWriter {
 
         // update frame's payload size
         for (i, v) in (payload_size as u32).to_be_bytes().iter().enumerate() {
-            let p = self.buffer.get_mut(i + 3).unwrap();
+            let p = self.buffer.get_mut(i + 3 + start_index).unwrap();
             *p = *v;
         }
 
         // encode frame end byte
-        to_buffer(&FRAME_END, &mut self.buffer).unwrap();
+        to_buffer(&FRAME_END, &mut self.buffer)?;
+        Ok(())
+    }
+    // write a AMQP frame over a specific channel
+    pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
+        // TODO: tracing
+        #[cfg(feature = "traces")]
+        trace!("SENT on channel {}: {}", channel, frame);
 
+        if let Frame::PublishCombo(publish, content_header, content_body) = frame {
+            self.serialize_frame_into_buffer(channel, publish.into_frame())
+                .await?;
+            self.serialize_frame_into_buffer(channel, content_header.into_frame())
+                .await?;
+            self.serialize_frame_into_buffer(channel, content_body.into_frame())
+                .await?;
+        } else {
+            self.serialize_frame_into_buffer(channel, frame).await?;
+        }
         // flush whole buffer
         self.stream.write_all(&self.buffer).await?;
 
         // discard sent data in write buffer
         let len = self.buffer.len();
         self.buffer.advance(len);
-
         Ok(len)
     }
 

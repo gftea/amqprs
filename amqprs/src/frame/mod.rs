@@ -26,41 +26,42 @@ mod helpers {
     }
 
     macro_rules! impl_frame {
-    ($($class_id:literal => $($method_id:literal : $method:ident),+);+) => {
-        /// function to decode method frame
-        fn decode_method_frame(header: MethodHeader, content: &[u8]) -> Result<Frame, Error> {
-            match header.class_id() {
-                $($class_id => {
-                    match header.method_id() {
-                        $($method_id => Ok(from_bytes::<$method>(content)?.into_frame()),)+
-                        _ => unimplemented!("unknown method id"),
-                    }
-                })+
-                _ => unimplemented!("unknown class id"),
+        ($($class_id:literal => $($method_id:literal : $method:ident),+);+) => {
+            /// function to decode method frame
+            fn decode_method_frame(header: MethodHeader, content: &[u8]) -> Result<Frame, Error> {
+                match header.class_id() {
+                    $($class_id => {
+                        match header.method_id() {
+                            $($method_id => Ok(from_bytes::<$method>(content)?.into_frame()),)+
+                            _ => unimplemented!("unknown method id"),
+                        }
+                    })+
+                    _ => unimplemented!("unknown class id"),
+                }
             }
-        }
 
-        // common interfaces of each method type
-        $($(impl_method_frame!{$method, $class_id, $method_id})+)+
+            // common interfaces of each method type
+            $($(impl_method_frame!{$method, $class_id, $method_id})+)+
 
-        /// `Frame` enum to generailize various frames.
-        /// To avoid generic type parameter for new type depends on `Frame`.
-        /// Only wrap the frame payload in enum variant, excluding the `FrameHeader` and FRAME_END byte
-        /// The `Frame` type only need to implement Serialize, because when decoding a `Frame`,
-        /// `FrameHeader`, its payload, and `FRAME_END` bytes are desrialized separately
-        #[derive(Debug, Serialize)]
-        #[serde(untagged)]
-        pub enum Frame {
-            /// method frame payload = method header + method
-            $($($method(&'static MethodHeader, $method),)+)+
+            /// `Frame` enum to generailize various frames.
+            /// To avoid generic type parameter for new type depends on `Frame`.
+            /// Only wrap the frame payload in enum variant, excluding the `FrameHeader` and FRAME_END byte
+            /// The `Frame` type only need to implement Serialize, because when decoding a `Frame`,
+            /// `FrameHeader`, its payload, and `FRAME_END` bytes are desrialized separately
+            #[derive(Debug, Serialize)]
+            #[serde(untagged)]
+            pub enum Frame {
+                /// method frame payload = method header + method
+                $($($method(&'static MethodHeader, $method),)+)+
 
-            HeartBeat(HeartBeat),
-            ContentHeader(Box<ContentHeader>),
-            ContentBody(ContentBody),
-        }
-    };
-
-}
+                HeartBeat(HeartBeat),
+                ContentHeader(Box<ContentHeader>),
+                ContentBody(ContentBody),
+                // speical frame combination for publish
+                PublishCombo(Publish, Box<ContentHeader>, ContentBody),
+            }
+        };
+    }
 }
 ///////////////////////////////////////////////////////////
 mod constants;
