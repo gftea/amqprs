@@ -1,6 +1,5 @@
-name: integration-test
-
-run-name: "Run test against real rabbitmq server"
+name: ci
+run-name: "Regression Test"
 
 # on: [push, workflow_dispatch]
 
@@ -75,23 +74,20 @@ jobs:
   test_features_combination:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        feat:
+          - 
+          - traces
+          - compliance_assert
+          - tls
+          - urispec
     steps:
       - uses: actions/checkout@v3
-
       - name: Start RabbitMQ server
         run: ./start_rabbitmq.sh
 
-      - name: default
-        run: cargo test
-
-      - name: traces
-        run: cargo test -F traces
-
-      - name: compliance_assert
-        run: cargo test -F compliance_assert
-
-      - name: tls feature
-        run: cargo test -F tls
-
-      - name: urispec feature
-        run: cargo test -F urispec
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args:  ${{ matrix.feat }}
