@@ -464,7 +464,7 @@ impl TryFrom<&str> for OpenConnectionArguments {
             .ok_or_else(|| Error::UriError(String::from("No URI scheme")))?
             .as_str();
 
-        if !["amqp", "amqrs"].contains(&scheme) {
+        if !["amqp", "amqps"].contains(&scheme) {
             return Err(Error::UriError(format!(
                 "Unsupported URI scheme: {}",
                 scheme
@@ -1043,8 +1043,11 @@ impl Connection {
             dispatcher_mgmt_tx,
         );
 
-        let dispatcher =
-            ChannelDispatcher::new(channel.clone_as_secondary(), dispatcher_rx, dispatcher_mgmt_rx);
+        let dispatcher = ChannelDispatcher::new(
+            channel.clone_as_secondary(),
+            dispatcher_rx,
+            dispatcher_mgmt_rx,
+        );
         dispatcher.spawn().await;
         #[cfg(feature = "traces")]
         info!("open channel {}", channel);
@@ -1371,6 +1374,18 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_block_unblock() {
+        setup_logging();
+
+        let args = OpenConnectionArguments::default()
+            .credentials(SecurityCredentials::new_plain("user", "bitnami"))
+            .finish();
+        let conn = Connection::open(&args).await.unwrap();
+        conn.blocked("test blocked").await.unwrap();
+        conn.unblocked().await.unwrap();
+    }
+
+    #[tokio::test]
     #[should_panic(expected = "failed to register channel resource")]
     async fn test_open_already_opened_channel() {
         setup_logging();
@@ -1385,8 +1400,8 @@ mod tests {
     }
 
     #[cfg(feature = "urispec")]
-    #[tokio::test]
-    async fn test_openconnectionarguments_try_from() {
+    #[test]
+    fn test_openconnectionarguments_try_from() {
         let args = OpenConnectionArguments::try_from("amqp://user:pass@host:10000/vhost").unwrap();
         assert_eq!(args.host, "host");
         assert_eq!(args.port, 10000);
@@ -1453,5 +1468,16 @@ mod tests {
         assert_eq!(args.port, 5672);
         assert_eq!(args.virtual_host, "/");
         assert_eq!(args.heartbeat, 30);
+    }
+
+    #[cfg(feature = "urispec")]
+    #[test]
+    fn test_urispec_amqps() {
+        let args = OpenConnectionArguments::try_from("amqps://user:bitnami@localhost?heartbeat=10")
+            .unwrap();
+        assert_eq!(args.host, "localhost");
+        assert_eq!(args.port, 5671);
+        assert_eq!(args.virtual_host, "/");
+        assert_eq!(args.heartbeat, 10);
     }
 }
