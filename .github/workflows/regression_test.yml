@@ -6,10 +6,22 @@ run-name: "Regression Test"
 on:
   push:
     branches: ["main"]
+    paths-ignore:
+      - '**/README.md'
+      - '**/*.png'
+      - 'rabbitmq_spec/**'
+      - 'prepare_release.sh'
+      - 'regression_test.sh'
   workflow_dispatch:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+    paths-ignore:
+      - '**/README.md'
+      - '**/*.png'
+      - 'rabbitmq_spec/**'
+      - 'prepare_release.sh'
+      - 'regression_test.sh'
 
 env:
   CARGO_TERM_COLOR: always
@@ -26,9 +38,6 @@ jobs:
 
       - name: cargo clippy (all-features)
         run: cargo clippy --all-features -- -Dwarnings
-
-      - name: cargo build (debug, tls)
-        run: cargo build -F tls --verbose
 
   check_msrv:
     runs-on: ubuntu-latest
@@ -50,7 +59,7 @@ jobs:
           command: check
           args: --all-features
 
-  test_all_features:
+  test_examples:
     runs-on: ubuntu-latest
 
     steps:
@@ -59,16 +68,7 @@ jobs:
       - name: Start RabbitMQ server
         run: ./start_rabbitmq.sh
 
-      - name: doc tests (debug, all-features)
-        run: cargo test --all-features --doc --verbose
-
-      - name: unit tests (debug, all-features)
-        run: cargo test --all-features --lib --verbose
-
-      - name: integration tests (release, all-features)
-        run: cargo test --release --all-features --test '*'
-
-      - name: examples (release, all-features)
+      - name: examples
         run: ./examples/run_examples.sh
 
   test_features_combination:
@@ -77,11 +77,12 @@ jobs:
     strategy:
       matrix:
         feat:
-          - 
+          - -F default
           - -F traces
           - -F compliance_assert
           - -F tls
           - -F urispec
+          - --all-features --release
     steps:
       - uses: actions/checkout@v3
       - name: Start RabbitMQ server
