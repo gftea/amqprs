@@ -2,12 +2,16 @@
 [![codecov](https://codecov.io/gh/gftea/amqprs/branch/main/graph/badge.svg?token=7MF92R6F60)](https://codecov.io/gh/gftea/amqprs)
 [![Documentation](https://docs.rs/amqprs/badge.svg)](https://docs.rs/amqprs)
 [![crates.io](https://img.shields.io/crates/v/amqprs.svg)](https://crates.io/crates/amqprs)
+[![Discord](https://img.shields.io/discord/1065607081513717900)](https://discord.gg/g7Z9TeCu28)
+
 
 # amqprs
 
 Yet another RabbitMQ client implementation in rust with different design goals.
 
-## Design philosophy
+Accepted to list in [RabbitMQ official website](https://www.rabbitmq.com/devtools.html#rust-dev).
+
+## Design Philosophy
 
 1. API first: easy to use and understand. Keep the API similar as python client library so that it is easier for users to move from there.
 2. Minimum external dependencies: as few external crates as possible.
@@ -35,5 +39,4 @@ __Testing depends on RabbitMQ docker container.__
 # enable traces in test.
 # Note that it only takes effect if "traces" feature is enabled
 RUST_LOG=debug ./regression_test.sh
-
 ```
