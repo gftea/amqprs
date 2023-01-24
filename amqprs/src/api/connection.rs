@@ -355,34 +355,6 @@ impl OpenConnectionArguments {
         self
     }
 
-    /// Set the URI of the server. Format: "\<ip addr\>\:\<port\>"
-    ///
-    /// To support legacy functionality, this method will only set the host and port.
-    ///
-    ///
-    /// # Default
-    ///
-    /// "localhost:5672"
-    #[deprecated(since = "0.4.1", note = "Use `host` and `port` instead")]
-    pub fn uri(&mut self, uri: &str) -> &mut Self {
-        self.uri = Some(uri.to_owned());
-
-        // Set host and port by splitting by ':', this does not accept IPv6 addresses or all URI formats
-        let mut split = uri.split(':');
-
-        self.host(split.next().unwrap());
-
-        let port_result = split.next();
-
-        if let Some(port) = port_result {
-            self.port(port.parse().unwrap_or(DEFAULT_AMQP_PORT));
-        } else {
-            self.port(DEFAULT_AMQP_PORT);
-        }
-
-        self
-    }
-
     /// Set the virtual host. See [RabbitMQ vhosts](https://www.rabbitmq.com/vhosts.html).
     ///
     /// # Default
