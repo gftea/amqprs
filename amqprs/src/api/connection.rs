@@ -277,8 +277,6 @@ struct SharedConnectionInner {
 
 #[derive(Clone)]
 pub struct OpenConnectionArguments {
-    /// The server URI. See [RabbitMQ URI spec](https://www.rabbitmq.com/uri-spec.html).
-    uri: Option<String>,
     /// The server host. Default: "localhost".
     host: String,
     /// The server port. Default: 5672 by [AMQP 0-9-1 spec](https://www.rabbitmq.com/amqp-0-9-1-reference.html).
@@ -301,7 +299,6 @@ pub struct OpenConnectionArguments {
 impl Default for OpenConnectionArguments {
     fn default() -> Self {
         Self {
-            uri: None,
             host: String::from("localhost"),
             port: DEFAULT_AMQP_PORT,
             virtual_host: String::from("/"),
@@ -323,7 +320,6 @@ impl OpenConnectionArguments {
     ///
     pub fn new(host: &str, port: u16, username: &str, password: &str) -> Self {
         Self {
-            uri: None,
             host: host.to_owned(),
             port,
             virtual_host: String::from("/"),
