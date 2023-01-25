@@ -391,7 +391,7 @@ impl Channel {
     /// # Errors
     ///
     /// Returns error if any failure in comunication with server.      
-    pub async fn basic_qos(&mut self, args: BasicQosArguments) -> Result<()> {
+    pub async fn basic_qos(&self, args: BasicQosArguments) -> Result<()> {
         let qos = Qos::new(args.prefetch_size, args.prefetch_count, args.global);
         let responder_rx = self.register_responder(QosOk::header()).await?;
 
@@ -455,8 +455,9 @@ impl Channel {
     /// If you were to stop consuming before the channel has been closed internally,
     /// you must call [`basic_cancel`] to make sure resources are cleaned up properly.
     ///
-    /// It is recommended to call [`basic_qos`] before using this method as the underlying
-    /// message buffer is unbounded.
+    /// if `no-ack` is false, [`basic_qos`] can be used to throttle the incoming flow from server.
+    /// If `no-ack` is true, the `prefetch-size` and `prefetch-count` are ignored, flow control
+    /// on application level maybe need to be introduced, othersie it relies on TCP backpresure.
     ///
     /// ```
     /// # use amqprs::{
@@ -950,6 +951,7 @@ impl Channel {
 
 #[cfg(test)]
 mod tests {
+    use crate::callbacks::{DefaultChannelCallback, DefaultConnectionCallback};
     use crate::test_utils::setup_logging;
     use crate::{
         api::{
@@ -962,7 +964,7 @@ mod tests {
     };
     use tokio::time;
 
-    use super::{BasicConsumeArguments, BasicPublishArguments};
+    use super::{BasicConsumeArguments, BasicPublishArguments, BasicQosArguments};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
     async fn test_basic_consume_auto_ack() {
@@ -1076,5 +1078,55 @@ mod tests {
         }
         // channel and connection drop, wait for close task to fnish
         time::sleep(time::Duration::from_secs(1)).await;
+    }
+
+    #[tokio::test]
+    async fn test_basic_qos() {
+        setup_logging();
+
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
+        let connection = Connection::open(&args).await.unwrap();
+        connection
+            .register_callback(DefaultConnectionCallback)
+            .await
+            .unwrap();
+
+        let channel = connection.open_channel(None).await.unwrap();
+        channel
+            .register_callback(DefaultChannelCallback)
+            .await
+            .unwrap();
+
+        let (queue_name, ..) = channel
+            .queue_declare(QueueDeclareArguments::default())
+            .await
+            .unwrap()
+            .unwrap();
+        channel
+            .queue_bind(QueueBindArguments::new(
+                &queue_name,
+                "amq.topic",
+                "eiffel.#",
+            ))
+            .await
+            .unwrap();
+
+        let args = BasicConsumeArguments::new(&queue_name, "test_basic_qos");
+        channel
+            .basic_consume(DefaultConsumer::new(args.no_ack), args)
+            .await
+            .unwrap();
+
+        // set qos
+        channel
+            .basic_qos(BasicQosArguments::new(0, 100, false))
+            .await
+            .unwrap();
+
+        // try recover
+        channel.basic_recover(true).await.unwrap();
+
+        channel.close().await.unwrap();
+        connection.close().await.unwrap();
     }
 }

@@ -528,5 +528,5 @@ mod test {
         ];
         let result = to_bytes(&frame).unwrap();
         assert_eq!(expected, result);
-    }    
+    }
 }

@@ -39,7 +39,7 @@ use crate::{
     BasicProperties,
 };
 #[cfg(feature = "tracing")]
-use tracing::{trace, error, info};
+use tracing::{error, info, trace};
 
 /// Combined message received by a consumer
 ///
@@ -112,10 +112,10 @@ pub(crate) enum DispatcherManagementCommand {
 ///
 /// # Concurrency
 ///
-/// `Channel` is not cloneable because of sharing its instances between 
+/// `Channel` is not cloneable because of sharing its instances between
 /// tasks/threads should be avoided. Applications should be using a `Channel`
 /// per task/thread.
-/// 
+///
 /// See detailed explanation in [`Java Client`], it applies to the library also.
 ///
 /// [`Connection::open_channel`]: ../connection/struct.Connection.html#method.open_channel
