@@ -38,7 +38,8 @@ fi
 
 read -p 'make a commit? ' ans
 if [ "$ans" = "y" ]; then
-    git commit -a -m "prepare release v${version}"
+    read -p 'additional commit message: ' message
+    git commit -a -m "prepare release v${version}. ${message}"
     git log -1
 fi
 
