@@ -5,9 +5,11 @@
 [![Discord](https://img.shields.io/discord/1065607081513717900)](https://discord.gg/g7Z9TeCu28)
 
 
-# amqprs
+# What is "amqprs"
 
 Yet another RabbitMQ client implementation in rust with different design goals.
+
+Accepted to list in [RabbitMQ official website](https://www.rabbitmq.com/devtools.html#rust-dev).
 
 ## Design Philosophy
 
@@ -16,11 +18,9 @@ Yet another RabbitMQ client implementation in rust with different design goals.
 3. lock free: no mutex/lock in client library itself.
 
 # Design Architecture
-![Lock-free Design](amqp-chosen_design.drawio.png)
+![Lock-free Design](https://github.com/gftea/amqprs/raw/HEAD/architecture.png)
 
-# Example: Consume and Publish
-
-## [Link to full example code](https://github.com/gftea/amqprs/blob/main/examples/src/basic_pub_sub.rs)
+# Quick Start: Consume and Publish
 
 ```rust
 // open a connection to RabbitMQ server
@@ -104,6 +104,11 @@ channel.close().await.unwrap();
 connection.close().await.unwrap();
 ```
 
+# Typical Examples
+
+## [Example - Publish and Subscribe](https://github.com/gftea/amqprs/blob/main/examples/src/basic_pub_sub.rs)
+## [Example - SSL/TLS](https://github.com/gftea/amqprs/blob/main/examples/src/tls.rs)
+
 # Optional Features
 
 - "traces": enable `tracing` in the library.
@@ -112,3 +117,20 @@ connection.close().await.unwrap();
     If disabled, then it relies on server to reject.
 - "tls": enable SSL/TLS.
 - "urispec": enable support of [RabbitMQ URI Specification](https://www.rabbitmq.com/uri-spec.html)
+
+
+# Run Test Locally
+
+__Testing depends on RabbitMQ docker container.__
+
+```bash
+# start rabbitmq server
+./start_rabbitmq.sh
+
+# run tests
+./regression_test.sh
+
+# enable traces in test.
+# Note that it only takes effect if "traces" feature is enabled
+RUST_LOG=debug ./regression_test.sh
+```
