@@ -584,7 +584,7 @@ impl Connection {
         unwrap_expected_method!(
             frame,
             Frame::OpenOk,
-            Error::ConnectionOpenError("open".to_string())
+            Error::ConnectionOpenError(format!("failed to open connection, reason: {frame}"))
         )?;
 
         // spawn network management tasks and get internal channel' sender half.
