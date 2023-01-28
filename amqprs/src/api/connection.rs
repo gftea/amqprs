@@ -584,7 +584,7 @@ impl Connection {
         unwrap_expected_method!(
             frame,
             Frame::OpenOk,
-            Error::ConnectionOpenError("open".to_string())
+            Error::ConnectionOpenError(format!("failed to open connection, reason: {}", frame))
         )?;
 
         // spawn network management tasks and get internal channel' sender half.
@@ -664,7 +664,10 @@ impl Connection {
         let mut start = unwrap_expected_method!(
             frame,
             Frame::Start,
-            Error::ConnectionOpenError("start".to_string())
+            Error::ConnectionOpenError(format!(
+                "failed to negotiate connection params, reason: {}",
+                frame
+            ))
         )?;
         // get server supported locales
         if !start
@@ -769,7 +772,10 @@ impl Connection {
         let tune = unwrap_expected_method!(
             frame,
             Frame::Tune,
-            Error::ConnectionOpenError("tune".to_string())
+            Error::ConnectionOpenError(format!(
+                "failed to tune connection params, reason: {}",
+                frame
+            ))
         )?;
 
         // according to https://www.rabbitmq.com/heartbeats.html
