@@ -81,6 +81,8 @@ use uriparse::URIReference;
 const DEFAULT_AMQP_PORT: u16 = 5672;
 const DEFAULT_AMQPS_PORT: u16 = 5671;
 const DEFAULT_HEARTBEAT: u16 = 60;
+const AMQP_SCHEME: &str = "amqp";
+const AMQPS_SCHEME: &str = "amqps";
 
 // per connection buffer
 const OUTGOING_MESSAGE_BUFFER_SIZE: usize = 8192;
@@ -290,7 +292,9 @@ pub struct OpenConnectionArguments {
     /// Heartbeat timeout in seconds. See [RabbitMQ heartbeats](https://www.rabbitmq.com/heartbeats.html)
     /// Default: 60s.
     heartbeat: u16,
-
+    /// scheme of URI for cross-checking consistency between provided scheme and TLS config
+    /// If `amqps`scheme is used, TLS should be enabled and configured.
+    scheme: Option<String>,
     /// SSL/TLS adaptor
     #[cfg(feature = "tls")]
     tls_adaptor: Option<TlsAdaptor>,
@@ -305,6 +309,7 @@ impl Default for OpenConnectionArguments {
             connection_name: None,
             credentials: SecurityCredentials::new_plain("guest", "guest"),
             heartbeat: 60,
+            scheme: None,
             #[cfg(feature = "tls")]
             tls_adaptor: None,
         }
@@ -326,6 +331,7 @@ impl OpenConnectionArguments {
             connection_name: None,
             credentials: SecurityCredentials::new_plain(username, password),
             heartbeat: 60,
+            scheme: None,
             #[cfg(feature = "tls")]
             tls_adaptor: None,
         }
@@ -432,19 +438,25 @@ impl TryFrom<&str> for OpenConnectionArguments {
             .ok_or_else(|| Error::UriError(String::from("No URI scheme")))?
             .as_str();
 
-        if !["amqp", "amqps"].contains(&scheme) {
-            return Err(Error::UriError(format!(
-                "Unsupported URI scheme: {}",
-                scheme
-            )));
-        }
-
-        // Set the default port depending on the scheme. The unwrap should be safe due to the checks above.
-        // Will panic if any invalid scheme is not rejected before this point
+        // Set the default port depending on the scheme.
         let default_port: u16 = match scheme {
-            "amqp" => DEFAULT_AMQP_PORT,
-            "amqps" => DEFAULT_AMQPS_PORT,
-            _ => panic!("Error occurred while setting default port based on amq scheme. This should never happen.")            
+            AMQP_SCHEME => DEFAULT_AMQP_PORT,
+            AMQPS_SCHEME => {
+                if cfg!(feature = "tls") {
+                    DEFAULT_AMQPS_PORT
+                } else {
+                    return Err(Error::UriError(format!(
+                        "TLS feature should be enabled to use scheme: {}",
+                        scheme
+                    )));
+                }
+            }
+            _ => {
+                return Err(Error::UriError(format!(
+                    "Unsupported URI scheme: {}",
+                    scheme
+                )))
+            }
         };
 
         // Check authority
@@ -467,6 +479,8 @@ impl TryFrom<&str> for OpenConnectionArguments {
             pu_authority_username,
             pu_authority_password,
         );
+        args.scheme = Some(scheme.to_owned());
+
         // Check & apply virtual host
         let pu_path = pu.path().to_string();
         if pu_path.is_empty() {
@@ -516,10 +530,17 @@ impl Connection {
     ///
     /// Returns [`Err`] if any step goes wrong during openning an connection.
     pub async fn open(args: &OpenConnectionArguments) -> Result<Self> {
-        // TODO: uri parsing
         #[cfg(feature = "tls")]
         let mut io_conn = match &args.tls_adaptor {
             Some(tls_adaptor) => {
+                if let Some(scheme) = &args.scheme {
+                    if scheme == AMQP_SCHEME {
+                        return Err(Error::UriError(format!(
+                            "Try to open a secure connection with '{}' scheme",
+                            scheme
+                        )));
+                    }
+                }
                 SplitConnection::open_tls(
                     &format!("{}:{}", args.host, args.port),
                     &tls_adaptor.domain,
@@ -528,10 +549,30 @@ impl Connection {
                 .await?
             }
 
-            None => SplitConnection::open(&format!("{}:{}", args.host, args.port)).await?,
+            None => {
+                if let Some(scheme) = &args.scheme {
+                    if scheme == AMQPS_SCHEME {
+                        return Err(Error::UriError(format!(
+                            "Try to open a regular connection with '{}' scheme",
+                            scheme
+                        )));
+                    }
+                }
+                SplitConnection::open(&format!("{}:{}", args.host, args.port)).await?
+            }
         };
         #[cfg(not(feature = "tls"))]
-        let mut io_conn = SplitConnection::open(&format!("{}:{}", args.host, args.port)).await?;
+        let mut io_conn = {
+            if let Some(scheme) = &args.scheme {
+                if scheme == AMQPS_SCHEME {
+                    return Err(Error::UriError(format!(
+                        "Try to open a regular connection with '{}' scheme",
+                        scheme
+                    )));
+                }
+            }
+            SplitConnection::open(&format!("{}:{}", args.host, args.port)).await?
+        };
 
         // C:protocol-header
         Self::negotiate_protocol(&mut io_conn).await?;
@@ -1444,7 +1485,7 @@ mod tests {
         assert_eq!(args.heartbeat, 30);
     }
 
-    #[cfg(feature = "urispec")]
+    #[cfg(all(feature = "urispec", feature = "tls"))]
     #[test]
     fn test_urispec_amqps() {
         let args = OpenConnectionArguments::try_from("amqps://user:bitnami@localhost?heartbeat=10")
@@ -1453,5 +1494,42 @@ mod tests {
         assert_eq!(args.port, 5671);
         assert_eq!(args.virtual_host, "/");
         assert_eq!(args.heartbeat, 10);
+    }
+
+    #[cfg(all(feature = "urispec", feature = "tls"))]
+    #[tokio::test]
+    #[should_panic(expected = "UriError")]
+    async fn test_amqps_scheme_without_tls() {
+        let args = OpenConnectionArguments::try_from("amqps://user:bitnami@localhost?heartbeat=10")
+            .unwrap();
+        Connection::open(&args).await.unwrap();
+    }
+
+    #[cfg(all(feature = "urispec", feature = "tls"))]
+    #[tokio::test]
+    #[should_panic(expected = "UriError")]
+    async fn test_amqp_scheme_with_tls() {
+        ////////////////////////////////////////////////////////////////
+        // TLS specific configuration
+        let current_dir = std::env::current_dir().unwrap();
+        let current_dir = current_dir.join("../rabbitmq_conf/client/");
+
+        let root_ca_cert = current_dir.join("ca_certificate.pem");
+        let client_cert = current_dir.join("client_AMQPRS_TEST_certificate.pem");
+        let client_private_key = current_dir.join("client_AMQPRS_TEST_key.pem");
+        // domain should match the certificate/key files
+        let domain = "AMQPRS_TEST";
+        let tls_adaptor = crate::tls::TlsAdaptor::with_client_auth(
+            Some(root_ca_cert.as_path()),
+            client_cert.as_path(),
+            client_private_key.as_path(),
+            domain.to_owned(),
+        )
+        .unwrap();
+        let args = OpenConnectionArguments::try_from("amqp://user:bitnami@localhost?heartbeat=10")
+            .unwrap()
+            .tls_adaptor(tls_adaptor)
+            .finish();
+        Connection::open(&args).await.unwrap();
     }
 }
