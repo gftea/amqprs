@@ -25,7 +25,8 @@ Accepted to list in [RabbitMQ official website](https://www.rabbitmq.com/devtool
 ```rust
 // open a connection to RabbitMQ server
 let connection = Connection::open(&OpenConnectionArguments::new(
-    "localhost:5672",
+    "localhost",
+    5672,
     "user",
     "bitnami",
 ))
