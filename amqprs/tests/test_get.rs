@@ -94,6 +94,43 @@ async fn test_get() {
             .unwrap();
     }
 
+    // test zero size content
+    for _ in 0..num_loop {
+        channel
+            .basic_publish(BasicProperties::default(), Vec::new(), args.clone())
+            .await
+            .unwrap();
+    }
+
+    for i in 0..num_loop {
+        // get single message
+        let delivery_tag = match channel.basic_get(get_args.clone()).await.unwrap() {
+            Some((get_ok, basic_props, content)) => {
+                #[cfg(feature = "tracing")]
+                info!(
+                    "Get results: 
+                    {}
+                    {}
+                    Content: {}",
+                    get_ok,
+                    basic_props,
+                    std::str::from_utf8(&content).unwrap()
+                );
+                // message count should decrement accordingly
+                assert_eq!(num_loop - 1 - i, get_ok.message_count());
+                get_ok.delivery_tag()
+            }
+            None => panic!("expect get a message"),
+        };
+        // ack to received message
+        channel
+            .basic_ack(BasicAckArguments {
+                delivery_tag,
+                multiple: false,
+            })
+            .await
+            .unwrap();
+    }
     // explicitly close
     channel.close().await.unwrap();
     connection.close().await.unwrap();

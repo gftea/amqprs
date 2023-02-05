@@ -44,8 +44,14 @@ async fn test_publish_return() {
         )
         .await
         .unwrap();
+
+    // publish zero size contnet
+    channel
+        .basic_publish(BasicProperties::default(), Vec::new(), args.clone())
+        .await
+        .unwrap();
     // wait for publish is done
-    time::sleep(time::Duration::from_secs(10)).await;
+    time::sleep(time::Duration::from_secs(2)).await;
 
     // close
     channel.close().await.unwrap();
