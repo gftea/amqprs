@@ -50,9 +50,16 @@ async fn test_publish() {
     // create arguments for basic_publish
     let args = BasicPublishArguments::new(exchange_name, "amqprs.example");
 
-    let num_loop = 10000;
+    let num_loop = 5000;
     for _ in 0..num_loop {
         // basic publish
+        channel
+            .basic_publish(BasicProperties::default(), content.clone(), args.clone())
+            .await
+            .unwrap();
+    }
+    for _ in 0..num_loop {
+        // publish zero size content
         channel
             .basic_publish(BasicProperties::default(), content.clone(), args.clone())
             .await

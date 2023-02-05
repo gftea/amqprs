@@ -8,8 +8,9 @@ use tokio::{
 
 use crate::{
     api::{callbacks::ChannelCallback, channel::ReturnMessage},
-    frame::{CancelOk, CloseChannelOk, FlowOk, Frame, MethodHeader},
+    frame::{CancelOk, CloseChannelOk, ContentBody, FlowOk, Frame, MethodHeader},
     net::IncomingMessage,
+    BasicProperties, Return,
 };
 #[cfg(feature = "traces")]
 use tracing::{debug, error, info, trace};
@@ -159,6 +160,43 @@ impl ChannelDispatcher {
         self.consumer_resources.remove(consumer_tag)
     }
 
+    async fn forward_deliver(&mut self, consumer_message: ConsumerMessage, consumer_tag: String) {
+        let consumer = self.get_or_new_consumer_resource(&consumer_tag);
+        match consumer.get_tx() {
+            Some(consumer_tx) => {
+                if (consumer_tx.send(consumer_message)).is_err() {
+                    #[cfg(feature = "traces")]
+                    error!(
+                        "failed to dispatch message to consumer {} on channel {}",
+                        consumer_tag, self.channel
+                    );
+                }
+            }
+            None => {
+                #[cfg(feature = "traces")]
+                debug!("can't find consumer {}, message is buffered", consumer_tag);
+                consumer.push_message(consumer_message);
+                // try to yield for expected consumer registration command,
+                // it might reduceas buffering
+                yield_now().await;
+            }
+        };
+    }
+
+    async fn handle_return(
+        &mut self,
+        ret: Return,
+        basic_properties: BasicProperties,
+        content: Vec<u8>,
+    ) {
+        if let Some(ref mut cb) = self.callback {
+            cb.publish_return(&self.channel, ret, basic_properties, content)
+                .await;
+        } else {
+            #[cfg(feature = "traces")]
+            error!("callback not registered on channel {}", self.channel);
+        }
+    }
     /// Spawn dispatcher task.
     pub(in crate::api) async fn spawn(mut self) {
         tokio::spawn(async move {
@@ -312,45 +350,50 @@ impl ChannelDispatcher {
                             }
                             Frame::ContentHeader(header) => {
                                 match self.state {
-                                    State::Deliver => message_buffer.basic_properties = Some(header.basic_properties),
-                                    State::GetOk => {
-                                        self.get_content_responder.as_ref()
-                                        .expect("get responder must be registered")
-                                        .send(header.into_frame()).unwrap();
+                                    State::Deliver => {
+                                        // do not wait for content body frame if content body size is zero
+                                        if header.common.body_size == 0 {
+                                            let consumer_tag = message_buffer.deliver.as_ref().unwrap().consumer_tag().clone();
+                                            let consumer_message  = ConsumerMessage {
+                                                deliver: message_buffer.deliver.take(),
+                                                basic_properties: Some(header.basic_properties),
+                                                content: Some(Vec::new()),
+                                            };
+                                            self.forward_deliver(consumer_message, consumer_tag).await;
+                                        } else {
+                                            message_buffer.basic_properties = Some(header.basic_properties);
+                                        }
                                     },
-                                    State::Return => return_buffer.basic_properties = Some(header.basic_properties),
+                                    State::GetOk => {
+                                        let body_size = header.common.body_size;
+                                        let responder = self.get_content_responder.as_ref().expect("get responder must be registered");
+                                        responder.send(header.into_frame()).unwrap();
+                                        // do not wait for content body frame if content body size is zero
+                                        if body_size == 0 {
+                                            responder.send(ContentBody::new(Vec::new()).into_frame()).unwrap();
+                                        }
+                                    },
+                                    State::Return => {
+                                        if header.common.body_size == 0 {
+                                            // do not wait for content body frame if content body size is zero
+                                            self.handle_return(return_buffer.ret.take().unwrap(), header.basic_properties, Vec::new()).await;
+                                        } else {
+                                            return_buffer.basic_properties = Some(header.basic_properties);
+                                        }
+                                    },
                                     _  => unreachable!("invalid dispatcher state"),
                                 }
                             }
                             Frame::ContentBody(body) => {
                                 match self.state {
                                     State::Deliver => {
-                                        message_buffer.content = Some(body.inner);
-
                                         let consumer_tag = message_buffer.deliver.as_ref().unwrap().consumer_tag().clone();
                                         let consumer_message  = ConsumerMessage {
                                             deliver: message_buffer.deliver.take(),
                                             basic_properties: message_buffer.basic_properties.take(),
-                                            content: message_buffer.content.take(),
+                                            content: Some(body.inner),
                                         };
-                                        let consumer = self.get_or_new_consumer_resource(&consumer_tag);
-                                        match consumer.get_tx() {
-                                            Some(consumer_tx) => {
-                                                if (consumer_tx.send(consumer_message)).is_err() {
-                                                    #[cfg(feature="traces")]
-                                                    error!("failed to dispatch message to consumer {} on channel {}",
-                                                    consumer_tag, self.channel);
-                                                }
-                                            },
-                                            None => {
-                                                #[cfg(feature="traces")]
-                                                debug!("can't find consumer {}, message is buffered", consumer_tag);
-                                                consumer.push_message(consumer_message);
-                                                // try to yield for expected consumer registration command,
-                                                // it might reduceas buffering
-                                                yield_now().await;
-                                            },
-                                        };
+                                        self.forward_deliver(consumer_message, consumer_tag).await;
                                     }
                                     State::GetOk => {
                                         self.get_content_responder.take()
@@ -358,17 +401,10 @@ impl ChannelDispatcher {
                                         .send(body.into_frame()).unwrap();
                                     },
                                     State::Return => {
-                                        if let Some(ref mut cb) = self.callback {
-                                            cb.publish_return(
-                                                &self.channel,
-                                                return_buffer.ret.take().unwrap(),
-                                                return_buffer.basic_properties.take().unwrap(),
-                                                body.inner
-                                            ).await ;
-                                        } else {
-                                            #[cfg(feature="traces")]
-                                            error!("callback not registered on channel {}", self.channel);
-                                        }
+                                        self.handle_return(
+                                            return_buffer.ret.take().unwrap(),
+                                            return_buffer.basic_properties.take().unwrap(),
+                                            body.inner).await;
                                     },
                                     State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state on channel {}", self.channel),
                                 }

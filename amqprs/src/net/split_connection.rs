@@ -221,12 +221,15 @@ impl BufIoWriter {
         trace!("SENT on channel {}: {}", channel, frame);
 
         if let Frame::PublishCombo(publish, content_header, content_body) = frame {
+            let body_size = content_header.common.body_size;
             self.serialize_frame_into_buffer(channel, publish.into_frame())
                 .await?;
             self.serialize_frame_into_buffer(channel, content_header.into_frame())
                 .await?;
-            self.serialize_frame_into_buffer(channel, content_body.into_frame())
-                .await?;
+            if body_size > 0 {
+                self.serialize_frame_into_buffer(channel, content_body.into_frame())
+                    .await?;
+            }
         } else {
             self.serialize_frame_into_buffer(channel, frame).await?;
         }
