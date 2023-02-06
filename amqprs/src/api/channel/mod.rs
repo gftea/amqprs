@@ -50,12 +50,21 @@ pub struct ConsumerMessage {
     pub deliver: Option<Deliver>,
     pub basic_properties: Option<BasicProperties>,
     pub content: Option<Vec<u8>>,
+    remaining: usize,
 }
 
-/// Message buffer for a `return + content` sequence from server.
+/// Message buffer for a `Return + content` sequence from server.
 pub(crate) struct ReturnMessage {
     ret: Option<Return>,
     basic_properties: Option<BasicProperties>,
+    content: Option<Vec<u8>>,
+    remaining: usize,
+}
+
+/// Message buffer for a `GetOk + content` sequence from server.
+pub(crate) struct GetOkMessage {
+    content: Option<Vec<u8>>,
+    remaining: usize,
 }
 
 /// Command to register consumer of asynchronous delivered contents.

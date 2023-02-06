@@ -211,9 +211,14 @@ impl ChannelCallback for DefaultChannelCallback {
         channel: &Channel,
         ret: Return,
         _basic_properties: BasicProperties,
-        _content: Vec<u8>,
+        content: Vec<u8>,
     ) {
         #[cfg(feature = "traces")]
-        warn!("handle publish return {} on channel {}", ret, channel);
+        warn!(
+            "handle publish return {} on channel {}, content size: {}",
+            ret,
+            channel,
+            content.len()
+        );
     }
 }

@@ -65,6 +65,13 @@ async fn test_publish() {
             .await
             .unwrap();
     }
+    // publish message of size > frame_max
+    let body_size = connection.frame_max() as usize + 10;
+    channel
+        .basic_publish(BasicProperties::default(), vec![1; body_size], args.clone())
+        .await
+        .unwrap();
+
     // wait for publish is done
     time::sleep(time::Duration::from_secs(10)).await;
 

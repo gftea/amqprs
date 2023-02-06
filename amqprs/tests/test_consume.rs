@@ -366,18 +366,31 @@ async fn publish_test_messages(
         .with_user_id("user")
         .with_app_id("consumer_test")
         .finish();
-    let regular_cnt = num / 2;
-    let zero_size_cnt = num - regular_cnt;
+
+    let mut large_size_cnt = 0;
+    let mut zero_size_cnt = 0;
+    if num >= 3 {
+        large_size_cnt = 1;
+        zero_size_cnt = 1;
+    }
+    let regular_cnt = num - large_size_cnt - zero_size_cnt;
     for _ in 0..regular_cnt {
         channel
             .basic_publish(basic_props.clone(), content.clone(), args.clone())
             .await
             .unwrap();
     }
-    // publish messages of zero size content
+    // publish messages of zero body size
     for _ in 0..zero_size_cnt {
         channel
             .basic_publish(basic_props.clone(), Vec::new(), args.clone())
+            .await
+            .unwrap();
+    }
+    // publish messages of large body size
+    for _ in 0..large_size_cnt {
+        channel
+            .basic_publish(basic_props.clone(), vec![1; 131082], args.clone())
             .await
             .unwrap();
     }
