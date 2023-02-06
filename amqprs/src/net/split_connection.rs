@@ -1,9 +1,17 @@
-use crate::frame::{Frame, FrameHeader, FRAME_END};
+use crate::frame::{
+    ContentBody, Frame, FrameHeader, FRAME_CONTENT_BODY, FRAME_END, FRAME_HEADER_SIZE,
+};
 
-use amqp_serde::{to_buffer, types::AmqpChannelId};
-use bytes::{Buf, BytesMut};
+use amqp_serde::{
+    to_buffer,
+    types::{AmqpChannelId, LongUint},
+};
+use bytes::{Buf, BufMut, BytesMut};
 use serde::Serialize;
-use std::{io, pin::Pin};
+use std::{
+    io::{self, Cursor},
+    pin::Pin,
+};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf},
     net::TcpStream,
@@ -165,8 +173,13 @@ impl SplitConnection {
         self.writer.write(value).await
     }
 
-    pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
-        self.writer.write_frame(channel, frame).await
+    pub async fn write_frame(
+        &mut self,
+        channel: AmqpChannelId,
+        frame: Frame,
+        frame_max: LongUint,
+    ) -> Result<usize> {
+        self.writer.write_frame(channel, frame, frame_max).await
     }
 
     pub async fn read_frame(&mut self) -> Result<ChannelFrame> {
@@ -211,25 +224,78 @@ impl BufIoWriter {
         }
 
         // encode frame end byte
-        to_buffer(&FRAME_END, &mut self.buffer)?;
+        self.buffer.put_u8(FRAME_END);
+        Ok(())
+    }
+
+    /// specific version for serialize content body frames
+    /// because content body are raw bytes, we can write the body
+    /// directly to buffer instead of serailizing
+    async fn serialize_content_body_into_buffer(
+        &mut self,
+        channel: AmqpChannelId,
+        body: ContentBody,
+        frame_max: usize,
+    ) -> Result<()> {
+        if body.inner.len() == 0 {
+            return Ok(());
+        }
+
+        let mut cursor = Cursor::new(body.inner);
+        while cursor.has_remaining() {
+            // there can be data unsent in buffer
+            let start_index = self.buffer.len();
+
+            // reserve bytes for frame header, which to be updated after encoding payload
+            let header = FrameHeader {
+                frame_type: FRAME_CONTENT_BODY,
+                channel,
+                payload_size: 0,
+            };
+            to_buffer(&header, &mut self.buffer).unwrap();
+
+            // write body payload
+            const FRAME_HEADER_AND_ENDER_SIZE: usize = FRAME_HEADER_SIZE + 1;
+            let payload_size = if cursor.remaining() > (frame_max - FRAME_HEADER_AND_ENDER_SIZE) {
+                frame_max - FRAME_HEADER_AND_ENDER_SIZE
+            } else {
+                cursor.remaining()
+            };
+            let current = cursor.position() as usize;
+            self.buffer
+                .put(&cursor.get_ref()[current..current + payload_size]);
+            cursor.advance(payload_size);
+
+            // update frame's payload size
+            for (i, v) in (payload_size as u32).to_be_bytes().iter().enumerate() {
+                let p = self.buffer.get_mut(i + 3 + start_index).unwrap();
+                *p = *v;
+            }
+            // encode frame end byte
+            self.buffer.put_u8(FRAME_END);
+        }
+
         Ok(())
     }
     // write a AMQP frame over a specific channel
-    pub async fn write_frame(&mut self, channel: AmqpChannelId, frame: Frame) -> Result<usize> {
+    pub async fn write_frame(
+        &mut self,
+        channel: AmqpChannelId,
+        frame: Frame,
+        frame_max: LongUint,
+    ) -> Result<usize> {
         // TODO: tracing
         #[cfg(feature = "traces")]
         trace!("SENT on channel {}: {}", channel, frame);
 
         if let Frame::PublishCombo(publish, content_header, content_body) = frame {
-            let body_size = content_header.common.body_size;
             self.serialize_frame_into_buffer(channel, publish.into_frame())
                 .await?;
             self.serialize_frame_into_buffer(channel, content_header.into_frame())
                 .await?;
-            if body_size > 0 {
-                self.serialize_frame_into_buffer(channel, content_body.into_frame())
-                    .await?;
-            }
+
+            self.serialize_content_body_into_buffer(channel, content_body, frame_max as usize)
+                .await?;
         } else {
             self.serialize_frame_into_buffer(channel, frame).await?;
         }
@@ -330,7 +396,10 @@ mod test {
         // start dedicated task for io writer
         tokio::spawn(async move {
             while let Some((channel_id, frame)) = rx_req.recv().await {
-                writer.write_frame(channel_id, frame).await.unwrap();
+                writer
+                    .write_frame(channel_id, frame, FRAME_MIN_SIZE)
+                    .await
+                    .unwrap();
             }
         });
         // Proof of Concept:

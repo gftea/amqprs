@@ -91,10 +91,15 @@ impl AsyncConsumer for DefaultConsumer {
         channel: &Channel,
         deliver: Deliver,
         _basic_properties: BasicProperties,
-        _content: Vec<u8>,
+        content: Vec<u8>,
     ) {
         #[cfg(feature = "tracing")]
-        info!("consume delivery {} on channel {}", deliver, channel);
+        info!(
+            "consume delivery {} on channel {}, content size: {}",
+            deliver,
+            channel,
+            content.len()
+        );
 
         // ack explicitly if manual ack
         if !self.no_ack {
@@ -151,10 +156,15 @@ impl BlockingConsumer for DefaultBlockingConsumer {
         channel: &Channel,
         deliver: Deliver,
         _basic_properties: BasicProperties,
-        _content: Vec<u8>,
+        content: Vec<u8>,
     ) {
         #[cfg(feature = "tracing")]
-        info!("consume delivery {} on channel {}", deliver, channel);
+        info!(
+            "consume delivery {} on channel {}, content size: {}",
+            deliver,
+            channel,
+            content.len()
+        );
 
         // ack explicitly if manual ack
         if !self.no_ack {

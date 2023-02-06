@@ -1,4 +1,5 @@
 use amqprs::{
+    callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
     channel::{
         BasicAckArguments, BasicGetArguments, BasicPublishArguments, QueueBindArguments,
         QueueDeclareArguments,
@@ -17,10 +18,17 @@ async fn test_get() {
     let args = common::build_conn_args();
 
     let connection = Connection::open(&args).await.unwrap();
+    connection
+        .register_callback(DefaultConnectionCallback)
+        .await
+        .unwrap();
 
     // open a channel on the connection
     let channel = connection.open_channel(None).await.unwrap();
-
+    channel
+        .register_callback(DefaultChannelCallback)
+        .await
+        .unwrap();
     let exchange_name = "amq.topic";
     // declare a queue
     let (queue_name, ..) = channel
@@ -116,6 +124,38 @@ async fn test_get() {
                     basic_props,
                     std::str::from_utf8(&content).unwrap()
                 );
+                // message count should decrement accordingly
+                assert_eq!(num_loop - 1 - i, get_ok.message_count());
+                get_ok.delivery_tag()
+            }
+            None => panic!("expect get a message"),
+        };
+        // ack to received message
+        channel
+            .basic_ack(BasicAckArguments {
+                delivery_tag,
+                multiple: false,
+            })
+            .await
+            .unwrap();
+    }
+
+    // test message of size > frame_max
+    let body_size = connection.frame_max() as usize + 10;
+    for _ in 0..num_loop {
+        let content = vec![1; body_size];
+
+        channel
+            .basic_publish(BasicProperties::default(), content, args.clone())
+            .await
+            .unwrap();
+    }
+
+    for i in 0..num_loop {
+        // get single message
+        let delivery_tag = match channel.basic_get(get_args.clone()).await.unwrap() {
+            Some((get_ok, _basic_props, content)) => {
+                assert_eq!(body_size, content.len());
                 // message count should decrement accordingly
                 assert_eq!(num_loop - 1 - i, get_ok.message_count());
                 get_ok.delivery_tag()

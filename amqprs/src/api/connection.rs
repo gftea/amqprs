@@ -618,7 +618,9 @@ impl Connection {
             "".try_into().unwrap(),
         )
         .into_frame();
-        io_conn.write_frame(DEFAULT_CONN_CHANNEL, open).await?;
+        io_conn
+            .write_frame(DEFAULT_CONN_CHANNEL, open, FRAME_MIN_SIZE)
+            .await?;
 
         // S: OpenOk
         let (_, frame) = io_conn.read_frame().await?;
@@ -794,7 +796,7 @@ impl Connection {
         );
 
         io_conn
-            .write_frame(DEFAULT_CONN_CHANNEL, start_ok.into_frame())
+            .write_frame(DEFAULT_CONN_CHANNEL, start_ok.into_frame(), FRAME_MIN_SIZE)
             .await?;
         Ok(server_properties)
     }
@@ -840,7 +842,7 @@ impl Connection {
         let tune_ok = TuneOk::new(new_channel_max, new_frame_max, new_heartbeat);
 
         io_conn
-            .write_frame(DEFAULT_CONN_CHANNEL, tune_ok.into_frame())
+            .write_frame(DEFAULT_CONN_CHANNEL, tune_ok.into_frame(), FRAME_MIN_SIZE)
             .await?;
         Ok((new_channel_max, new_frame_max, new_heartbeat))
     }
