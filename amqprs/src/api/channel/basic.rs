@@ -14,7 +14,7 @@ use crate::{
     frame::{
         Ack, BasicProperties, Cancel, CancelOk, Consume, ConsumeOk, ContentBody, ContentHeader,
         ContentHeaderCommon, Frame, Get, GetOk, Nack, Publish, Qos, QosOk, Recover, RecoverOk,
-        Reject, FRAME_HEADER_SIZE,
+        Reject,
     },
 };
 

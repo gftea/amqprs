@@ -50,7 +50,7 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use crate::{
     frame::{
         Blocked, Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, OpenChannelOk,
-        ProtocolHeader, StartOk, TuneOk, Unblocked, DEFAULT_CONN_CHANNEL,
+        ProtocolHeader, StartOk, TuneOk, Unblocked, DEFAULT_CONN_CHANNEL, FRAME_MIN_SIZE,
     },
     net::{
         ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage, ReaderHandler,
@@ -69,12 +69,13 @@ use super::{
 
 #[cfg(feature = "tls")]
 use super::tls::TlsAdaptor;
+
 #[cfg(feature = "compliance_assert")]
 use crate::api::compliance_asserts::assert_path;
-#[cfg(feature = "compliance_assert")]
-use crate::frame::FRAME_MIN_SIZE;
+
 #[cfg(feature = "traces")]
 use tracing::{debug, error, info};
+
 #[cfg(feature = "urispec")]
 use uriparse::URIReference;
 

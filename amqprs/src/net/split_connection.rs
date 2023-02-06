@@ -237,7 +237,7 @@ impl BufIoWriter {
         body: ContentBody,
         frame_max: usize,
     ) -> Result<()> {
-        if body.inner.len() == 0 {
+        if body.inner.is_empty() {
             return Ok(());
         }
 

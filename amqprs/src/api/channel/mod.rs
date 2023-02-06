@@ -36,7 +36,7 @@ use crate::{
     connection::Connection,
     frame::{CloseChannel, CloseChannelOk, Deliver, Flow, FlowOk, Frame, MethodHeader, Return},
     net::{ConnManagementCommand, IncomingMessage, OutgoingMessage},
-    BasicProperties, GetOk,
+    BasicProperties,
 };
 #[cfg(feature = "tracing")]
 use tracing::{error, info, trace};
