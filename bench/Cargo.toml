@@ -1,0 +1,19 @@
+[package]
+name = "bench"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+
+[dev-dependencies]
+amqprs = { path = "../amqprs"}
+tokio = { version = "1" }
+async-trait = { version = "0.1" }
+bencher = "0.1.5"
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[[bench]]
+name = "basic_pub"
+path = "src/basic_pub.rs"
+harness = false
