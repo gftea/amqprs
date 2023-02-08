@@ -8,6 +8,8 @@ set +x
 # check platform
 uname -a
 lsb_release -a
+rustc -V
+cargo -V
 
 # run separately, otherwise there is runtime conflict
 sleep 3 # time for idle
