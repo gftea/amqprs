@@ -19,11 +19,20 @@ cargo tree -i lapin -e all
 
 
 # run separately, otherwise there is runtime conflict
-sleep 3 # time for idle
-cargo bench ${CARGO_OPTS} -- lapin
+sleep 10 # time for idle
+taskset -c 0 cargo bench ${CARGO_OPTS} -- lapin
+sleep 10 # time for idle
+taskset -c 1 cargo bench ${CARGO_OPTS} -- lapin
+sleep 10 # time for idle
+taskset -c 0,1 cargo bench ${CARGO_OPTS} -- lapin
 
-sleep 3 # time for idle
-cargo bench ${CARGO_OPTS} -- amqprs
+
+sleep 10 # time for idle
+taskset -c 0 cargo bench ${CARGO_OPTS} -- amqprs
+sleep 10 # time for idle
+taskset -c 1 cargo bench ${CARGO_OPTS} -- amqprs
+sleep 10 # time for idle
+taskset -c 0,1 cargo bench ${CARGO_OPTS} -- amqprs
 
 ############################################################
 #  benchmark results
