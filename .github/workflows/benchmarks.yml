@@ -26,8 +26,21 @@ env:
 
 jobs:
 
-  benchmarks:
-    runs-on: ubuntu-20.04
+  ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Start RabbitMQ server
+        run: ./start_rabbitmq.sh
+
+      - name: run benchmarks
+        run: ./benchmarks/run_bench.sh
+
+
+  macos:
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v3
