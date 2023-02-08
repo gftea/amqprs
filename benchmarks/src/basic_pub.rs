@@ -2,7 +2,7 @@ use bencher::{benchmark_group, benchmark_main};
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Common utilities
-const ITERATIONS: u64 = 128;
+const ITERATIONS: u64 = 16;
 
 /// We use Fibonacci sequences to generate size list for publish messages
 struct Fib {
@@ -57,6 +57,9 @@ fn get_size_list(limit: usize) -> Vec<usize> {
             break;
         }
     }
+    msg_size_list.extend_from_within(0..);
+    msg_size_list.extend_from_within(0..);
+    msg_size_list.extend_from_within(0..);
     //println!("{:?}", msg_size_list);
     msg_size_list
 }
