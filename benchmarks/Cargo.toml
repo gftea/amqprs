@@ -5,19 +5,20 @@ publish = false
 edition = "2021"
 
 
-[dev-dependencies]
-amqprs = { path = "../amqprs" }
+[dependencies]
+bencher = "0.1.5"
 tokio = { version = "1", features = ["full"] }
 async-trait = { version = "0.1" }
-bencher = "0.1.5"
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# amqprs client
+amqprs = { path = "../amqprs" }
 
 # lapin client
 lapin = { version = "*" }
 tokio-executor-trait = "2.1.0"
 tokio-reactor-trait = "1.1.0"
-executor-trait = { version = "*" }
 
 [[bench]]
 name = "basic_pub"

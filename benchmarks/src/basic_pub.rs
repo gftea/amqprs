@@ -57,7 +57,7 @@ fn get_size_list(limit: usize) -> Vec<usize> {
             break;
         }
     }
-    // println!("{:?}", msg_size_list);
+    println!("{:?}", msg_size_list);
     msg_size_list
 }
 
@@ -190,7 +190,6 @@ mod client_amqprs {
                     .await
                     .unwrap()
                     .unwrap();
-                // println!("expect: {}, actual: {}", count, msg_cnt);
                 if count == msg_cnt as usize {
                     break;
                 }
