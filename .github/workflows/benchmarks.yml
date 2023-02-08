@@ -1,0 +1,40 @@
+name: bench
+run-name: "Benchmarks"
+
+on:
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - '**/README.md'
+      - '**/*.png'
+      - 'rabbitmq_spec/**'
+      - 'prepare_release.sh'
+      - 'regression_test.sh'
+  workflow_dispatch:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+    paths-ignore:
+      - '**/README.md'
+      - '**/*.png'
+      - 'rabbitmq_spec/**'
+      - 'prepare_release.sh'
+      - 'regression_test.sh'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+
+  benchmarks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Start RabbitMQ server
+        run: ./start_rabbitmq.sh
+
+      - name: run benchmarks
+        run: ./benchmarks/run_bench.sh
+

@@ -4,5 +4,5 @@ members = [
     "amqprs",
     "amqp_serde",
     "examples",
-    "bench",
+    "benchmarks",
 ]
