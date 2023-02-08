@@ -28,12 +28,13 @@ cargo bench ${CARGO_OPTS} -- amqprs
 ############################################################
 #  benchmark results
 ############################################################
+set +x
 readme="
-See './local_wsl2.log' for benchmarks result from test run on WSL2 of my local PC.
-It shows 'amqprs' has better performance than 'lapin'.
+See ./local_wsl2.log for benchmarks result from test run on WSL2 of my local PC.
+It shows amqprs has better performance than lapin.
 
-But, benchmark result from default GitHub-hosted runner machine shows 'lapin' has 
-better performance than 'amqprs'.
+But, benchmark result from default GitHub-hosted runner machine shows lapin has 
+better performance than amqprs.
 
 Have not found out reasonable explanations.
 "
