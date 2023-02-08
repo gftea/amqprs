@@ -6,3 +6,10 @@ members = [
     "examples",
     "benchmarks",
 ]
+
+
+[profile.bench]
+opt-level = 3
+debug = false
+lto = true
+codegen-units = 1

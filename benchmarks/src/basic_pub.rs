@@ -57,14 +57,13 @@ fn get_size_list(limit: usize) -> Vec<usize> {
             break;
         }
     }
-    // println!("{:?}", msg_size_list);
+    //println!("{:?}", msg_size_list);
     msg_size_list
 }
 
 /// common runtime config
 fn rt() -> tokio::runtime::Runtime {
-    tokio::runtime::Builder::new_current_thread()
-        // .worker_threads(2)
+    tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .unwrap()
@@ -190,7 +189,6 @@ mod client_amqprs {
                     .await
                     .unwrap()
                     .unwrap();
-                // println!("expect: {}, actual: {}", count, msg_cnt);
                 if count == msg_cnt as usize {
                     break;
                 }
@@ -207,7 +205,7 @@ mod client_amqprs {
         rt.block_on(async {
             channel.close().await.unwrap();
             connection.close().await.unwrap();
-        })
+        });
     }
 }
 
@@ -330,7 +328,7 @@ mod client_lapin {
         rt.block_on(async {
             channel.close(0, "").await.unwrap();
             connection.close(0, "").await.unwrap();
-        })
+        });
     }
 }
 
