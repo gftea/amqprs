@@ -17,22 +17,12 @@ cargo tree -i tokio -e all
 cargo tree -i amqprs -e all
 cargo tree -i lapin -e all
 
+# run separately, otherwise there is runtime conflict/error
+sleep 3
+cargo bench ${CARGO_OPTS} -- amqprs
+sleep 3
+cargo bench ${CARGO_OPTS} -- lapin
 
-# run separately, otherwise there is runtime conflict
-sleep 10 # time for idle
-taskset -c 0 cargo bench ${CARGO_OPTS} -- lapin
-sleep 10 # time for idle
-taskset -c 1 cargo bench ${CARGO_OPTS} -- lapin
-sleep 10 # time for idle
-taskset -c 0,1 cargo bench ${CARGO_OPTS} -- lapin
-
-
-sleep 10 # time for idle
-taskset -c 0 cargo bench ${CARGO_OPTS} -- amqprs
-sleep 10 # time for idle
-taskset -c 1 cargo bench ${CARGO_OPTS} -- amqprs
-sleep 10 # time for idle
-taskset -c 0,1 cargo bench ${CARGO_OPTS} -- amqprs
 
 ############################################################
 #  benchmark results

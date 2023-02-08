@@ -63,8 +63,7 @@ fn get_size_list(limit: usize) -> Vec<usize> {
 
 /// common runtime config
 fn rt() -> tokio::runtime::Runtime {
-    tokio::runtime::Builder::new_current_thread()
-        // .worker_threads(2)
+    tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .unwrap()
@@ -206,7 +205,7 @@ mod client_amqprs {
         rt.block_on(async {
             channel.close().await.unwrap();
             connection.close().await.unwrap();
-        })
+        });
     }
 }
 
@@ -329,7 +328,7 @@ mod client_lapin {
         rt.block_on(async {
             channel.close(0, "").await.unwrap();
             connection.close(0, "").await.unwrap();
-        })
+        });
     }
 }
 
