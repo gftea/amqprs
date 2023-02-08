@@ -10,6 +10,7 @@ lsb_release -a
 rustc -V
 cargo -V
 cc -v # gcc linker for libc
+lscpu
 
 # check dependencies
 cargo tree -i tokio -e all
