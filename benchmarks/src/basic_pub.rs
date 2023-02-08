@@ -2,7 +2,7 @@ use bencher::{benchmark_group, benchmark_main};
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Common utilities
-const ITERATIONS: u64 = 16;
+const ITERATIONS: u64 = 1;
 
 /// We use Fibonacci sequences to generate size list for publish messages
 struct Fib {
@@ -203,7 +203,7 @@ mod client_amqprs {
                 rt.block_on(task());
             });
         });
-
+        print!("{},", bencher.ns_elapsed());
         // explicitly close
         rt.block_on(async {
             channel.close().await.unwrap();
@@ -327,6 +327,7 @@ mod client_lapin {
                 rt.block_on(task());
             });
         });
+        print!("{},", bencher.ns_elapsed());
 
         rt.block_on(async {
             channel.close(0, "").await.unwrap();
