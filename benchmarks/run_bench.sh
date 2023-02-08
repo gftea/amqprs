@@ -9,6 +9,8 @@ uname -a
 lsb_release -a
 rustc -V
 cargo -V
+cc -v # gcc linker for libc
+
 # check dependencies
 cargo tree -i tokio -e all
 cargo tree -i amqprs -e all
@@ -17,10 +19,10 @@ cargo tree -i lapin -e all
 
 # run separately, otherwise there is runtime conflict
 sleep 3 # time for idle
-cargo bench ${CARGO_OPTS} -- amqprs
-sleep 3 # time for idle
 cargo bench ${CARGO_OPTS} -- lapin
 
+sleep 3 # time for idle
+cargo bench ${CARGO_OPTS} -- amqprs
 
 ############################################################
 #  benchmark data (my local machine) rustc 1.67.0
