@@ -38,17 +38,19 @@ jobs:
       - name: run benchmarks
         run: ./benchmarks/run_bench.sh
 
-  
-  macos:
-    runs-on: macos-11
+  # ! issue with macos: take long time to install docker
+  # ! the bench test quite much longer time!
 
-    steps:
-      - uses: actions/checkout@v3
-      - uses: docker-practice/actions-setup-docker@master
-      
-      - name: Start RabbitMQ server
-        run: ./start_rabbitmq.sh
+  # macos:
+  #   runs-on: macos-11
 
-      - name: run benchmarks
-        run: ./benchmarks/run_bench.sh
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: docker-practice/actions-setup-docker@master
+
+  #     - name: Start RabbitMQ server
+  #       run: ./start_rabbitmq.sh
+
+  #     - name: run benchmarks
+  #       run: ./benchmarks/run_bench.sh
 
