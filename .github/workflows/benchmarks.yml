@@ -1,18 +1,7 @@
 name: bench
 run-name: "Benchmarks"
 
-on:
-  push:
-    branches: ["main"]
-    paths-ignore:
-      - '**/README.md'
-      - '**/*.png'
-      - 'rabbitmq_spec/**'
-      - 'prepare_release.sh'
-      - 'regression_test.sh'
-  workflow_dispatch:
-    branches: ["main"]
-
+on: [push, workflow_dispatch]
 
 env:
   CARGO_TERM_COLOR: always
@@ -31,19 +20,24 @@ jobs:
       - name: run benchmarks
         run: ./benchmarks/run_bench.sh
 
-  #! issue with macos:
-  #!  - take long time to setup docker!
-  #!  - bench test take significantly much longer time!
-  macos:
-    runs-on: macos-11
-
-    steps:
-      - uses: actions/checkout@v3
-      - uses: docker-practice/actions-setup-docker@master
-
-      - name: Start RabbitMQ server
-        run: ./start_rabbitmq.sh
-
       - name: run benchmarks
-        run: ./benchmarks/run_bench.sh
+        run: ./benchmarks/bench_criterion.sh
 
+  # #! issue with macos:
+  # #!  - take long time to setup docker!
+  # #!  - bench test take significantly much longer time!
+  # macos:
+  #   runs-on: macos-11
+
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: docker-practice/actions-setup-docker@master
+
+  #     - name: Start RabbitMQ server
+  #       run: ./start_rabbitmq.sh
+
+  #     - name: run benchmarks
+  #       run: ./benchmarks/run_bench.sh
+
+  #     - name: run benchmarks
+  #       run: ./benchmarks/run_bench.sh

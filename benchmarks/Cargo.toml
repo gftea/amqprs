@@ -32,3 +32,8 @@ use_criterion = []
 name = "basic_pub"
 path = "src/basic_pub.rs"
 harness = false
+
+[[bench]]
+name = "basic_pub_criterion"
+path = "src/basic_pub_criterion.rs"
+harness = false
