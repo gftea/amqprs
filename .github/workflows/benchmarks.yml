@@ -26,18 +26,17 @@ jobs:
   # #! issue with macos:
   # #!  - take long time to setup docker!
   # #!  - bench test take significantly much longer time!
-  # macos:
-  #   runs-on: macos-11
+  macos:
+    runs-on: macos-11
 
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #     - uses: docker-practice/actions-setup-docker@master
+    steps:
+      - uses: actions/checkout@v3
 
-  #     - name: Start RabbitMQ server
-  #       run: ./start_rabbitmq.sh
+      - name: Start RabbitMQ server
+        run: ./start_rabbitmq.sh
 
-  #     - name: run benchmarks
-  #       run: ./benchmarks/run_bench.sh
+      - name: run bencher
+        run: ./benchmarks/run_bench.sh
 
-  #     - name: run benchmarks
-  #       run: ./benchmarks/run_bench.sh
+      - name: run criterion
+        run: ./benchmarks/run_criterion.sh

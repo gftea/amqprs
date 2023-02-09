@@ -327,11 +327,11 @@ mod client_lapin {
         });
     }
 }
+
 criterion_group!{
     name = basic_pub;
-    config = Criterion::default().significance_level(0.1).sample_size(500).measurement_time(Duration::from_secs(10));
+    config = Criterion::default();
     targets = client_amqprs::amqprs_basic_pub,  client_lapin::lapin_basic_pub
 }
-
 
 criterion_main!(basic_pub);
