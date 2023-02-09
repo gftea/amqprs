@@ -52,11 +52,8 @@ sleep 3
 sudo perf stat -d $profile_exe --bench --profile-time 1 amqprs
 sudo perf stat -d $profile_exe --bench --profile-time 1 lapin
 
-perf stat -d $profile_exe --bench --profile-time 1 amqprs
-perf stat -d $profile_exe --bench --profile-time 1 lapin
+sudo perf record -o perf-amqprs.data $profile_exe --bench --profile-time 1 amqprs
+sudo perf report -i perf-amqprs.data
 
-perf record $profile_exe --bench --profile-time 1 amqprs
-perf report
-
-sudo perf record $profile_exe --bench --profile-time 1 amqprs
-sudo perf report
+sudo perf record -o perf-lapin.data $profile_exe --bench --profile-time 1 lapin
+sudo perf report -i perf-lapin.data
