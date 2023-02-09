@@ -19,9 +19,9 @@ cargo tree -i lapin -e all
 
 # run separately, otherwise there is runtime conflict/error
 sleep 3
-cargo bench ${CARGO_OPTS} -- amqprs
+cargo bench ${CARGO_OPTS} --bench basic_pub_compat -- amqprs
 sleep 3
-cargo bench ${CARGO_OPTS} -- lapin
+cargo bench ${CARGO_OPTS} --bench basic_pub_compat -- lapin
 
 
 ############################################################
@@ -35,7 +35,7 @@ It shows amqprs has better performance than lapin.
 But, benchmark result from default GitHub-hosted runner machine shows lapin has 
 better performance than amqprs.
 
-Have not found out reasonable explanations.
+
 "
 
 echo $readme

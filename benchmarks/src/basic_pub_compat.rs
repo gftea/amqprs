@@ -1,4 +1,4 @@
-use bencher::{benchmark_group, benchmark_main, Bencher};
+use criterion_bencher_compat::{benchmark_group, benchmark_main, Bencher};
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Common utilities
@@ -198,12 +198,9 @@ mod client_amqprs {
             }
         };
         // start benchmark
-        bencher.bench_n(ITERATIONS, |b| {
-            b.iter(|| {
-                rt.block_on(task());
-            });
+        bencher.iter(|| {
+            rt.block_on(task());
         });
-        print!("{},", bencher.ns_elapsed());
         // explicitly close
         rt.block_on(async {
             channel.close().await.unwrap();
@@ -322,12 +319,9 @@ mod client_lapin {
             }
         };
         // start benchmark
-        bencher.bench_n(ITERATIONS, |b| {
-            b.iter(|| {
-                rt.block_on(task());
-            });
+        bencher.iter(|| {
+            rt.block_on(task());
         });
-        print!("{},", bencher.ns_elapsed());
 
         rt.block_on(async {
             channel.close(0, "").await.unwrap();
