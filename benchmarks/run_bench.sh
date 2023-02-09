@@ -47,3 +47,13 @@ cargo bench ${CARGO_OPTS} -- lapin
 # run strace profile
 strace -c $profile_exe --bench --profile-time 10 amqprs
 strace -c $profile_exe --bench --profile-time 10 lapin
+
+# run perf
+sudo perf stat -d $profile_exe --bench --profile-time 1 amqprs
+sudo perf stat -d $profile_exe --bench --profile-time 1 lapin
+
+sudo perf record -o perf-amqprs.data $profile_exe --bench --profile-time 1 amqprs
+sudo perf report -i perf-amqprs.data
+
+sudo perf record -o perf-lapin.data $profile_exe --bench --profile-time 1 lapin
+sudo perf report -i perf-lapin.data
