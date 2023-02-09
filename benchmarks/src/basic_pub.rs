@@ -1,6 +1,6 @@
-#[cfg(not(feature="bencher"))]
+#[cfg(not(feature="use_bencher"))]
 use criterion_bencher_compat::{benchmark_group, benchmark_main, Bencher};
-#[cfg(feature="bencher")]
+#[cfg(feature="use_bencher")]
 use bencher::{benchmark_group, benchmark_main, Bencher};
 
 ///////////////////////////////////////////////////////////////////////////////

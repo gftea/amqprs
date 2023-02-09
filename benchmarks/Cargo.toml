@@ -25,7 +25,8 @@ tokio-executor-trait = "2.1.0"
 tokio-reactor-trait = "1.1.0"
 
 [features]
-bencher = []
+use_bencher = []
+use_criterion = []
 
 [[bench]]
 name = "basic_pub"
