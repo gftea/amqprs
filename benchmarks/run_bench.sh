@@ -34,7 +34,7 @@ cargo tree -i lapin -e all
 
 # build "bench" profile first, might allow cooldown of system before test begins
 cargo bench --no-run
-profile_exe=$(cargo bench --no-run 2>&1 | grep Executable | sed -E 's/.*Executable.+\((.+)\)/\1/')
+profile_exe=$(cargo bench --no-run 2>&1 | grep basic_pub | sed -E 's/.+basic_pub.+\((.+)\)/\1/')
 echo $profile_exe
 sleep 3
 
