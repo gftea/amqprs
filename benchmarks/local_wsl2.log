@@ -40,29 +40,29 @@ Flags:                           fpu vme de pse tsc msr pae mce cx8 apic sep mtr
 tokio v1.23.1
 ├── tokio feature "bytes"
 │   ├── tokio feature "io-util"
-│   │   └── amqprs v1.0.7 (/home/gftea/repo/testsandbox/amqprs/amqprs)
+│   │   └── amqprs v1.0.7 (/home/gftea/repo/amqprs/amqprs)
 │   │       └── amqprs feature "default" (command-line)
-│   │           └── benchmarks v0.0.0 (/home/gftea/repo/testsandbox/amqprs/benchmarks)
+│   │           └── benchmarks v0.0.0 (/home/gftea/repo/amqprs/benchmarks)
 │   │               └── benchmarks feature "default" (command-line)
 │   │           [dev-dependencies]
-│   │           └── examples v0.0.0 (/home/gftea/repo/testsandbox/amqprs/examples)
+│   │           └── examples v0.0.0 (/home/gftea/repo/amqprs/examples)
 │   │               └── examples feature "default" (command-line)
 │   │   └── tokio feature "full"
-│   │       └── benchmarks v0.0.0 (/home/gftea/repo/testsandbox/amqprs/benchmarks) (*)
+│   │       └── benchmarks v0.0.0 (/home/gftea/repo/amqprs/benchmarks) (*)
 │   └── tokio feature "process"
 │       └── tokio feature "full" (*)
 ├── tokio feature "default"
-│   ├── amqprs v1.0.7 (/home/gftea/repo/testsandbox/amqprs/amqprs) (*)
-│   ├── benchmarks v0.0.0 (/home/gftea/repo/testsandbox/amqprs/benchmarks) (*)
+│   ├── amqprs v1.0.7 (/home/gftea/repo/amqprs/amqprs) (*)
+│   ├── benchmarks v0.0.0 (/home/gftea/repo/amqprs/benchmarks) (*)
 │   └── tokio-stream v0.1.11
 │       ├── tokio-stream feature "default"
 │       │   └── tokio-reactor-trait v1.1.0
 │       │       └── tokio-reactor-trait feature "default"
-│       │           └── benchmarks v0.0.0 (/home/gftea/repo/testsandbox/amqprs/benchmarks) (*)
+│       │           └── benchmarks v0.0.0 (/home/gftea/repo/amqprs/benchmarks) (*)
 │       └── tokio-stream feature "time"
 │           └── tokio-stream feature "default" (*)
 │   [dev-dependencies]
-│   └── examples v0.0.0 (/home/gftea/repo/testsandbox/amqprs/examples) (*)
+│   └── examples v0.0.0 (/home/gftea/repo/amqprs/examples) (*)
 ├── tokio feature "fs"
 │   └── tokio feature "full" (*)
 ├── tokio feature "full" (*)
@@ -71,14 +71,14 @@ tokio v1.23.1
 ├── tokio feature "io-util" (*)
 ├── tokio feature "libc"
 │   ├── tokio feature "net"
-│   │   ├── amqprs v1.0.7 (/home/gftea/repo/testsandbox/amqprs/amqprs) (*)
+│   │   ├── amqprs v1.0.7 (/home/gftea/repo/amqprs/amqprs) (*)
 │   │   └── tokio-reactor-trait v1.1.0 (*)
 │   │   └── tokio feature "full" (*)
 │   ├── tokio feature "process" (*)
 │   └── tokio feature "signal"
 │       └── tokio feature "full" (*)
 ├── tokio feature "macros"
-│   └── amqprs v1.0.7 (/home/gftea/repo/testsandbox/amqprs/amqprs) (*)
+│   └── amqprs v1.0.7 (/home/gftea/repo/amqprs/amqprs) (*)
 │   └── tokio feature "full" (*)
 ├── tokio feature "memchr"
 │   └── tokio feature "io-util" (*)
@@ -89,16 +89,16 @@ tokio v1.23.1
 ├── tokio feature "net" (*)
 ├── tokio feature "num_cpus"
 │   └── tokio feature "rt-multi-thread"
-│       ├── amqprs v1.0.7 (/home/gftea/repo/testsandbox/amqprs/amqprs) (*)
+│       ├── amqprs v1.0.7 (/home/gftea/repo/amqprs/amqprs) (*)
 │       └── tokio-executor-trait v2.1.0
 │           └── tokio-executor-trait feature "default"
-│               └── benchmarks v0.0.0 (/home/gftea/repo/testsandbox/amqprs/benchmarks) (*)
+│               └── benchmarks v0.0.0 (/home/gftea/repo/amqprs/benchmarks) (*)
 │       └── tokio feature "full" (*)
 ├── tokio feature "parking_lot"
 │   └── tokio feature "full" (*)
 ├── tokio feature "process" (*)
 ├── tokio feature "rt"
-│   ├── amqprs v1.0.7 (/home/gftea/repo/testsandbox/amqprs/amqprs) (*)
+│   ├── amqprs v1.0.7 (/home/gftea/repo/amqprs/amqprs) (*)
 │   └── tokio-reactor-trait v1.1.0 (*)
 │   ├── tokio feature "full" (*)
 │   └── tokio feature "rt-multi-thread" (*)
@@ -110,40 +110,40 @@ tokio v1.23.1
 ├── tokio feature "socket2"
 │   └── tokio feature "net" (*)
 ├── tokio feature "sync"
-│   ├── amqprs v1.0.7 (/home/gftea/repo/testsandbox/amqprs/amqprs) (*)
+│   ├── amqprs v1.0.7 (/home/gftea/repo/amqprs/amqprs) (*)
 │   └── tokio-stream v0.1.11 (*)
 │   └── tokio feature "full" (*)
 ├── tokio feature "time"
-│   ├── amqprs v1.0.7 (/home/gftea/repo/testsandbox/amqprs/amqprs) (*)
+│   ├── amqprs v1.0.7 (/home/gftea/repo/amqprs/amqprs) (*)
 │   └── tokio-reactor-trait v1.1.0 (*)
 │   ├── tokio feature "full" (*)
 │   └── tokio-stream feature "time" (*)
 └── tokio feature "tokio-macros"
     └── tokio feature "macros" (*)
-amqprs v1.0.7 (/home/gftea/repo/testsandbox/amqprs/amqprs)
+amqprs v1.0.7 (/home/gftea/repo/amqprs/amqprs)
 └── amqprs feature "default" (command-line)
-    └── benchmarks v0.0.0 (/home/gftea/repo/testsandbox/amqprs/benchmarks)
+    └── benchmarks v0.0.0 (/home/gftea/repo/amqprs/benchmarks)
         └── benchmarks feature "default" (command-line)
     [dev-dependencies]
-    └── examples v0.0.0 (/home/gftea/repo/testsandbox/amqprs/examples)
+    └── examples v0.0.0 (/home/gftea/repo/amqprs/examples)
         └── examples feature "default" (command-line)
 lapin v2.1.1
 ├── lapin feature "default"
-│   └── benchmarks v0.0.0 (/home/gftea/repo/testsandbox/amqprs/benchmarks)
+│   └── benchmarks v0.0.0 (/home/gftea/repo/amqprs/benchmarks)
 │       └── benchmarks feature "default" (command-line)
 ├── lapin feature "rustls"
 │   └── lapin feature "default" (*)
 └── lapin feature "rustls-native-certs"
     └── lapin feature "rustls" (*)
+client_amqprs::amqprs_basic_pub
+                        time:   [2.5408 ms 2.6222 ms 2.7249 ms]
+Found 7 outliers among 100 measurements (7.00%)
+  3 (3.00%) high mild
+  4 (4.00%) high severe
 
-running 1 test
-test client_lapin::lapin_basic_pub   ... bench:   5,489,278 ns/iter (+/- 324,088)
+client_lapin::lapin_basic_pub
+                        time:   [4.4429 ms 4.5457 ms 4.6517 ms]
+Found 3 outliers among 100 measurements (3.00%)
+  3 (3.00%) high mild
 
-test result: ok. 0 passed; 0 failed; 0 ignored; 1 measured
-
-
-running 1 test
-test client_amqprs::amqprs_basic_pub ... bench:   4,459,888 ns/iter (+/- 499,841)
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 1 measured
-
+See ./local_wsl2.log for benchmarks result from test run on WSL2 of my local PC. It shows amqprs has better performance than lapin. But, benchmark result from default GitHub-hosted runner machine shows lapin has better performance than amqprs.

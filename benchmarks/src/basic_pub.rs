@@ -1,9 +1,9 @@
+#[cfg(not(feature="bencher"))]
+use criterion_bencher_compat::{benchmark_group, benchmark_main, Bencher};
+#[cfg(feature="bencher")]
 use bencher::{benchmark_group, benchmark_main, Bencher};
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Common utilities
-const ITERATIONS: u64 = 1;
-
 /// We use Fibonacci sequences to generate size list for publish messages
 struct Fib {
     max: usize,
@@ -47,7 +47,7 @@ impl Iterator for Fib {
 /// common algorithm for generating size list
 fn get_size_list(limit: usize) -> Vec<usize> {
     // construct message size list for publish
-    let mut fib = Fib::new(100);
+    let mut fib = Fib::new(25);
     let mut msg_size_list = vec![0];
     while let Some(v) = fib.next() {
         // println!("{}", v);
@@ -57,9 +57,9 @@ fn get_size_list(limit: usize) -> Vec<usize> {
             break;
         }
     }
-    msg_size_list.extend_from_within(0..);
-    msg_size_list.extend_from_within(0..);
-    msg_size_list.extend_from_within(0..);
+    // msg_size_list.extend_from_within(0..);
+    // msg_size_list.extend_from_within(0..);
+    // msg_size_list.extend_from_within(0..);
     //println!("{:?}", msg_size_list);
     msg_size_list
 }
@@ -74,12 +74,7 @@ fn rt() -> tokio::runtime::Runtime {
 
 /// benchmark functions for `amqprs` client
 mod client_amqprs {
-    use super::Bencher;
-
-    use crate::get_size_list;
-    use crate::rt;
-    use crate::ITERATIONS;
-
+    use super::{get_size_list, rt, Bencher};
     use amqprs::{
         callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
         channel::{
@@ -198,12 +193,9 @@ mod client_amqprs {
             }
         };
         // start benchmark
-        bencher.bench_n(ITERATIONS, |b| {
-            b.iter(|| {
-                rt.block_on(task());
-            });
+        bencher.iter(|| {
+            rt.block_on(task());
         });
-        print!("{},", bencher.ns_elapsed());
         // explicitly close
         rt.block_on(async {
             channel.close().await.unwrap();
@@ -214,15 +206,13 @@ mod client_amqprs {
 
 /// benchmark functions for `lapin` client
 mod client_lapin {
-    use super::Bencher;
+    use super::{get_size_list, rt, Bencher};
     use lapin::{
         options::{BasicPublishOptions, QueueBindOptions, QueueDeclareOptions, QueuePurgeOptions},
         types::FieldTable,
         BasicProperties, Connection, ConnectionProperties,
     };
     use tokio_executor_trait::Tokio;
-
-    use crate::{get_size_list, rt, ITERATIONS};
 
     pub fn lapin_basic_pub(bencher: &mut Bencher) {
         let rt = rt();
@@ -322,12 +312,9 @@ mod client_lapin {
             }
         };
         // start benchmark
-        bencher.bench_n(ITERATIONS, |b| {
-            b.iter(|| {
-                rt.block_on(task());
-            });
+        bencher.iter(|| {
+            rt.block_on(task());
         });
-        print!("{},", bencher.ns_elapsed());
 
         rt.block_on(async {
             channel.close(0, "").await.unwrap();
