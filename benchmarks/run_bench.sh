@@ -34,6 +34,8 @@ cargo tree -i lapin -e all
 
 # build "bench" profile first, might allow cooldown of system before test begins
 cargo bench --no-run
+profile_exe=$(cargo bench --no-run 2>&1 | grep Executable | sed -E 's/.*Executable.+\((.+)\)/\1/')
+echo $profile_exe
 sleep 3
 
 # run separately, otherwise there is runtime conflict/error
@@ -42,3 +44,6 @@ cargo bench ${CARGO_OPTS} -- amqprs
 sleep 3
 cargo bench ${CARGO_OPTS} -- lapin
 
+# run strace profile
+strace -c $profile_exe --bench --profile-time 10 amqprs
+strace -c $profile_exe --bench --profile-time 10 lapin
