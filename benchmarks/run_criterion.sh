@@ -13,9 +13,9 @@ sleep 3
 
 # run separately, otherwise there is runtime conflict/error
 sleep 3
-cargo bench ${CARGO_OPTS} --bench basic_pub_criterion -- --verbose amqprs
+taskset -c 1 cargo bench ${CARGO_OPTS} --bench basic_pub_criterion -- --verbose amqprs
 sleep 3
-cargo bench ${CARGO_OPTS} --bench basic_pub_criterion -- --verbose lapin
+taskset -c 1 cargo bench ${CARGO_OPTS} --bench basic_pub_criterion -- --verbose lapin
 
 # run strace profile
 strace -c $profile_exe --bench --profile-time 10 amqprs

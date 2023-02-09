@@ -9,7 +9,7 @@ env:
 jobs:
 
   ubuntu:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
@@ -17,11 +17,11 @@ jobs:
       - name: Start RabbitMQ server
         run: ./start_rabbitmq.sh
 
-      - name: run benchmarks
+      - name: run bencher
         run: ./benchmarks/run_bench.sh
 
-      - name: run benchmarks
-        run: ./benchmarks/bench_criterion.sh
+      - name: run criterion
+        run: ./benchmarks/run_criterion.sh
 
   # #! issue with macos:
   # #!  - take long time to setup docker!

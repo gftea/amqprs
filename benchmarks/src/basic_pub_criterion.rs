@@ -65,7 +65,7 @@ fn get_size_list(limit: usize) -> Vec<usize> {
 
 /// common runtime config
 fn rt() -> tokio::runtime::Runtime {
-    tokio::runtime::Builder::new_multi_thread()
+    tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
