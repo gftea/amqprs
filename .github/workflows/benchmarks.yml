@@ -17,11 +17,14 @@ jobs:
       - name: Start RabbitMQ server
         run: ./start_rabbitmq.sh
 
-      - name: run bencher
-        run: ./benchmarks/run_bench.sh
+      - name: run native executable
+        run: ./benchmarks/run_native.sh
 
-      - name: run criterion
-        run: ./benchmarks/run_criterion.sh
+      # - name: run bencher
+      #   run: ./benchmarks/run_bench.sh
+
+      # - name: run criterion
+      #   run: ./benchmarks/run_criterion.sh
 
   # #! issue with macos:
   # #!  - take long time to setup docker!
@@ -36,8 +39,11 @@ jobs:
       - name: Start RabbitMQ server
         run: ./start_rabbitmq.sh
 
-      - name: run bencher
-        run: ./benchmarks/run_bench.sh
+      - name: run native executable
+        run: ./benchmarks/run_native.sh
 
-      - name: run criterion
-        run: ./benchmarks/run_criterion.sh
+      # - name: run bencher
+      #   run: ./benchmarks/run_bench.sh
+
+      # - name: run criterion
+      #   run: ./benchmarks/run_criterion.sh

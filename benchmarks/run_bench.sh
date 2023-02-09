@@ -34,7 +34,7 @@ CARGO_OPTS="-p benchmarks"
 
 # build "bench" profile first, might allow cooldown of system before test begins
 cargo bench --no-run
-profile_exe=$(cargo bench --no-run 2>&1 | grep basic_pub.rs | sed -E 's/.+basic_pub.+\((.+)\)/\1/')
+profile_exe=$(cargo bench --no-run 2>&1 | egrep "Executable.+basic_pub.rs" | sed -E 's/.+basic_pub.+\((.+)\)/\1/')
 echo $profile_exe
 sleep 3
 

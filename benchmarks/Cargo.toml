@@ -37,3 +37,13 @@ harness = false
 name = "basic_pub_criterion"
 path = "src/basic_pub_criterion.rs"
 harness = false
+
+[[bench]]
+name = "native_pub_amqprs"
+path = "src/native_pub_amqprs.rs"
+harness = false
+
+[[bench]]
+name = "native_pub_lapin"
+path = "src/native_pub_lapin.rs"
+harness = false
