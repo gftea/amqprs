@@ -135,3 +135,9 @@ __Testing depends on RabbitMQ docker container.__
 # Note that it only takes effect if "traces" feature is enabled
 RUST_LOG=debug ./regression_test.sh
 ```
+
+# Profiling syscalls
+
+`amqprs` incurrs much fewer syscalls than `lapin` client due to its lock-free design.
+
+[syscalls: amqprs vs lapin ](../benchmarks/strace_cmp.md)
