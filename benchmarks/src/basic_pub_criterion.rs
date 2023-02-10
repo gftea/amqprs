@@ -4,7 +4,7 @@ use common::*;
 
 /// benchmark functions for `amqprs` client
 mod client_amqprs {
-    use super::{get_size_list, rt, Criterion};
+    use super::{get_size_list, rt, setup_tracing, Criterion};
     use amqprs::{
         callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
         channel::{
@@ -13,16 +13,10 @@ mod client_amqprs {
         connection::{Connection, OpenConnectionArguments},
         BasicProperties,
     };
-    use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
     pub fn amqprs_basic_pub(c: &mut Criterion) {
-        // construct a subscriber that prints formatted traces to stdout
-        // global subscriber with log level according to RUST_LOG
-        tracing_subscriber::registry()
-            .with(fmt::layer())
-            .with(EnvFilter::from_default_env())
-            .try_init()
-            .ok();
+        setup_tracing();
+
         let rt = rt();
 
         // open a connection to RabbitMQ server
@@ -139,7 +133,7 @@ mod client_amqprs {
 /// benchmark functions for `lapin` client
 mod client_lapin {
 
-    use super::{get_size_list, rt, Criterion};
+    use super::{get_size_list, rt, setup_tracing, Criterion};
     use lapin::{
         options::{BasicPublishOptions, QueueBindOptions, QueueDeclareOptions, QueuePurgeOptions},
         types::FieldTable,
@@ -148,6 +142,8 @@ mod client_lapin {
     use tokio_executor_trait::Tokio;
 
     pub fn lapin_basic_pub(c: &mut Criterion) {
+        setup_tracing();
+
         let rt = rt();
 
         let uri = "amqp://user:bitnami@localhost:5672";

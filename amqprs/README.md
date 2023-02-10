@@ -136,8 +136,6 @@ __Testing depends on RabbitMQ docker container.__
 RUST_LOG=debug ./regression_test.sh
 ```
 
-# Profiling syscalls
+# Benchmarks
 
-`amqprs` incurrs much fewer syscalls than `lapin` client due to its lock-free design.
-
-[syscalls: amqprs vs lapin ](../benchmarks/strace_cmp.md)
+[See benchmarks's README](https://github.com/gftea/amqprs/blob/main/benchmarks/README.md)
