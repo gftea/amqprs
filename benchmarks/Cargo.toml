@@ -6,11 +6,11 @@ edition = "2021"
 
 
 [dependencies]
-bencher = "0.1.5"
+# benchmark tools
 criterion_bencher_compat ={ version = "0.4.0"}
-
 criterion = { version = "0.4" }
 
+# common 
 tokio = { version = "1", features = ["full"] }
 async-trait = { version = "0.1" }
 tracing = { version = "0.1" }
@@ -24,13 +24,12 @@ lapin = { version = "*" }
 tokio-executor-trait = "2.1.0"
 tokio-reactor-trait = "1.1.0"
 
-[features]
-use_bencher = []
-use_criterion = []
+# [features]
+
 
 [[bench]]
-name = "basic_pub"
-path = "src/basic_pub.rs"
+name = "basic_pub_bencher"
+path = "src/basic_pub_bencher.rs"
 harness = false
 
 [[bench]]

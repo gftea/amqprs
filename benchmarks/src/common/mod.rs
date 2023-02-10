@@ -1,3 +1,5 @@
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+
 /// We use Fibonacci sequences to generate size list for publish messages
 pub struct Fib {
     max: usize,
@@ -65,3 +67,12 @@ pub fn rt() -> tokio::runtime::Runtime {
         .unwrap()
 }
 
+pub fn setup_tracing() {
+    // construct a subscriber that prints formatted traces to stdout
+    // global subscriber with log level according to RUST_LOG
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(EnvFilter::from_default_env())
+        .try_init()
+        .ok();
+}

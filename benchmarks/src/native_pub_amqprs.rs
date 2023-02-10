@@ -6,19 +6,12 @@ use amqprs::{
     connection::{Connection, OpenConnectionArguments},
     BasicProperties,
 };
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 mod common;
 use common::*;
 
-
 fn main() {
-    // construct a subscriber that prints formatted traces to stdout
-    // global subscriber with log level according to RUST_LOG
-    tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(EnvFilter::from_default_env())
-        .try_init()
-        .ok();
+    setup_tracing();
+
     let rt = rt();
 
     rt.block_on(async {
