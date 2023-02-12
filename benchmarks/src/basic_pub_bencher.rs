@@ -179,16 +179,6 @@ mod client_lapin {
                 )
                 .await
                 .unwrap();
-            channel
-                .queue_bind(
-                    queue_name,
-                    exchange_name,
-                    rounting_key,
-                    QueueBindOptions::default(),
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
         });
 
         let pubopts = BasicPublishOptions::default();

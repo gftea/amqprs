@@ -4,17 +4,22 @@ use common::*;
 
 /// benchmark functions for `amqprs` client
 mod client_amqprs {
-    use super::{get_size_list, rt, setup_tracing, Criterion};
+    use std::sync::Arc;
+
+    use super::{get_size_list, rt, setup_tracing, BenchMarkConsumer, Criterion};
     use amqprs::{
         callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
         channel::{
-            BasicPublishArguments, QueueBindArguments, QueueDeclareArguments, QueuePurgeArguments,
+            BasicCancelArguments, BasicConsumeArguments, BasicPublishArguments, QueueBindArguments,
+            QueueDeclareArguments, QueuePurgeArguments,
         },
         connection::{Connection, OpenConnectionArguments},
         BasicProperties,
     };
+    use criterion::BatchSize;
+    use tokio::sync::Notify;
 
-    pub fn amqprs_basic_pub(c: &mut Criterion) {
+    pub fn amqprs_basic_consume(c: &mut Criterion) {
         setup_tracing();
 
         let rt = rt();
@@ -48,9 +53,11 @@ mod client_amqprs {
 
         //////////////////////////////////////////////////////////////////////////////
         // publish message
-        let rounting_key = "bench.amqprs.pub";
+        let rounting_key = "bench.amqprs.consume";
         let exchange_name = "amq.topic";
         let queue_name = "bench-amqprs-q";
+        let ctag = "ctag-bench-amqprs";
+
         rt.block_on(async {
             // declare a queue
             let (_, _, _) = channel
@@ -75,15 +82,21 @@ mod client_amqprs {
             .finish();
 
         let msg_size_list = get_size_list(connection.frame_max() as usize);
-        // task to be benchmarked
-        let task = || async {
-            let count = msg_size_list.len();
+        let count = msg_size_list.len();
+
+        // benchmark setup per iteration
+        let setup = || async {
+            // cancel consumer
+            channel
+                .basic_cancel(BasicCancelArguments::new(ctag))
+                .await
+                .unwrap();
             // purge queue
             channel
                 .queue_purge(QueuePurgeArguments::new(queue_name))
                 .await
                 .unwrap();
-            let (_, msg_cnt, _) = channel
+            let (_, msg_cnt, consumer_cnt) = channel
                 .queue_declare(
                     QueueDeclareArguments::new(queue_name)
                         .passive(true)
@@ -93,7 +106,10 @@ mod client_amqprs {
                 .unwrap()
                 .unwrap();
             assert_eq!(0, msg_cnt);
+            assert_eq!(0, consumer_cnt);
+
             // publish  messages of variable sizes
+
             for i in 0..count {
                 channel
                     .basic_publish(
@@ -111,16 +127,42 @@ mod client_amqprs {
                     .await
                     .unwrap()
                     .unwrap();
+
                 if count == msg_cnt as usize {
                     break;
                 }
             }
         };
+
+        //////////////////////////////////////////////////////////////////////////////
+        let notifyer = Arc::new(Notify::new());
+
+        // task to be benchmarked
+        let task = || {
+            let bench_consumer =
+                BenchMarkConsumer::new(count as u64, notifyer.clone());
+            let consume_args = BasicConsumeArguments::new(queue_name, ctag);
+
+            async {
+                channel
+                    .basic_consume(bench_consumer, consume_args)
+                    .await
+                    .unwrap();
+                // wait for all messages delivered to consumer
+                notifyer.notified().await;
+            }
+        };
         // start benchmark
-        c.bench_function("amqprs-basic-pub", |b| {
-            b.iter(|| {
-                rt.block_on(task());
-            })
+        c.bench_function("amqprs-basic-consume", |b| {
+            b.iter_batched(
+                || {
+                    rt.block_on(setup());
+                },
+                |_| {
+                    rt.block_on(task());
+                },
+                BatchSize::PerIteration,
+            );
         });
         // explicitly close
         rt.block_on(async {
@@ -133,15 +175,23 @@ mod client_amqprs {
 /// benchmark functions for `lapin` client
 mod client_lapin {
 
+    use std::sync::Arc;
+
     use super::{get_size_list, rt, setup_tracing, Criterion};
+    use criterion::BatchSize;
     use lapin::{
-        options::{BasicPublishOptions, QueueBindOptions, QueueDeclareOptions, QueuePurgeOptions},
+        message::DeliveryResult,
+        options::{
+            BasicCancelOptions, BasicConsumeOptions, BasicPublishOptions, QueueBindOptions,
+            QueueDeclareOptions, QueuePurgeOptions, BasicAckOptions,
+        },
         types::FieldTable,
         BasicProperties, Connection, ConnectionProperties,
     };
+    use tokio::sync::Notify;
     use tokio_executor_trait::Tokio;
 
-    pub fn lapin_basic_pub(c: &mut Criterion) {
+    pub fn lapin_basic_consume(c: &mut Criterion) {
         setup_tracing();
 
         let rt = rt();
@@ -160,9 +210,10 @@ mod client_lapin {
             (connection, channel)
         });
 
-        let rounting_key = "bench.lapin.pub";
+        let rounting_key = "bench.lapin.consume";
         let exchange_name = "amq.topic";
         let queue_name = "bench-lapin-q";
+        let ctag = "ctag-bench-lapin";
 
         rt.block_on(async {
             channel
@@ -190,9 +241,15 @@ mod client_lapin {
         declopts.passive = true;
 
         let msg_size_list = get_size_list(connection.configuration().frame_max() as usize);
+        let count = msg_size_list.len();
 
-        let task = || async {
-            let count = msg_size_list.len();
+        // benchmark setup per iteration
+        let setup = || async {
+            // cancel consumer
+            channel
+                .basic_cancel(ctag, BasicCancelOptions::default())
+                .await
+                .unwrap();
             // purge queue
             channel
                 .queue_purge(queue_name, QueuePurgeOptions::default())
@@ -204,7 +261,9 @@ mod client_lapin {
                 .unwrap();
 
             assert_eq!(0, q_state.message_count());
+            assert_eq!(0, q_state.consumer_count());
             // publish  messages of variable sizes
+
             for i in 0..count {
                 let _confirm = channel
                     .basic_publish(
@@ -231,11 +290,63 @@ mod client_lapin {
             }
         };
 
+        //////////////////////////////////////////////////////////////////////////////
+        let notifyer = Arc::new(Notify::new());
+
+        // task to benchmark
+        let task = || async {
+            let consumer = channel
+                .basic_consume(
+                    queue_name,
+                    ctag,
+                    BasicConsumeOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+            let notifyer = notifyer.clone();
+            let notifyee = notifyer.clone();
+            consumer.set_delegate(move |delivery: DeliveryResult| {
+                let notifyer = notifyer.clone();
+
+                async move {
+                    let delivery = match delivery {
+                        // Carries the delivery alongside its channel
+                        Ok(Some(delivery)) => delivery,
+                        // The consumer got canceled
+                        Ok(None) => return,
+                        // Carries the error and is always followed by Ok(None)
+                        Err(error) => {
+                            dbg!("Failed to consume queue message {}", error);
+                            return;
+                        }
+                    };
+
+                    if delivery.delivery_tag % count as u64 == 0{
+                        // println!("{} % {}", delivery.delivery_tag, count);
+                        let mut args = BasicAckOptions::default();
+                        args.multiple = true;
+                        delivery.ack(args).await.unwrap();
+                        notifyer.notify_one();
+                    }
+                }
+            });
+
+            // wait for all messages delivered to consumer
+            notifyee.notified().await;
+        };
+
         // start benchmark
-        c.bench_function("lapin-basic-pub", |b| {
-            b.iter(|| {
-                rt.block_on(task());
-            })
+        c.bench_function("lapin-basic-consume", |b| {
+            b.iter_batched(
+                || {
+                    rt.block_on(setup());
+                },
+                |_| {
+                    rt.block_on(task());
+                },
+                BatchSize::PerIteration,
+            )
         });
 
         rt.block_on(async {
@@ -246,9 +357,9 @@ mod client_lapin {
 }
 
 criterion_group! {
-    name = basic_pub;
-    config = Criterion::default();
-    targets = client_amqprs::amqprs_basic_pub,  client_lapin::lapin_basic_pub
+    name = basic_consume;
+    config = Criterion::default().sample_size(50);
+    targets = client_amqprs::amqprs_basic_consume,  client_lapin::lapin_basic_consume
 }
 
-criterion_main!(basic_pub);
+criterion_main!(basic_consume);

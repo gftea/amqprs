@@ -1,8 +1,15 @@
+use std::sync::Arc;
+
 use lapin::{
-    options::{BasicPublishOptions, QueueBindOptions, QueueDeclareOptions, QueuePurgeOptions},
+    message::DeliveryResult,
+    options::{
+        BasicConsumeOptions, BasicPublishOptions, QueueBindOptions, QueueDeclareOptions,
+        QueuePurgeOptions, BasicAckOptions,
+    },
     types::FieldTable,
     BasicProperties, Connection, ConnectionProperties,
 };
+use tokio::sync::Notify;
 use tokio_executor_trait::Tokio;
 mod common;
 use common::*;
@@ -22,7 +29,7 @@ fn main() {
         let connection = Connection::connect(uri, options).await.unwrap();
         let channel = connection.create_channel().await.unwrap();
 
-        let rounting_key = "bench.lapin.pub";
+        let rounting_key = "bench.lapin.consume";
         let exchange_name = "amq.topic";
         let queue_name = "bench-lapin-q";
 
@@ -64,9 +71,6 @@ fn main() {
 
         assert_eq!(0, q_state.message_count());
 
-        //////////////////////////////////////////////////////////////////////////////
-        let now = std::time::Instant::now();
-
         // publish  messages of variable sizes
         for i in 0..count {
             let _confirm = channel
@@ -92,7 +96,48 @@ fn main() {
                 break;
             }
         }
-        println!("lapin benchmarks: {:?}", now.elapsed());
+
+        let consume_opts = BasicConsumeOptions::default();
+        let tbl = FieldTable::default();
+        let notifyer = Arc::new(Notify::new());
+        let notifyee = notifyer.clone();
+
+        //////////////////////////////////////////////////////////////////////////////
+        let now = std::time::Instant::now();
+
+        let consumer = channel
+            .basic_consume(queue_name, "", consume_opts, tbl)
+            .await
+            .unwrap();
+
+        consumer.set_delegate(move |delivery: DeliveryResult| {
+            let notifyer = notifyer.clone();
+            async move {
+                let delivery = match delivery {
+                    // Carries the delivery alongside its channel
+                    Ok(Some(delivery)) => delivery,
+                    // The consumer got canceled
+                    Ok(None) => return,
+                    // Carries the error and is always followed by Ok(None)
+                    Err(error) => {
+                        dbg!("Failed to consume queue message {}", error);
+                        return;
+                    }
+                };
+
+                if delivery.delivery_tag % count as u64 == 0 {
+                    // println!("{} % {}", delivery.delivery_tag, count);
+                    let mut args = BasicAckOptions::default();
+                    args.multiple = true;
+                    delivery.ack(args).await.unwrap();                    
+                    notifyer.notify_one();
+                }
+            }
+        });
+        // wait for all messages delivered to consumer
+        notifyee.notified().await;
+        let eclapsed = now.elapsed();
+        println!("lapin consumer benchmarks: {:?}", eclapsed);
         //////////////////////////////////////////////////////////////////////////////
 
         channel.close(0, "").await.unwrap();

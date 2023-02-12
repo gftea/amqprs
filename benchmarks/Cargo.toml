@@ -46,3 +46,20 @@ harness = false
 name = "native_pub_lapin"
 path = "src/native_pub_lapin.rs"
 harness = false
+
+
+[[bench]]
+name = "basic_consume_criterion"
+path = "src/basic_consume_criterion.rs"
+harness = false
+
+
+[[bench]]
+name = "native_consume_amqprs"
+path = "src/native_consume_amqprs.rs"
+harness = false
+
+[[bench]]
+name = "native_consume_lapin"
+path = "src/native_consume_lapin.rs"
+harness = false

@@ -1,3 +1,11 @@
+use std::sync::Arc;
+
+use amqprs::{
+    channel::{BasicAckArguments, Channel},
+    consumer::AsyncConsumer,
+    BasicProperties, Deliver,
+};
+use tokio::sync::Notify;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 /// We use Fibonacci sequences to generate size list for publish messages
@@ -75,4 +83,36 @@ pub fn setup_tracing() {
         .with(EnvFilter::from_default_env())
         .try_init()
         .ok();
+}
+
+pub struct BenchMarkConsumer {
+    end_tag: u64,
+    notify: Arc<Notify>,
+}
+
+impl BenchMarkConsumer {
+    pub fn new(end_tag: u64, notify: Arc<Notify>) -> Self {
+        Self { end_tag, notify }
+    }
+}
+
+#[async_trait::async_trait]
+impl AsyncConsumer for BenchMarkConsumer {
+    async fn consume(
+        &mut self,
+        channel: &Channel,
+        deliver: Deliver,
+        _basic_properties: BasicProperties,
+        _content: Vec<u8>,
+    ) {
+        // check all messages received
+        if deliver.delivery_tag() % self.end_tag == 0 {
+            // println!("{} % {}", deliver.delivery_tag(), self.end_tag);
+            channel
+                .basic_ack(BasicAckArguments::new(deliver.delivery_tag(), true))
+                .await
+                .unwrap();
+            self.notify.notify_one();
+        }
+    }
 }
