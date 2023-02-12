@@ -9,7 +9,10 @@
 
 Yet another RabbitMQ client implementation in rust with different design goals.
 
-Accepted to list in [RabbitMQ official website](https://www.rabbitmq.com/devtools.html#rust-dev).
+The library is accepted to list in [RabbitMQ official website](https://www.rabbitmq.com/devtools.html#rust-dev).
+
+It's probably the best performance among existing Rust clients. See 
+[Benchmarks](https://github.com/gftea/amqprs/blob/main/benchmarks/README.md).
 
 ## Design Philosophy
 
