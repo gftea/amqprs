@@ -21,9 +21,9 @@ When benchmarking `lapin`, a lot of error traces like below are observed.
 
 It uses criterion's API, and both `ampqrs` and `lapin` run OK.
 
-The result seems to vary depends on which platform is run, I observed that on my local PC, `amqprs` always outperform `lapin`, but on github hosted runner, result is opposite with significant differences.
+The result may vary depends on load of running platform. Tuning the message size list per iteration is an important factor to get stable result. 
 
-But it seems to have consistent result on the same platform.
+In general, it seems to have consistent result on the same platform.
 
 Other benefits to use criterion is that it can generate the plots & graphs which is helpful to observe behavior pattern.
 
@@ -31,7 +31,9 @@ But, when we want to do `strace` and `perf` to compare the performance when both
 
 # run_native.sh
 
-This is useful to simply compare two clients wall-clock time performance when doing the same amount of tasks. It is good to be used for `strace` or `perf` profiling.
+This is useful to simply compare wall-clock time performance by doing the same amount of tasks once only. It is good to be used for `strace` or `perf` profiling.
+
+Result may vary depends on load of running platform.
 
 
 # Benchmark Plots from run_criterion.sh
