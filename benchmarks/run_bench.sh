@@ -9,7 +9,12 @@ BENCH_EXE=$(${BUILD_CMD} 2>&1 | egrep "Executable.+${TARGET}.rs" | sed -E 's/.+\
 echo $BENCH_EXE
 
 # run separately, otherwise there is runtime conflict/error
-ARGS="--bench --verbose --plotting-backend gnuplot"
+ARGS="--bench --verbose"
+if [[ $GITHUB_ACTIONS == true ]]; then
+    ARGS="$ARGS --plotting-backend plotters"
+else
+    ARGS="$ARGS --plotting-backend gnuplot"
+fi
 
 sleep 3
 $BENCH_EXE $ARGS amqprs
