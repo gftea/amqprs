@@ -5,27 +5,33 @@ we run much longer duration in each iteration to reduce deviation.
 
 # run_bench.sh
 
-It uses criterion's `bencher` API for simple benchmarking, but it seems `lapin` cannot finish one iteration
-during 3s warming up period, and result in IO error, so you may see error below
+**It is NOT reliable and NOT recommended to be used.**
+
+It uses criterion's `bencher` API for simple benchmarking, but `lapin` does not work well with it.
+
+When benchmarking `lapin`, a lot of error traces like below are observed.
 ```bash
-2023-02-10T13:52:01.953391Z ERROR lapin::io_loop: error doing IO error=IOError(Custom { kind: Other, error: "IO driver has terminated" })
+2023-02-13T12:42:38.587631Z ERROR lapin::io_loop: error doing IO error=IOError(Custom { kind: Other, error: "IO driver has terminated" })
+2023-02-13T12:42:38.587671Z ERROR lapin::channels: Connection error error=IO error: IO driver has terminated
 ```
 
-It seems not reliable and not recommended to be used in the future.
+**DO NOT USE, just keep it as a record.**
 
 # run_criterion.sh
 
-This use criterion's API, and it runs OK for both `ampqrs` and `lapin`.
+It uses criterion's API, and both `ampqrs` and `lapin` run OK.
 
-The result seems to vary a lot depends on which platform is run, but seems consistent on the same platform.
+The result seems to vary depends on which platform is run, I observed that on my local PC, `amqprs` always outperform `lapin`, but on github hosted runner, result is opposite with significant differences.
 
-The benefits to use this is that it can generate the plots & graphs which is helpful to observe behavior pattern.
+But it seems to have consistent result on the same platform.
 
-But, when we want to compare the wall-clock time performance when both clients perform same amount of message publishing, it is more reliable to use `run_native.sh` which simply calculate the eclapsed time.
+Other benefits to use criterion is that it can generate the plots & graphs which is helpful to observe behavior pattern.
+
+But, when we want to do `strace` and `perf` to compare the performance when both clients perform same amount of tasks, it seems to be more reliable to use `run_native.sh`.
 
 # run_native.sh
 
-This is useful to compare two clients wall-clock time performance when doing the same task.
+This is useful to simply compare two clients wall-clock time performance when doing the same amount of tasks. It is good to be used for `strace` or `perf` profiling.
 
 
 # Benchmark Plots from run_criterion.sh

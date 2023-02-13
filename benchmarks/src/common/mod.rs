@@ -61,7 +61,9 @@ pub fn get_size_list(limit: usize) -> Vec<usize> {
             break;
         }
     }
-    for _ in 0..10 {
+    // total: len(msg_size_list) * 2^m
+    let m = 5;
+    for _ in 0..m {
         msg_size_list.extend_from_within(0..);
     }
     msg_size_list

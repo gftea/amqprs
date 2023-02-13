@@ -358,7 +358,7 @@ mod client_lapin {
 
 criterion_group! {
     name = basic_consume;
-    config = Criterion::default().sample_size(50);
+    config = Criterion::default();
     targets = client_amqprs::amqprs_basic_consume,  client_lapin::lapin_basic_consume
 }
 
