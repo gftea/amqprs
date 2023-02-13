@@ -31,10 +31,9 @@ But, when we want to do `strace` and `perf` to compare the performance when both
 
 # run_native.sh
 
-This is useful to simply compare wall-clock time performance by doing the same amount of tasks once only. It is good to be used for `strace` or `perf` profiling.
+This is useful to simply compare wall-clock time performance by doing the same amount of tasks once only, but result may vary depends on load of running platform.
 
-Result may vary depends on load of running platform.
-
+It is good to be used for `strace` or `perf` profiling. 
 
 # Benchmark Plots from run_criterion.sh
 
