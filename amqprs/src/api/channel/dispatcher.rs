@@ -568,6 +568,7 @@ impl ChannelDispatcher {
                         self.purge_consumer_resource();
                     }
                     else => {
+                        self.channel.set_is_open(false);
                         break;
                     }
 
@@ -575,6 +576,7 @@ impl ChannelDispatcher {
             }
             #[cfg(feature = "traces")]
             info!("exit dispatcher of channel {}", self.channel);
+
         });
     }
 }

@@ -283,6 +283,7 @@ impl ReaderHandler {
 
                 }
                 else => {
+                    self.amqp_connection.set_is_open(false);
                     break;
                 }
             }
