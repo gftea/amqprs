@@ -35,7 +35,7 @@ pub(crate) struct ReaderHandler {
     /// receiver half to receive management command from AMQ Connection/Channel
     conn_mgmt_rx: Receiver<ConnManagementCommand>,
 
-    /// AMQP protocol layer callbacks 
+    /// AMQP protocol layer callbacks
     callback: Option<Box<dyn ConnectionCallback + Send + 'static>>,
 
     channel_manager: ChannelManager,
@@ -248,7 +248,7 @@ impl ReaderHandler {
                             self.callback.replace(cmd.callback);
                             #[cfg(feature="traces")]
                             debug!("callback registered on connection {}", self.amqp_connection);
-                        },                  
+                        },
                     }
                 }
                 res = self.stream.read_frame() => {
@@ -278,7 +278,6 @@ impl ReaderHandler {
                             break;
                         },
                     }
-
                 }
                 _ = time::sleep_until(expiration) => {
                     // heartbeat deadline is updated whenever any frame received
@@ -291,7 +290,6 @@ impl ReaderHandler {
                         #[cfg(feature="traces")]
                         error!("missing heartbeat from server for {}", self.amqp_connection);
                     }
-
                 }
                 else => {
                     break;
