@@ -51,13 +51,13 @@ impl Iterator for Fib {
 /// common algorithm for generating size list
 pub fn get_size_list(limit: usize) -> Vec<usize> {
     // construct message size list for publish
-    let mut fib = Fib::new(100);
+    let fib = Fib::new(100);
     let mut msg_size_list = vec![0];
-    while let Some(v) = fib.next() {
+    for v in fib {
         // println!("{}", v);
         msg_size_list.push(v);
         // avoid OOM error, stop after 1st size > limit
-        if v > limit as usize {
+        if v > limit {
             break;
         }
     }

@@ -93,11 +93,11 @@ mod client_amqprs {
                 .unwrap();
             assert_eq!(0, msg_cnt);
             // publish  messages of variable sizes
-            for i in 0..count {
+            for &i in msg_size_list.iter().take(count) {
                 channel
                     .basic_publish(
                         BasicProperties::default(),
-                        vec![0xc5; msg_size_list[i]],
+                        vec![0xc5; i],
                         pubargs.clone(),
                     )
                     .await
@@ -182,8 +182,10 @@ mod client_lapin {
         });
 
         let pubopts = BasicPublishOptions::default();
-        let mut declopts = QueueDeclareOptions::default();
-        declopts.passive = true;
+        let declopts = QueueDeclareOptions {
+            passive: true,
+            ..Default::default()
+        };
 
         let msg_size_list = get_size_list(connection.configuration().frame_max() as usize);
 
@@ -201,13 +203,13 @@ mod client_lapin {
 
             assert_eq!(0, q_state.message_count());
             // publish  messages of variable sizes
-            for i in 0..count {
+            for &i in msg_size_list.iter().take(count)  {
                 let _confirm = channel
                     .basic_publish(
                         exchange_name,
                         rounting_key,
                         pubopts,
-                        &vec![0xc5; msg_size_list[i]],
+                        &vec![0xc5; i],
                         BasicProperties::default(),
                     )
                     .await

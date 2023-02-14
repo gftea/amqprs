@@ -3,8 +3,8 @@ use std::sync::Arc;
 use lapin::{
     message::DeliveryResult,
     options::{
-        BasicConsumeOptions, BasicPublishOptions, QueueBindOptions, QueueDeclareOptions,
-        QueuePurgeOptions, BasicAckOptions,
+        BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, QueueBindOptions,
+        QueueDeclareOptions, QueuePurgeOptions,
     },
     types::FieldTable,
     BasicProperties, Connection, ConnectionProperties,
@@ -53,8 +53,10 @@ fn main() {
             .unwrap();
 
         let pubopts = BasicPublishOptions::default();
-        let mut declopts = QueueDeclareOptions::default();
-        declopts.passive = true;
+        let declopts = QueueDeclareOptions {
+            passive: true,
+            ..Default::default()
+        };
 
         let msg_size_list = get_size_list(connection.configuration().frame_max() as usize);
 
@@ -72,13 +74,13 @@ fn main() {
         assert_eq!(0, q_state.message_count());
 
         // publish  messages of variable sizes
-        for i in 0..count {
+        for &i in msg_size_list.iter().take(count) {
             let _confirm = channel
                 .basic_publish(
                     exchange_name,
                     rounting_key,
                     pubopts,
-                    &vec![0xc5; msg_size_list[i]],
+                    &vec![0xc5; i],
                     BasicProperties::default(),
                 )
                 .await
@@ -127,8 +129,7 @@ fn main() {
 
                 if delivery.delivery_tag % count as u64 == 0 {
                     // println!("{} % {}", delivery.delivery_tag, count);
-                    let mut args = BasicAckOptions::default();
-                    args.multiple = true;
+                    let args = BasicAckOptions { multiple: true };
                     delivery.ack(args).await.unwrap();
                     notifyer.notify_one();
                 }
@@ -137,7 +138,7 @@ fn main() {
         // wait for all messages delivered to consumer
         notifyee.notified().await;
         let eclapsed = now.elapsed();
-        println!("lapin consumer benchmarks: {:?}", eclapsed);
+        println!("lapin consumer benchmarks: {eclapsed:?}");
         //////////////////////////////////////////////////////////////////////////////
 
         channel.close(0, "").await.unwrap();

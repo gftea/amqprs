@@ -46,8 +46,10 @@ fn main() {
             .unwrap();
 
         let pubopts = BasicPublishOptions::default();
-        let mut declopts = QueueDeclareOptions::default();
-        declopts.passive = true;
+        let declopts = QueueDeclareOptions {
+            passive: true,
+            ..Default::default()
+        };
 
         let msg_size_list = get_size_list(connection.configuration().frame_max() as usize);
 
@@ -68,13 +70,13 @@ fn main() {
         let now = std::time::Instant::now();
 
         // publish  messages of variable sizes
-        for i in 0..count {
+        for &i in msg_size_list.iter().take(count) {
             let _confirm = channel
                 .basic_publish(
                     exchange_name,
                     rounting_key,
                     pubopts,
-                    &vec![0xc5; msg_size_list[i]],
+                    &vec![0xc5; i],
                     BasicProperties::default(),
                 )
                 .await

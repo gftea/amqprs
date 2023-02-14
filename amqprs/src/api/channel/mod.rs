@@ -38,7 +38,7 @@ use crate::{
     net::{ConnManagementCommand, IncomingMessage, OutgoingMessage},
     BasicProperties,
 };
-#[cfg(feature = "tracing")]
+#[cfg(feature = "traces")]
 use tracing::{error, info, trace};
 
 /// Combined message received by a consumer
@@ -287,7 +287,7 @@ impl Channel {
                 Ordering::Acquire,
                 Ordering::Relaxed,
             ) {
-                #[cfg(feature = "tracing")]
+                #[cfg(feature = "traces")]
                 info!("close channel {}", self);
                 self.close_handshake().await?;
                 // not necessary, but to skip atomic compare at `drop`
@@ -340,23 +340,23 @@ impl Drop for Channel {
                 Ordering::Acquire,
                 Ordering::Relaxed,
             ) {
-                #[cfg(feature = "tracing")]
+                #[cfg(feature = "traces")]
                 trace!("drop channel {}", self);
 
                 let channel = self.clone_as_secondary();
                 tokio::spawn(async move {
-                    #[cfg(feature = "tracing")]
+                    #[cfg(feature = "traces")]
                     info!("try to close channel {} at drop", channel);
                     if let Err(err) = channel.close_handshake().await {
                         // Compliance: A peer that detects a socket closure without having received a Channel.Close-Ok
                         // handshake method SHOULD log the error.
-                        #[cfg(feature = "tracing")]
+                        #[cfg(feature = "traces")]
                         error!(
                             "failed to gracefully close channel {} at drop, cause: '{}'",
                             channel, err,
                         );
                     } else {
-                        #[cfg(feature = "tracing")]
+                        #[cfg(feature = "traces")]
                         info!("channel {} is closed OK after drop", channel);
                     }
                 });
