@@ -75,7 +75,6 @@ impl WriterHandler {
                         #[cfg(feature="tracing")]
                         debug!("sent heartbeat over connection {}", self.amqp_connection,);
                     }
-
                 }
                 _ = self.shutdown.recv() => {
                     #[cfg(feature="tracing")]

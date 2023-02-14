@@ -271,7 +271,6 @@ impl ChannelDispatcher {
                                     info!("deregister consumer {}, total buffered messages: {}",
                                         cmd.consumer_tag, consumer.fifo.len()
                                     );
-
                                 }
                             },
                             DispatcherManagementCommand::RegisterGetContentResponder(cmd) => {
@@ -455,7 +454,6 @@ impl ChannelDispatcher {
                                     State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state on channel {}", self.channel),
                                 }
                             }
-
                             ////////////////////////////////////////////////
                             // synchronous response frames
                             Frame::FlowOk(method_header, _)
@@ -516,7 +514,6 @@ impl ChannelDispatcher {
                                     #[cfg(feature="traces")]
                                     error!("callback not registered on channel {}", self.channel);
                                 }
-
                             }
                             Frame::Cancel(_, cancel) => {
                                 // callback
@@ -572,10 +569,10 @@ impl ChannelDispatcher {
                     }
                 }
             }
-            #[cfg(feature = "traces")]
-            info!("exit dispatcher of channel {}", self.channel);
             self.channel.set_is_open(false);
 
+            #[cfg(feature = "traces")]
+            info!("exit dispatcher of channel {}", self.channel);
         });
     }
 }
