@@ -570,11 +570,12 @@ impl ChannelDispatcher {
                     else => {
                         break;
                     }
-
                 }
             }
             #[cfg(feature = "traces")]
             info!("exit dispatcher of channel {}", self.channel);
+            self.channel.set_is_open(false);
+
         });
     }
 }

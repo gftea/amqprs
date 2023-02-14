@@ -89,6 +89,8 @@ impl WriterHandler {
                 }
             }
         }
+        self.amqp_connection.set_is_open(false);
+
         if let Err(err) = self.stream.close().await {
             #[cfg(feature = "tracing")]
             error!(

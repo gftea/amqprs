@@ -287,6 +287,7 @@ impl ReaderHandler {
                 }
             }
         }
+        self.amqp_connection.set_is_open(false);
 
         // `self` will drop, so the `self.shutdown_notifier`
         // all tasks which have `subscribed` to `shutdown_notifier` will be notified
