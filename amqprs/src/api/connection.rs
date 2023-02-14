@@ -37,7 +37,6 @@
 use std::{
     fmt,
     future::Future,
-    pin::Pin,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
