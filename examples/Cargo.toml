@@ -22,8 +22,8 @@ name = "basic_pub_sub"
 path = "src/basic_pub_sub.rs"
 
 [[example]]
-name = "basic_consumer"
-path = "src/basic_consumer.rs"
+name = "longlive_basic_consumer"
+path = "src/longlive_basic_consumer.rs"
 
 [[example]]
 name = "callbacks_impl"
