@@ -346,7 +346,7 @@ async fn publish_test_messages(
     let content = String::from(
         r#"
             {
-                "data": "publish data for consumer test" 
+                "data": "publish data for consumer test"
             }
         "#,
     )

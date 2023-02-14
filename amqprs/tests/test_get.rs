@@ -78,7 +78,7 @@ async fn test_get() {
             Some((get_ok, basic_props, content)) => {
                 #[cfg(feature = "tracing")]
                 info!(
-                    "Get results: 
+                    "Get results:
                     {}
                     {}
                     Content: {}",
@@ -116,7 +116,7 @@ async fn test_get() {
             Some((get_ok, basic_props, content)) => {
                 #[cfg(feature = "tracing")]
                 info!(
-                    "Get results: 
+                    "Get results:
                     {}
                     {}
                     Content: {}",

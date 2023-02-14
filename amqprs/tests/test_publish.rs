@@ -41,7 +41,7 @@ async fn test_publish() {
     let content = String::from(
         r#"
             {
-                "data": "publish test", 
+                "data": "publish test",
             }
         "#,
     )

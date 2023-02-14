@@ -129,7 +129,7 @@ fn main() {
                     // println!("{} % {}", delivery.delivery_tag, count);
                     let mut args = BasicAckOptions::default();
                     args.multiple = true;
-                    delivery.ack(args).await.unwrap();                    
+                    delivery.ack(args).await.unwrap();
                     notifyer.notify_one();
                 }
             }

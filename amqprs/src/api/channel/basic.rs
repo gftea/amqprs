@@ -390,7 +390,7 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.      
+    /// Returns error if any failure in comunication with server.
     pub async fn basic_qos(&self, args: BasicQosArguments) -> Result<()> {
         let qos = Qos::new(args.prefetch_size, args.prefetch_count, args.global);
         let responder_rx = self.register_responder(QosOk::header()).await?;
@@ -712,7 +712,7 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.    
+    /// Returns error if any failure in comunication with server.
     pub async fn basic_ack(&self, args: BasicAckArguments) -> Result<()> {
         let ack = Ack::new(args.delivery_tag, args.multiple);
         self.shared
@@ -730,7 +730,7 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.    
+    /// Returns error if any failure in comunication with server.
     ///
     /// [`basic_ack`]: struct.Channel.html#method.basic_ack
     pub fn basic_ack_blocking(&self, args: BasicAckArguments) -> Result<()> {
@@ -745,7 +745,7 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.  
+    /// Returns error if any failure in comunication with server.
     pub async fn basic_nack(&self, args: BasicNackArguments) -> Result<()> {
         let mut nack = Nack::new(args.delivery_tag);
         nack.set_multiple(args.multiple);
@@ -765,7 +765,7 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.    
+    /// Returns error if any failure in comunication with server.
     ///
     /// [`basic_nack`]: struct.Channel.html#method.basic_nack
     pub fn basic_nack_blocking(&self, args: BasicNackArguments) -> Result<()> {
@@ -782,7 +782,7 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.  
+    /// Returns error if any failure in comunication with server.
     pub async fn basic_reject(&self, args: BasicRejectArguments) -> Result<()> {
         let reject = Reject::new(args.delivery_tag, args.requeue);
         self.shared
@@ -811,7 +811,7 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.  
+    /// Returns error if any failure in comunication with server.
     pub async fn basic_cancel(&self, args: BasicCancelArguments) -> Result<String> {
         let BasicCancelArguments {
             consumer_tag,
@@ -853,7 +853,7 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.      
+    /// Returns error if any failure in comunication with server.
     pub async fn basic_get(&self, args: BasicGetArguments) -> Result<Option<GetMessage>> {
         let get = Get::new(0, args.queue.try_into().unwrap(), args.no_ack);
 
@@ -895,7 +895,7 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.       
+    /// Returns error if any failure in comunication with server.
     pub async fn basic_recover(&self, requeue: bool) -> Result<()> {
         let recover = Recover::new(requeue);
 
@@ -915,7 +915,7 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.        
+    /// Returns error if any failure in comunication with server.
     pub async fn basic_publish(
         &self,
         basic_properties: BasicProperties,
@@ -1065,7 +1065,7 @@ mod tests {
             r#"
                 {
                     "meta": {"id": "f9d42464-fceb-4282-be95-0cd98f4741b0", "type": "PublishTester", "version": "4.0.0", "time": 1640035100149},
-                    "data": { "customData": []}, 
+                    "data": { "customData": []},
                     "links": [{"type": "BASE", "target": "fa321ff0-faa6-474e-aa1d-45edf8c99896"}]}
             "#
             ).into_bytes();

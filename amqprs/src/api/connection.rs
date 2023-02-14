@@ -376,7 +376,7 @@ impl OpenConnectionArguments {
     ///
     /// # Default
     ///
-    /// Name is auto generated.  
+    /// Name is auto generated.
     pub fn connection_name(&mut self, connection_name: &str) -> &mut Self {
         self.connection_name = Some(connection_name.to_owned());
         self
@@ -1098,7 +1098,7 @@ impl Connection {
     ///
     /// # Errors
     ///
-    /// Returns error if fails to send indication to server.    
+    /// Returns error if fails to send indication to server.
     pub async fn unblocked(&self) -> Result<()> {
         let unblocked = Unblocked;
 
