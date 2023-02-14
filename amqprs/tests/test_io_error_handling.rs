@@ -1,10 +1,12 @@
+use std::time::Duration;
+
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
     channel::ExchangeDeclareArguments,
     connection::Connection,
 };
 use tokio::time;
-use tracing::debug;
+
 mod common;
 
 #[ignore]
@@ -13,9 +15,9 @@ async fn test_net_io_err_handling() {
     common::setup_logging();
 
     // open a connection to RabbitMQ server
-    let args = common::build_conn_args();
+    let conn_args = common::build_conn_args();
 
-    let connection = Connection::open(&args).await.unwrap();
+    let connection = Connection::open(&conn_args).await.unwrap();
     connection
         .register_callback(DefaultConnectionCallback)
         .await
@@ -38,17 +40,20 @@ async fn test_net_io_err_handling() {
     // declare exchange
     channel.exchange_declare(args).await.unwrap();
 
-    loop {
-        time::sleep(time::Duration::from_secs(1)).await;
-        debug!("connection: {}, channel: {}", connection, channel);
-        // Manual interruption required:
-        // kill tcp stream to see if the loop exit!
-        if connection.is_open() == false {
-            break;
-        }
-    }
+    // reopen connection
+    let handler = || async {
+        loop {
 
-    // close
-    channel.close().await.unwrap();
-    connection.close().await.unwrap();
+            time::sleep(Duration::from_secs(10)).await;
+            if let Ok(conn) = Connection::open(&conn_args).await {
+                return conn;
+            }
+        }
+    };
+    // wait on io failure, and expect new connection created
+    let new_conn = connection
+        .wait_on_network_io_failure(handler())
+        .await
+        .unwrap();
+    assert_eq!(true, new_conn.is_open());
 }

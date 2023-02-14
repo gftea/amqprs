@@ -5,6 +5,8 @@ mod reader_handler;
 mod split_connection;
 mod writer_handler;
 
+use std::{pin::Pin, future::Future};
+
 pub(crate) use channel_manager::*;
 pub(crate) use error::*;
 pub(crate) use reader_handler::*;
@@ -40,6 +42,7 @@ pub(crate) struct RegisterResponder {
 pub(crate) struct RegisterConnectionCallback {
     pub callback: Box<dyn ConnectionCallback + Send + 'static>,
 }
+
 
 pub(crate) enum ConnManagementCommand {
     RegisterChannelResource(RegisterChannelResource),

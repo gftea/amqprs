@@ -36,6 +36,8 @@
 
 use std::{
     fmt,
+    future::Future,
+    pin::Pin,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
@@ -45,7 +47,7 @@ use std::{
 use amqp_serde::types::{
     AmqpChannelId, AmqpPeerProperties, FieldTable, FieldValue, LongStr, LongUint, ShortUint,
 };
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot, Notify};
 
 use crate::{
     frame::{
@@ -218,6 +220,7 @@ struct SharedConnectionInner {
     heartbeat: ShortUint,
     outgoing_tx: mpsc::Sender<OutgoingMessage>,
     conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
+    io_failure_notify: Arc<Notify>,
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -643,6 +646,7 @@ impl Connection {
             heartbeat,
             outgoing_tx,
             conn_mgmt_tx,
+            io_failure_notify: Arc::new(Notify::new()),
         });
 
         // open state of connection
@@ -994,6 +998,7 @@ impl Connection {
             conn_mgmt_rx,
             self.shared.channel_max,
             shutdown_notifer,
+            self.shared.io_failure_notify.clone(),
         );
         tokio::spawn(async move {
             rh.run_until_shutdown(heartbeat).await;
@@ -1153,6 +1158,19 @@ impl Connection {
             _guard: None,
         }
     }
+
+    /// Wait until the underlying network I/O failure occurs, and call the
+    /// user-provided `hanlder` future.
+    ///
+    /// It will block the current async task. To handle it asynchronously,
+    /// use `tokio::spawn` to run it in a seperate task.
+    pub async fn wait_on_network_io_failure<R>(
+        &self,
+        handler: impl Future<Output = R>,
+    ) -> Result<R> {
+        self.shared.io_failure_notify.notified().await;
+        Ok(handler.await)
+    }
 }
 
 impl Drop for DropGuard {
@@ -1210,52 +1228,7 @@ fn generate_connection_name(domain: &str) -> String {
         domain
     )
 }
-// Backup only:
-// Original thinking was to generate name = `ThreadId` + 2116 unique char group + `domain`,
-// it is uncommon one thread to open 2116 connections, but it turns out the `ThreadId` to
-// integer is not yet stable.
-// fn generate_connection_name(domain: &str) -> String {
-//     const CHAR_SET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-//     // choose any 2 chars from `CHAR_SET`, repetion of char allowed,
-//     // this gives 46^2 = 2116 unique values
-//     thread_local! {
-//         static HEAD: RefCell<usize> = RefCell::new(0);
-//         static TAIL: RefCell<usize> = RefCell::new(0);
-//     }
 
-//     let max_len = CHAR_SET.len();
-//     let tail = TAIL.with(|tail| {
-//         let current_tail = tail.borrow().to_owned();
-//         if current_tail + 1 == max_len {
-//             *tail.borrow_mut() = 0;
-//         } else {
-//             *tail.borrow_mut() += 1;
-//         }
-
-//         current_tail
-//     });
-
-//     let head = HEAD.with(|head| {
-//         let current_head = head.borrow().to_owned();
-//         if tail + 1 == max_len {
-//             // move HEAD index one step forward when and only when TAIL index restarts
-//             if current_head + 1 == max_len {
-//                 *head.borrow_mut() = 0;
-//             } else {
-//                 *head.borrow_mut() += 1;
-//             }
-//         }
-//         current_head
-//     });
-//     // construct a name
-//     format!(
-//         "{}{}{:?}@{}",
-//         char::from(CHAR_SET[head]),
-//         char::from(CHAR_SET[tail]),
-//         std::thread::current().id(),
-//         domain
-//     )
-// }
 /////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
