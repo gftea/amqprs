@@ -6,6 +6,7 @@ use amqprs::{
     connection::Connection,
 };
 use tokio::time;
+use tracing::info;
 
 mod common;
 
@@ -40,20 +41,23 @@ async fn test_net_io_err_handling() {
     // declare exchange
     channel.exchange_declare(args).await.unwrap();
 
-    // reopen connection
-    let handler = || async {
+    // wait on io failure
+    // if return `true`, it means got notification due to network failure, we try to recreate connection
+    // if return `false`, the connection may already be closed, or closed later by client or server.
+    if connection.listen_network_io_failure().await {
         loop {
-
             time::sleep(Duration::from_secs(10)).await;
-            if let Ok(conn) = Connection::open(&conn_args).await {
-                return conn;
-            }
+
+            if let Ok(recover_conn) = Connection::open(&conn_args).await {
+                // ... do some recovery...
+                let recover_ch = recover_conn.open_channel(None).await.unwrap();
+                assert!(true == recover_ch.is_open());
+                assert!(true == recover_conn.is_open());
+                info!("recover: {}, {}", recover_conn, recover_ch);
+                break;
+            };
         }
     };
-    // wait on io failure, and expect new connection created
-    let new_conn = connection
-        .wait_on_network_io_failure(handler())
-        .await
-        .unwrap();
-    assert_eq!(true, new_conn.is_open());
+    // here, old connection should be closed no matter due to network failure or closed by server
+    assert!(connection.is_open() == false);
 }

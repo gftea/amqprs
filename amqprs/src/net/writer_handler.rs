@@ -19,7 +19,7 @@ pub(crate) struct WriterHandler {
     /// receiver half to forward outgoing messages from AMQ connection/channel to server
     outgoing_rx: mpsc::Receiver<OutgoingMessage>,
     /// listener of shutdown signal
-    shutdown: broadcast::Receiver<()>,
+    shutdown: broadcast::Receiver<bool>,
     /// connection
     amqp_connection: Connection,
 }
@@ -28,7 +28,7 @@ impl WriterHandler {
     pub fn new(
         stream: BufIoWriter,
         outgoing_rx: mpsc::Receiver<OutgoingMessage>,
-        shutdown: broadcast::Receiver<()>,
+        shutdown: broadcast::Receiver<bool>,
         amqp_connection: Connection,
     ) -> Self {
         Self {

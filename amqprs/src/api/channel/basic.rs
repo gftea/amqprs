@@ -1,6 +1,6 @@
 use amqp_serde::types::AmqpDeliveryTag;
 use tokio::sync::mpsc;
-#[cfg(feature = "tracing")]
+#[cfg(feature = "traces")]
 use tracing::{debug, trace};
 
 use crate::{
@@ -616,7 +616,7 @@ impl Channel {
 
         // spawn consumer task
         tokio::spawn(async move {
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "traces")]
             trace!(
                 "starts task for async consumer {} on channel {}",
                 ctag,
@@ -636,7 +636,7 @@ impl Channel {
                             .await;
                     }
                     None => {
-                        #[cfg(feature = "tracing")]
+                        #[cfg(feature = "traces")]
                         debug!("exit task of async consumer {}", ctag);
                         break;
                     }
@@ -663,7 +663,7 @@ impl Channel {
 
         // spawn blocking consumer task
         tokio::task::spawn_blocking(move || {
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "traces")]
             trace!(
                 "starts task for blocking consumer {} on channel {}",
                 ctag,
@@ -681,7 +681,7 @@ impl Channel {
                         );
                     }
                     None => {
-                        #[cfg(feature = "tracing")]
+                        #[cfg(feature = "traces")]
                         debug!("exit task of blocking consumer {}", ctag);
                         break;
                     }

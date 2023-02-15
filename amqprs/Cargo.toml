@@ -1,6 +1,6 @@
 [package]
 name = "amqprs"
-version = "1.0.9"
+version = "1.1.0-rc.2"
 edition = "2021"
 rust-version = "1.56"
 license = "MIT"

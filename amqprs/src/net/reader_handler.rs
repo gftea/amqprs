@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
 use amqp_serde::types::{AmqpChannelId, ShortUint};
 use tokio::{
     sync::{
         broadcast,
-        mpsc::{Receiver, Sender}, Notify,
+        mpsc::{Receiver, Sender},
     },
     task::yield_now,
     time,
@@ -44,10 +42,10 @@ pub(crate) struct ReaderHandler {
     /// If reader handler exit first, it will notify writer handler to shutdown.
     /// If writer handler exit first, socket connection will be shutdown because the writer half drop,
     /// so socket read will return, and reader handler can detect connection shutdown without separate signal.
-    #[allow(dead_code /* notify shutdown just by dropping the instance */)]
-    shutdown_notifier: broadcast::Sender<()>,
-
-    io_failure_notify: Arc<Notify>
+    ///
+    /// send `true` if due to network I/O failure
+    /// send `false` if other reasons
+    shutdown_notifier: broadcast::Sender<bool>,
 }
 
 impl ReaderHandler {
@@ -57,8 +55,7 @@ impl ReaderHandler {
         outgoing_tx: Sender<OutgoingMessage>,
         conn_mgmt_rx: Receiver<ConnManagementCommand>,
         channel_max: ShortUint,
-        shutdown_notifier: broadcast::Sender<()>,
-        io_failure_notify: Arc<Notify>
+        shutdown_notifier: broadcast::Sender<bool>,
     ) -> Self {
         Self {
             stream,
@@ -68,7 +65,6 @@ impl ReaderHandler {
             callback: None,
             channel_manager: ChannelManager::new(channel_max),
             shutdown_notifier,
-            io_failure_notify,
         }
     }
 
@@ -214,6 +210,7 @@ impl ReaderHandler {
         // max interval to consider heartbeat is timeout
         let max_interval: u64 = heartbeat.into();
         let mut expiration = time::Instant::now() + time::Duration::from_secs(max_interval);
+        let mut is_network_failure = false;
         loop {
             tokio::select! {
                 biased;
@@ -260,11 +257,13 @@ impl ReaderHandler {
                     match res {
                         Ok((channel_id, frame)) => {
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
-                                self.io_failure_notify.notify_one();
+                                // notifiy network failure
+                                is_network_failure = true;
                                 #[cfg(feature="traces")]
                                 error!("socket will be closed due to error of handling frame, cause: {}", err);
                                 break;
                             }
+                            // normal close
                             if !self.amqp_connection.is_open() {
                                 #[cfg(feature="traces")]
                                 info!("connection {} is closed, shutting down socket I/O handlers", self.amqp_connection);
@@ -272,7 +271,8 @@ impl ReaderHandler {
                             }
                         },
                         Err(err) => {
-                            self.io_failure_notify.notify_one();
+                            // notifiy network failure
+                            is_network_failure = true;
                             #[cfg(feature="traces")]
                             error!("socket will be closed due to failure of reading frame, cause: {}", err);
                             break;
@@ -297,7 +297,10 @@ impl ReaderHandler {
             }
         }
         self.amqp_connection.set_is_open(false);
-
+        if self.shutdown_notifier.send(is_network_failure).is_err() {
+            #[cfg(feature = "traces")]
+            error!("failed to notify shutdown for {}", self.amqp_connection);
+        }
         // `self` will drop, so the `self.shutdown_notifier`
         // all tasks which have `subscribed` to `shutdown_notifier` will be notified
     }

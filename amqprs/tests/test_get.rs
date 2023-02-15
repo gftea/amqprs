@@ -76,7 +76,7 @@ async fn test_get() {
         // get single message
         let delivery_tag = match channel.basic_get(get_args.clone()).await.unwrap() {
             Some((get_ok, basic_props, content)) => {
-                #[cfg(feature = "traces")]
+                #[cfg(feature = "tracing")]
                 info!(
                     "Get results:
                     {}
@@ -114,7 +114,7 @@ async fn test_get() {
         // get single message
         let delivery_tag = match channel.basic_get(get_args.clone()).await.unwrap() {
             Some((get_ok, basic_props, content)) => {
-                #[cfg(feature = "traces")]
+                #[cfg(feature = "tracing")]
                 info!(
                     "Get results:
                     {}

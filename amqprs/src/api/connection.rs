@@ -36,7 +36,6 @@
 
 use std::{
     fmt,
-    future::Future,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
@@ -46,7 +45,7 @@ use std::{
 use amqp_serde::types::{
     AmqpChannelId, AmqpPeerProperties, FieldTable, FieldValue, LongStr, LongUint, ShortUint,
 };
-use tokio::sync::{broadcast, mpsc, oneshot, Notify};
+use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::{
     frame::{
@@ -219,7 +218,7 @@ struct SharedConnectionInner {
     heartbeat: ShortUint,
     outgoing_tx: mpsc::Sender<OutgoingMessage>,
     conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
-    io_failure_notify: Arc<Notify>,
+    shutdown_subscriber: broadcast::Sender<bool>,
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -636,7 +635,7 @@ impl Connection {
         // spawn network management tasks and get internal channel' sender half.
         let (outgoing_tx, outgoing_rx) = mpsc::channel(OUTGOING_MESSAGE_BUFFER_SIZE);
         let (conn_mgmt_tx, conn_mgmt_rx) = mpsc::channel(CONNECTION_MANAGEMENT_COMMAND_BUFFER_SIZE);
-
+        let (shutdown_notifer, _) = broadcast::channel::<bool>(1);
         let shared = Arc::new(SharedConnectionInner {
             server_properties,
             connection_name,
@@ -645,7 +644,7 @@ impl Connection {
             heartbeat,
             outgoing_tx,
             conn_mgmt_tx,
-            io_failure_notify: Arc::new(Notify::new()),
+            shutdown_subscriber: shutdown_notifer.clone(),
         });
 
         // open state of connection
@@ -664,7 +663,13 @@ impl Connection {
 
         // spawn handlers for reader and writer of network connection
         new_amqp_conn
-            .spawn_handlers(io_conn, outgoing_rx, conn_mgmt_rx, heartbeat)
+            .spawn_handlers(
+                io_conn,
+                outgoing_rx,
+                conn_mgmt_rx,
+                heartbeat,
+                shutdown_notifer,
+            )
             .await;
 
         // register channel resource for connection's default channel
@@ -980,15 +985,23 @@ impl Connection {
         outgoing_rx: mpsc::Receiver<OutgoingMessage>,
         conn_mgmt_rx: mpsc::Receiver<ConnManagementCommand>,
         heartbeat: ShortUint,
+        shutdown_notifer: broadcast::Sender<bool>,
     ) {
         // Spawn two tasks for the connection
         // - one task for writer
         // - one task for reader
-
-        let (shutdown_notifer, shutdown_listener) = broadcast::channel::<()>(1);
-
         let (reader, writer) = io_conn.into_split();
 
+        // spawn task for write connection handler
+        let wh = WriterHandler::new(
+            writer,
+            outgoing_rx,
+            shutdown_notifer.subscribe(),
+            self.clone_no_drop_guard(),
+        );
+        tokio::spawn(async move {
+            wh.run_until_shutdown(heartbeat).await;
+        });
         // spawn task for read connection handler
         let rh = ReaderHandler::new(
             reader,
@@ -997,21 +1010,9 @@ impl Connection {
             conn_mgmt_rx,
             self.shared.channel_max,
             shutdown_notifer,
-            self.shared.io_failure_notify.clone(),
         );
         tokio::spawn(async move {
             rh.run_until_shutdown(heartbeat).await;
-        });
-
-        // spawn task for write connection handler
-        let wh = WriterHandler::new(
-            writer,
-            outgoing_rx,
-            shutdown_listener,
-            self.clone_no_drop_guard(),
-        );
-        tokio::spawn(async move {
-            wh.run_until_shutdown(heartbeat).await;
         });
     }
 
@@ -1158,17 +1159,18 @@ impl Connection {
         }
     }
 
-    /// Wait until the underlying network I/O failure occurs, and call the
-    /// user-provided `hanlder` future.
+    /// Wait until the underlying network I/O failure occurs.
     ///
     /// It will block the current async task. To handle it asynchronously,
     /// use `tokio::spawn` to run it in a seperate task.
-    pub async fn wait_on_network_io_failure<R>(
-        &self,
-        handler: impl Future<Output = R>,
-    ) -> Result<R> {
-        self.shared.io_failure_notify.notified().await;
-        Ok(handler.await)
+    ///
+    /// # Returns
+    ///
+    /// Return `true` if got notification due to network I/O failure, otherwise return `false`.
+    ///
+    pub async fn listen_network_io_failure(&self) -> bool {
+        let mut shutdown_listener = self.shared.shutdown_subscriber.subscribe();
+        (shutdown_listener.recv().await).unwrap_or(false)
     }
 }
 
