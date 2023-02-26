@@ -8,6 +8,7 @@ use tokio::{
 
 use crate::{
     api::{callbacks::ChannelCallback, channel::ReturnMessage},
+    channel::GetOkMessage,
     frame::{CancelOk, CloseChannelOk, ContentBody, FlowOk, Frame, MethodHeader},
     net::IncomingMessage,
     BasicProperties, Return,
@@ -160,7 +161,13 @@ impl ChannelDispatcher {
         self.consumer_resources.remove(consumer_tag)
     }
 
-    async fn forward_deliver(&mut self, consumer_message: ConsumerMessage, consumer_tag: String) {
+    async fn forward_deliver(&mut self, consumer_message: ConsumerMessage) {
+        let consumer_tag = consumer_message
+            .deliver
+            .as_ref()
+            .unwrap()
+            .consumer_tag()
+            .clone();
         let consumer = self.get_or_new_consumer_resource(&consumer_tag);
         match consumer.get_tx() {
             Some(consumer_tx) => {
@@ -205,12 +212,21 @@ impl ChannelDispatcher {
                 deliver: None,
                 basic_properties: None,
                 content: None,
+                remaining: 0,
             };
             // buffer for `return + content` messages due to publish failure.
             let mut return_buffer = ReturnMessage {
                 ret: None,
                 basic_properties: None,
+                content: None,
+                remaining: 0,
             };
+            // buffer for `getok + content` messages
+            let mut getok_content_buffer = GetOkMessage {
+                content: None,
+                remaining: 0,
+            };
+
             #[cfg(feature = "traces")]
             trace!("starts up dispatcher task of channel {}", self.channel);
 
@@ -255,7 +271,6 @@ impl ChannelDispatcher {
                                     info!("deregister consumer {}, total buffered messages: {}",
                                         cmd.consumer_tag, consumer.fifo.len()
                                     );
-
                                 }
                             },
                             DispatcherManagementCommand::RegisterGetContentResponder(cmd) => {
@@ -351,34 +366,42 @@ impl ChannelDispatcher {
                             Frame::ContentHeader(header) => {
                                 match self.state {
                                     State::Deliver => {
+                                        message_buffer.remaining = header.common.body_size.try_into().unwrap();
                                         // do not wait for content body frame if content body size is zero
-                                        if header.common.body_size == 0 {
-                                            let consumer_tag = message_buffer.deliver.as_ref().unwrap().consumer_tag().clone();
+                                        if message_buffer.remaining == 0 {
                                             let consumer_message  = ConsumerMessage {
                                                 deliver: message_buffer.deliver.take(),
                                                 basic_properties: Some(header.basic_properties),
                                                 content: Some(Vec::new()),
+                                                remaining: 0,
                                             };
-                                            self.forward_deliver(consumer_message, consumer_tag).await;
+                                            self.forward_deliver(consumer_message).await;
                                         } else {
                                             message_buffer.basic_properties = Some(header.basic_properties);
+                                            message_buffer.content = Some(Vec::new());
                                         }
                                     },
                                     State::GetOk => {
-                                        let body_size = header.common.body_size;
+                                        getok_content_buffer.remaining = header.common.body_size.try_into().unwrap();
+
                                         let responder = self.get_content_responder.as_ref().expect("get responder must be registered");
                                         responder.send(header.into_frame()).unwrap();
                                         // do not wait for content body frame if content body size is zero
-                                        if body_size == 0 {
+                                        if getok_content_buffer.remaining  == 0 {
                                             responder.send(ContentBody::new(Vec::new()).into_frame()).unwrap();
+                                        } else {
+                                            getok_content_buffer.content = Some(Vec::new());
                                         }
                                     },
                                     State::Return => {
-                                        if header.common.body_size == 0 {
+                                        return_buffer.remaining = header.common.body_size.try_into().unwrap();
+
+                                        if return_buffer.remaining == 0 {
                                             // do not wait for content body frame if content body size is zero
                                             self.handle_return(return_buffer.ret.take().unwrap(), header.basic_properties, Vec::new()).await;
                                         } else {
                                             return_buffer.basic_properties = Some(header.basic_properties);
+                                            return_buffer.content = Some(Vec::new());
                                         }
                                     },
                                     _  => unreachable!("invalid dispatcher state"),
@@ -387,29 +410,50 @@ impl ChannelDispatcher {
                             Frame::ContentBody(body) => {
                                 match self.state {
                                     State::Deliver => {
-                                        let consumer_tag = message_buffer.deliver.as_ref().unwrap().consumer_tag().clone();
-                                        let consumer_message  = ConsumerMessage {
-                                            deliver: message_buffer.deliver.take(),
-                                            basic_properties: message_buffer.basic_properties.take(),
-                                            content: Some(body.inner),
-                                        };
-                                        self.forward_deliver(consumer_message, consumer_tag).await;
+                                        let mut content_buffer = message_buffer.content.take().unwrap();
+                                        content_buffer.extend_from_slice(&body.inner);
+                                        message_buffer.content.replace(content_buffer);
+                                        // calculate remaining size of content body
+                                        message_buffer.remaining = message_buffer.remaining.checked_sub(body.inner.len()).expect("should never overflow");
+
+                                        if message_buffer.remaining == 0 {
+                                            let consumer_message  = ConsumerMessage {
+                                                deliver: message_buffer.deliver.take(),
+                                                basic_properties: message_buffer.basic_properties.take(),
+                                                content: message_buffer.content.take(),
+                                                remaining: message_buffer.remaining,
+                                            };
+                                            self.forward_deliver(consumer_message).await;
+                                        }
                                     }
                                     State::GetOk => {
-                                        self.get_content_responder.take()
-                                        .expect("get responder must be registered")
-                                        .send(body.into_frame()).unwrap();
+                                        let mut content_buffer = getok_content_buffer.content.take().unwrap();
+                                        content_buffer.extend_from_slice(&body.inner);
+                                        getok_content_buffer.content.replace(content_buffer);
+                                        getok_content_buffer.remaining = getok_content_buffer.remaining.checked_sub(body.inner.len()).expect("should never overflow");
+                                        if getok_content_buffer.remaining == 0 {
+                                            let content = getok_content_buffer.content.take().unwrap();
+                                            self.get_content_responder.take()
+                                            .expect("get responder must be registered")
+                                            .send(ContentBody::new(content).into_frame()).unwrap();
+                                        }
                                     },
                                     State::Return => {
-                                        self.handle_return(
-                                            return_buffer.ret.take().unwrap(),
-                                            return_buffer.basic_properties.take().unwrap(),
-                                            body.inner).await;
+                                        let mut content_buffer = return_buffer.content.take().unwrap();
+                                        content_buffer.extend_from_slice(&body.inner);
+                                        return_buffer.content.replace(content_buffer);
+                                        return_buffer.remaining = return_buffer.remaining.checked_sub(body.inner.len()).expect("should never overflow");
+
+                                        if return_buffer.remaining == 0 {
+                                            self.handle_return(
+                                                return_buffer.ret.take().unwrap(),
+                                                return_buffer.basic_properties.take().unwrap(),
+                                                return_buffer.content.take().unwrap()).await;
+                                        }
                                     },
                                     State::Initial | State::GetEmpty  => unreachable!("invalid dispatcher state on channel {}", self.channel),
                                 }
                             }
-
                             ////////////////////////////////////////////////
                             // synchronous response frames
                             Frame::FlowOk(method_header, _)
@@ -470,7 +514,6 @@ impl ChannelDispatcher {
                                     #[cfg(feature="traces")]
                                     error!("callback not registered on channel {}", self.channel);
                                 }
-
                             }
                             Frame::Cancel(_, cancel) => {
                                 // callback
@@ -524,9 +567,10 @@ impl ChannelDispatcher {
                     else => {
                         break;
                     }
-
                 }
             }
+            self.channel.set_is_open(false);
+
             #[cfg(feature = "traces")]
             info!("exit dispatcher of channel {}", self.channel);
         });

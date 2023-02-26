@@ -29,7 +29,7 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.    
+    /// Returns error if any failure in comunication with server.
     pub async fn confirm_select(&self, args: ConfirmSelectArguments) -> Result<()> {
         let select = Select::new(args.no_wait);
         if args.no_wait {

@@ -14,7 +14,7 @@ use super::channel::{BasicAckArguments, Channel};
 use crate::frame::{BasicProperties, Deliver};
 
 use async_trait::async_trait;
-#[cfg(feature = "tracing")]
+#[cfg(feature = "traces")]
 use tracing::info;
 
 /// Trait defines the callback interfaces for consuming asynchronous content data from server.
@@ -91,14 +91,19 @@ impl AsyncConsumer for DefaultConsumer {
         channel: &Channel,
         deliver: Deliver,
         _basic_properties: BasicProperties,
-        _content: Vec<u8>,
+        content: Vec<u8>,
     ) {
-        #[cfg(feature = "tracing")]
-        info!("consume delivery {} on channel {}", deliver, channel);
+        #[cfg(feature = "traces")]
+        info!(
+            "consume delivery {} on channel {}, content size: {}",
+            deliver,
+            channel,
+            content.len()
+        );
 
         // ack explicitly if manual ack
         if !self.no_ack {
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "traces")]
             info!("ack to delivery {} on channel {}", deliver, channel);
             let args = BasicAckArguments::new(deliver.delivery_tag(), false);
             channel.basic_ack(args).await.unwrap();
@@ -151,14 +156,19 @@ impl BlockingConsumer for DefaultBlockingConsumer {
         channel: &Channel,
         deliver: Deliver,
         _basic_properties: BasicProperties,
-        _content: Vec<u8>,
+        content: Vec<u8>,
     ) {
-        #[cfg(feature = "tracing")]
-        info!("consume delivery {} on channel {}", deliver, channel);
+        #[cfg(feature = "traces")]
+        info!(
+            "consume delivery {} on channel {}, content size: {}",
+            deliver,
+            channel,
+            content.len()
+        );
 
         // ack explicitly if manual ack
         if !self.no_ack {
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "traces")]
             info!("ack to delivery {} on channel {}", deliver, channel);
             let args = BasicAckArguments::new(deliver.delivery_tag(), false);
             // should call blocking version of API because we are in blocing context

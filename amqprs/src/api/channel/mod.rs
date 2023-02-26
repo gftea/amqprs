@@ -38,7 +38,7 @@ use crate::{
     net::{ConnManagementCommand, IncomingMessage, OutgoingMessage},
     BasicProperties,
 };
-#[cfg(feature = "tracing")]
+#[cfg(feature = "traces")]
 use tracing::{error, info, trace};
 
 /// Combined message received by a consumer
@@ -50,12 +50,21 @@ pub struct ConsumerMessage {
     pub deliver: Option<Deliver>,
     pub basic_properties: Option<BasicProperties>,
     pub content: Option<Vec<u8>>,
+    remaining: usize,
 }
 
-/// Message buffer for a `return + content` sequence from server.
+/// Message buffer for a `Return + content` sequence from server.
 pub(crate) struct ReturnMessage {
     ret: Option<Return>,
     basic_properties: Option<BasicProperties>,
+    content: Option<Vec<u8>>,
+    remaining: usize,
+}
+
+/// Message buffer for a `GetOk + content` sequence from server.
+pub(crate) struct GetOkMessage {
+    content: Option<Vec<u8>>,
+    remaining: usize,
 }
 
 /// Command to register consumer of asynchronous delivered contents.
@@ -278,7 +287,7 @@ impl Channel {
                 Ordering::Acquire,
                 Ordering::Relaxed,
             ) {
-                #[cfg(feature = "tracing")]
+                #[cfg(feature = "traces")]
                 info!("close channel {}", self);
                 self.close_handshake().await?;
                 // not necessary, but to skip atomic compare at `drop`
@@ -331,23 +340,23 @@ impl Drop for Channel {
                 Ordering::Acquire,
                 Ordering::Relaxed,
             ) {
-                #[cfg(feature = "tracing")]
+                #[cfg(feature = "traces")]
                 trace!("drop channel {}", self);
 
                 let channel = self.clone_as_secondary();
                 tokio::spawn(async move {
-                    #[cfg(feature = "tracing")]
+                    #[cfg(feature = "traces")]
                     info!("try to close channel {} at drop", channel);
                     if let Err(err) = channel.close_handshake().await {
                         // Compliance: A peer that detects a socket closure without having received a Channel.Close-Ok
                         // handshake method SHOULD log the error.
-                        #[cfg(feature = "tracing")]
+                        #[cfg(feature = "traces")]
                         error!(
                             "failed to gracefully close channel {} at drop, cause: '{}'",
                             channel, err,
                         );
                     } else {
-                        #[cfg(feature = "tracing")]
+                        #[cfg(feature = "traces")]
                         info!("channel {} is closed OK after drop", channel);
                     }
                 });

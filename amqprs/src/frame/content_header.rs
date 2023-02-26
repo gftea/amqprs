@@ -73,7 +73,7 @@ pub struct BasicProperties {
 
 impl BasicProperties {
     #[allow(clippy::too_many_arguments)]
-    /// Returns a new instance.    
+    /// Returns a new instance.
     pub fn new(
         content_type: Option<String>,
         content_encoding: Option<String>,

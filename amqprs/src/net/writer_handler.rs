@@ -4,7 +4,7 @@ use tokio::{
     task::yield_now,
     time,
 };
-#[cfg(feature = "tracing")]
+#[cfg(feature = "traces")]
 use tracing::{debug, error, info, trace};
 
 use crate::{
@@ -19,7 +19,7 @@ pub(crate) struct WriterHandler {
     /// receiver half to forward outgoing messages from AMQ connection/channel to server
     outgoing_rx: mpsc::Receiver<OutgoingMessage>,
     /// listener of shutdown signal
-    shutdown: broadcast::Receiver<()>,
+    shutdown: broadcast::Receiver<bool>,
     /// connection
     amqp_connection: Connection,
 }
@@ -28,7 +28,7 @@ impl WriterHandler {
     pub fn new(
         stream: BufIoWriter,
         outgoing_rx: mpsc::Receiver<OutgoingMessage>,
-        shutdown: broadcast::Receiver<()>,
+        shutdown: broadcast::Receiver<bool>,
         amqp_connection: Connection,
     ) -> Self {
         Self {
@@ -54,7 +54,7 @@ impl WriterHandler {
                         None => break,
                         Some(v) => v,
                     };
-                    if let Err(err) = self.stream.write_frame(channel_id, frame).await {
+                    if let Err(err) = self.stream.write_frame(channel_id, frame, self.amqp_connection.frame_max()).await {
                         #[cfg(feature="tracing")]
                         error!("failed to send frame over connection {}, cause: {}", self.amqp_connection, err);
                         break;
@@ -67,7 +67,7 @@ impl WriterHandler {
                     if expiration <= time::Instant::now() {
                         expiration = time::Instant::now() + time::Duration::from_secs(interval);
 
-                        if let Err(err) = self.stream.write_frame(DEFAULT_CONN_CHANNEL, Frame::HeartBeat(HeartBeat)).await {
+                        if let Err(err) = self.stream.write_frame(DEFAULT_CONN_CHANNEL, Frame::HeartBeat(HeartBeat), self.amqp_connection.frame_max()).await {
                             #[cfg(feature="tracing")]
                             error!("failed to send heartbeat over connection {}, cause: {}", self.amqp_connection, err);
                             break;
@@ -75,7 +75,6 @@ impl WriterHandler {
                         #[cfg(feature="tracing")]
                         debug!("sent heartbeat over connection {}", self.amqp_connection,);
                     }
-
                 }
                 _ = self.shutdown.recv() => {
                     #[cfg(feature="tracing")]
@@ -89,8 +88,10 @@ impl WriterHandler {
                 }
             }
         }
+        self.amqp_connection.set_is_open(false);
+
         if let Err(err) = self.stream.close().await {
-            #[cfg(feature = "tracing")]
+            #[cfg(feature = "traces")]
             error!(
                 "failed to close i/o writer of connection {}, cause: {}",
                 self.amqp_connection, err

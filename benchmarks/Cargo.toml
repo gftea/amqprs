@@ -1,0 +1,65 @@
+[package]
+name = "benchmarks"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+
+[dependencies]
+# benchmark tools
+criterion_bencher_compat ={ version = "0.4.0"}
+criterion = { version = "0.4" }
+
+# common 
+tokio = { version = "1", features = ["full"] }
+async-trait = { version = "0.1" }
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# amqprs client
+amqprs = { path = "../amqprs" }
+
+# lapin client
+lapin = { version = "*" }
+tokio-executor-trait = "2.1.0"
+tokio-reactor-trait = "1.1.0"
+
+# [features]
+
+
+[[bench]]
+name = "basic_pub_bencher"
+path = "src/basic_pub_bencher.rs"
+harness = false
+
+[[bench]]
+name = "basic_pub_criterion"
+path = "src/basic_pub_criterion.rs"
+harness = false
+
+[[bench]]
+name = "native_pub_amqprs"
+path = "src/native_pub_amqprs.rs"
+harness = false
+
+[[bench]]
+name = "native_pub_lapin"
+path = "src/native_pub_lapin.rs"
+harness = false
+
+
+[[bench]]
+name = "basic_consume_criterion"
+path = "src/basic_consume_criterion.rs"
+harness = false
+
+
+[[bench]]
+name = "native_consume_amqprs"
+path = "src/native_consume_amqprs.rs"
+harness = false
+
+[[bench]]
+name = "native_consume_lapin"
+path = "src/native_consume_lapin.rs"
+harness = false

@@ -1,7 +1,7 @@
 #!/bin/bash
 # set -x
 
-excludes=("basic_consumer")
+excludes=("longlive_basic_consumer")
 export RUSTFLAGS="$RUSTFLAGS -A dead_code -A unused_variables"
 
 function is_excluded () {

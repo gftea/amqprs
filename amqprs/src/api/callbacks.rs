@@ -114,7 +114,7 @@ pub trait ChannelCallback {
     ///
     /// # Errors
     ///
-    /// If returns [`Err`], no reply to server and no consumer will be cancelled.  
+    /// If returns [`Err`], no reply to server and no consumer will be cancelled.
     async fn cancel(&mut self, channel: &Channel, cancel: Cancel) -> Result<()>;
 
     /// Callback to handle server's `flow` request to pause or restart
@@ -211,9 +211,14 @@ impl ChannelCallback for DefaultChannelCallback {
         channel: &Channel,
         ret: Return,
         _basic_properties: BasicProperties,
-        _content: Vec<u8>,
+        content: Vec<u8>,
     ) {
         #[cfg(feature = "traces")]
-        warn!("handle publish return {} on channel {}", ret, channel);
+        warn!(
+            "handle publish return {} on channel {}, content size: {}",
+            ret,
+            channel,
+            content.len()
+        );
     }
 }

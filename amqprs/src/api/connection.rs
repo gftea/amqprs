@@ -50,7 +50,7 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use crate::{
     frame::{
         Blocked, Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, OpenChannelOk,
-        ProtocolHeader, StartOk, TuneOk, Unblocked, DEFAULT_CONN_CHANNEL,
+        ProtocolHeader, StartOk, TuneOk, Unblocked, DEFAULT_CONN_CHANNEL, FRAME_MIN_SIZE,
     },
     net::{
         ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage, ReaderHandler,
@@ -69,12 +69,13 @@ use super::{
 
 #[cfg(feature = "tls")]
 use super::tls::TlsAdaptor;
+
 #[cfg(feature = "compliance_assert")]
 use crate::api::compliance_asserts::assert_path;
-#[cfg(feature = "compliance_assert")]
-use crate::frame::FRAME_MIN_SIZE;
+
 #[cfg(feature = "traces")]
 use tracing::{debug, error, info};
+
 #[cfg(feature = "urispec")]
 use uriparse::URIReference;
 
@@ -217,6 +218,7 @@ struct SharedConnectionInner {
     heartbeat: ShortUint,
     outgoing_tx: mpsc::Sender<OutgoingMessage>,
     conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
+    shutdown_subscriber: broadcast::Sender<bool>,
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -373,7 +375,7 @@ impl OpenConnectionArguments {
     ///
     /// # Default
     ///
-    /// Name is auto generated.  
+    /// Name is auto generated.
     pub fn connection_name(&mut self, connection_name: &str) -> &mut Self {
         self.connection_name = Some(connection_name.to_owned());
         self
@@ -618,7 +620,9 @@ impl Connection {
             "".try_into().unwrap(),
         )
         .into_frame();
-        io_conn.write_frame(DEFAULT_CONN_CHANNEL, open).await?;
+        io_conn
+            .write_frame(DEFAULT_CONN_CHANNEL, open, FRAME_MIN_SIZE)
+            .await?;
 
         // S: OpenOk
         let (_, frame) = io_conn.read_frame().await?;
@@ -631,7 +635,7 @@ impl Connection {
         // spawn network management tasks and get internal channel' sender half.
         let (outgoing_tx, outgoing_rx) = mpsc::channel(OUTGOING_MESSAGE_BUFFER_SIZE);
         let (conn_mgmt_tx, conn_mgmt_rx) = mpsc::channel(CONNECTION_MANAGEMENT_COMMAND_BUFFER_SIZE);
-
+        let (shutdown_notifer, _) = broadcast::channel::<bool>(1);
         let shared = Arc::new(SharedConnectionInner {
             server_properties,
             connection_name,
@@ -640,6 +644,7 @@ impl Connection {
             heartbeat,
             outgoing_tx,
             conn_mgmt_tx,
+            shutdown_subscriber: shutdown_notifer.clone(),
         });
 
         // open state of connection
@@ -658,7 +663,13 @@ impl Connection {
 
         // spawn handlers for reader and writer of network connection
         new_amqp_conn
-            .spawn_handlers(io_conn, outgoing_rx, conn_mgmt_rx, heartbeat)
+            .spawn_handlers(
+                io_conn,
+                outgoing_rx,
+                conn_mgmt_rx,
+                heartbeat,
+                shutdown_notifer,
+            )
             .await;
 
         // register channel resource for connection's default channel
@@ -794,7 +805,7 @@ impl Connection {
         );
 
         io_conn
-            .write_frame(DEFAULT_CONN_CHANNEL, start_ok.into_frame())
+            .write_frame(DEFAULT_CONN_CHANNEL, start_ok.into_frame(), FRAME_MIN_SIZE)
             .await?;
         Ok(server_properties)
     }
@@ -840,7 +851,7 @@ impl Connection {
         let tune_ok = TuneOk::new(new_channel_max, new_frame_max, new_heartbeat);
 
         io_conn
-            .write_frame(DEFAULT_CONN_CHANNEL, tune_ok.into_frame())
+            .write_frame(DEFAULT_CONN_CHANNEL, tune_ok.into_frame(), FRAME_MIN_SIZE)
             .await?;
         Ok((new_channel_max, new_frame_max, new_heartbeat))
     }
@@ -974,15 +985,23 @@ impl Connection {
         outgoing_rx: mpsc::Receiver<OutgoingMessage>,
         conn_mgmt_rx: mpsc::Receiver<ConnManagementCommand>,
         heartbeat: ShortUint,
+        shutdown_notifer: broadcast::Sender<bool>,
     ) {
         // Spawn two tasks for the connection
         // - one task for writer
         // - one task for reader
-
-        let (shutdown_notifer, shutdown_listener) = broadcast::channel::<()>(1);
-
         let (reader, writer) = io_conn.into_split();
 
+        // spawn task for write connection handler
+        let wh = WriterHandler::new(
+            writer,
+            outgoing_rx,
+            shutdown_notifer.subscribe(),
+            self.clone_no_drop_guard(),
+        );
+        tokio::spawn(async move {
+            wh.run_until_shutdown(heartbeat).await;
+        });
         // spawn task for read connection handler
         let rh = ReaderHandler::new(
             reader,
@@ -994,17 +1013,6 @@ impl Connection {
         );
         tokio::spawn(async move {
             rh.run_until_shutdown(heartbeat).await;
-        });
-
-        // spawn task for write connection handler
-        let wh = WriterHandler::new(
-            writer,
-            outgoing_rx,
-            shutdown_listener,
-            self.clone_no_drop_guard(),
-        );
-        tokio::spawn(async move {
-            wh.run_until_shutdown(heartbeat).await;
         });
     }
 
@@ -1091,7 +1099,7 @@ impl Connection {
     ///
     /// # Errors
     ///
-    /// Returns error if fails to send indication to server.    
+    /// Returns error if fails to send indication to server.
     pub async fn unblocked(&self) -> Result<()> {
         let unblocked = Unblocked;
 
@@ -1150,6 +1158,20 @@ impl Connection {
             _guard: None,
         }
     }
+
+    /// Wait until the underlying network I/O failure occurs.
+    ///
+    /// It will block the current async task. To handle it asynchronously,
+    /// use `tokio::spawn` to run it in a seperate task.
+    ///
+    /// # Returns
+    ///
+    /// Return `true` if got notification due to network I/O failure, otherwise return `false`.
+    ///
+    pub async fn listen_network_io_failure(&self) -> bool {
+        let mut shutdown_listener = self.shared.shutdown_subscriber.subscribe();
+        (shutdown_listener.recv().await).unwrap_or(false)
+    }
 }
 
 impl Drop for DropGuard {
@@ -1207,52 +1229,7 @@ fn generate_connection_name(domain: &str) -> String {
         domain
     )
 }
-// Backup only:
-// Original thinking was to generate name = `ThreadId` + 2116 unique char group + `domain`,
-// it is uncommon one thread to open 2116 connections, but it turns out the `ThreadId` to
-// integer is not yet stable.
-// fn generate_connection_name(domain: &str) -> String {
-//     const CHAR_SET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-//     // choose any 2 chars from `CHAR_SET`, repetion of char allowed,
-//     // this gives 46^2 = 2116 unique values
-//     thread_local! {
-//         static HEAD: RefCell<usize> = RefCell::new(0);
-//         static TAIL: RefCell<usize> = RefCell::new(0);
-//     }
 
-//     let max_len = CHAR_SET.len();
-//     let tail = TAIL.with(|tail| {
-//         let current_tail = tail.borrow().to_owned();
-//         if current_tail + 1 == max_len {
-//             *tail.borrow_mut() = 0;
-//         } else {
-//             *tail.borrow_mut() += 1;
-//         }
-
-//         current_tail
-//     });
-
-//     let head = HEAD.with(|head| {
-//         let current_head = head.borrow().to_owned();
-//         if tail + 1 == max_len {
-//             // move HEAD index one step forward when and only when TAIL index restarts
-//             if current_head + 1 == max_len {
-//                 *head.borrow_mut() = 0;
-//             } else {
-//                 *head.borrow_mut() += 1;
-//             }
-//         }
-//         current_head
-//     });
-//     // construct a name
-//     format!(
-//         "{}{}{:?}@{}",
-//         char::from(CHAR_SET[head]),
-//         char::from(CHAR_SET[tail]),
-//         std::thread::current().id(),
-//         domain
-//     )
-// }
 /////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
