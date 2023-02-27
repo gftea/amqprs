@@ -450,16 +450,16 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 struct DataSequence<'a, 'de: 'a> {
     de: &'a mut Deserializer<'de>,
     len: usize,
-    structure: bool,
+    is_struct: bool,
 }
 
 impl<'a, 'de> DataSequence<'a, 'de> {
     fn new(de: &'a mut Deserializer<'de>, len: usize) -> Self {
-        DataSequence { de, len, structure: false }
+        DataSequence { de, len, is_struct: false }
     }
 
     fn new_struct(de: &'a mut Deserializer<'de>, len: usize) -> Self {
-        DataSequence { de, len, structure: true }
+        DataSequence { de, len, is_struct: true }
     }
 }
 
@@ -473,7 +473,7 @@ impl<'de, 'a> SeqAccess<'de> for DataSequence<'a, 'de> {
         T: DeserializeSeed<'de>,
     {
         if self.len > 0 {
-            if self.structure {
+            if self.is_struct {
                 self.len -= 1;
                 seed.deserialize(&mut *self.de).map(Some)
             } else {
