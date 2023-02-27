@@ -5,12 +5,12 @@
 //! See [RabbitMQ errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html)
 use std::{
     collections::HashMap,
+    convert::TryFrom,
     fmt::{self, Debug},
+    mem::size_of,
     num::TryFromIntError,
 };
-
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
 
 /// DO NOT USE. No primitive rust type to represent single bit.
 ///
@@ -199,10 +199,6 @@ impl FieldArray {
     pub fn new() -> Self {
         Self(0, Vec::with_capacity(0))
     }
-
-    pub fn set_len(&mut self, l: LongUint) {
-        self.0 = l;
-    }
 }
 impl Default for FieldArray {
     fn default() -> Self {
@@ -213,7 +209,8 @@ impl TryFrom<Vec<FieldValue>> for FieldArray {
     type Error = TryFromIntError;
 
     fn try_from(values: Vec<FieldValue>) -> Result<Self, Self::Error> {
-        let len = LongUint::try_from(values.len())?;
+        let total_bytes = values.iter().fold(0, |acc, v| acc + v.len());
+        let len = LongUint::try_from(total_bytes)?;
         Ok(Self(len, values))
     }
 }
@@ -278,6 +275,30 @@ pub enum FieldValue {
     F(FieldTable),
     V,
     x(ByteArray), // RabbitMQ only
+}
+
+impl FieldValue {
+    pub fn len(&self) -> usize {
+        match self {
+            Self::t(_) => size_of::<Boolean>() + 1,
+            Self::b(_) => size_of::<ShortShortInt>() + 1,
+            Self::B(_) => size_of::<ShortShortUint>() + 1,
+            Self::s(_) => size_of::<ShortInt>() + 1,
+            Self::u(_) => size_of::<ShortUint>() + 1,
+            Self::I(_) => size_of::<LongInt>() + 1,
+            Self::i(_) => size_of::<LongUint>() + 1,
+            Self::l(_) => size_of::<LongLongInt>() + 1,
+            Self::f(_) => size_of::<Float>() + 1,
+            Self::d(_) => size_of::<Double>() + 1,
+            Self::D(_) => size_of::<DecimalValue>() + 1,
+            Self::S(l) => l.0 as usize + 5,
+            Self::A(f) => f.0 as usize + 5,
+            Self::T(_) => size_of::<TimeStamp>() + 1,
+            Self::F(f) => f.0.len(),
+            Self::V => 1,
+            Self::x(ba) => ba.0 as usize + 5,
+        }
+    }
 }
 
 impl From<bool> for FieldValue {
@@ -397,6 +418,10 @@ impl FieldTable {
 
     pub fn get(&self, k: &FieldName) -> Option<&FieldValue> {
         self.0.get(k)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.iter().fold(0, |acc, (k, v)| acc + k.0 as usize + 5 + v.len())
     }
 }
 impl fmt::Display for FieldTable {

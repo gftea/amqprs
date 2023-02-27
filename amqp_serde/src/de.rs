@@ -628,7 +628,7 @@ mod tests {
             0x3c, 0x22, 0x4d, 0x6f, 0x63, 0x6b, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x22, 0x3e, 0x3e,
             0x7d,
         ];
-        let mut f_array = FieldArray::try_from(
+        let f_array = FieldArray::try_from(
             vec!(
                 FieldValue::from("{<<\"connection_name\">>,longstr,<<\"0E0E0EB0B020\">>}"),
                 FieldValue::from("{<<\"copyright\">>,longstr,<<\"Galgus\">>}"),
@@ -640,7 +640,6 @@ mod tests {
                 FieldValue::from("{<<\"ecoversion\">>,longstr,<<\"MockService\">>}"),
             )
         ).unwrap();
-        f_array.set_len(380);
         let expected = FieldValue::A(f_array);
         let result: FieldValue = from_bytes(&input).unwrap();
         assert_eq!(expected, result);
