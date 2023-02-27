@@ -199,6 +199,10 @@ impl FieldArray {
     pub fn new() -> Self {
         Self(0, Vec::with_capacity(0))
     }
+
+    pub fn set_len(&mut self, l: LongUint) {
+        self.0 = l;
+    }
 }
 impl Default for FieldArray {
     fn default() -> Self {
