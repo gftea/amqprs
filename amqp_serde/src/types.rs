@@ -7,7 +7,7 @@ use std::{
     collections::HashMap,
     convert::TryFrom,
     fmt::{self, Debug},
-    mem::size_of,
+    mem::{size_of, size_of_val},
     num::TryFromIntError,
 };
 use serde::{Deserialize, Serialize};
@@ -209,7 +209,7 @@ impl TryFrom<Vec<FieldValue>> for FieldArray {
     type Error = TryFromIntError;
 
     fn try_from(values: Vec<FieldValue>) -> Result<Self, Self::Error> {
-        let total_bytes = values.iter().fold(0, |acc, v| acc + v.len());
+        let total_bytes = values.iter().fold(0, |acc, v| acc + FieldValue::TAG_SIZE + v.len());
         let len = LongUint::try_from(total_bytes)?;
         Ok(Self(len, values))
     }
@@ -278,25 +278,38 @@ pub enum FieldValue {
 }
 
 impl FieldValue {
+    const TAG_SIZE: usize = 1;
+
     pub fn len(&self) -> usize {
         match self {
-            Self::t(_) => size_of::<Boolean>() + 1,
-            Self::b(_) => size_of::<ShortShortInt>() + 1,
-            Self::B(_) => size_of::<ShortShortUint>() + 1,
-            Self::s(_) => size_of::<ShortInt>() + 1,
-            Self::u(_) => size_of::<ShortUint>() + 1,
-            Self::I(_) => size_of::<LongInt>() + 1,
-            Self::i(_) => size_of::<LongUint>() + 1,
-            Self::l(_) => size_of::<LongLongInt>() + 1,
-            Self::f(_) => size_of::<Float>() + 1,
-            Self::d(_) => size_of::<Double>() + 1,
-            Self::D(_) => size_of::<DecimalValue>() + 1,
-            Self::S(l) => l.0 as usize + 5,
-            Self::A(f) => f.0 as usize + 5,
-            Self::T(_) => size_of::<TimeStamp>() + 1,
-            Self::F(f) => f.0.len(),
-            Self::V => 1,
-            Self::x(ba) => ba.0 as usize + 5,
+            Self::V => 0, // fixed size
+            Self::t(_) => size_of::<Boolean>(), // fixed size
+            Self::b(_) => size_of::<ShortShortInt>(), // fixed size
+            Self::B(_) => size_of::<ShortShortUint>(), // fixed size
+            Self::s(_) => size_of::<ShortInt>(), // fixed size
+            Self::u(_) => size_of::<ShortUint>(), // fixed size
+            Self::I(_) => size_of::<LongInt>(), // fixed size
+            Self::i(_) => size_of::<LongUint>(), // fixed size
+            Self::l(_) => size_of::<LongLongInt>(), // fixed size
+            Self::f(_) => size_of::<Float>(), // fixed size
+            Self::d(_) => size_of::<Double>(), // fixed size
+            Self::T(_) => size_of::<TimeStamp>(), // fixed size
+            Self::D(v) => size_of_val(&v.0) + size_of_val(&v.1), // fixed size
+            Self::S(v) => size_of_val(&v.0) + v.0 as usize, // variable size
+            Self::A(v) => size_of_val(&v.0) + v.0 as usize, // variable size
+            Self::F(v) => size_of_val(&v.0) + v.0 as usize, // variable size
+            Self::x(v) => size_of_val(&v.0) + v.0 as usize, // variable size
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::V => true,
+            Self::S(v) => v.0 == 0,
+            Self::A(v) => v.0 == 0,
+            Self::F(v) => v.0 == 0,
+            Self::x(v) => v.0 == 0,
+            _ => false,
         }
     }
 }
