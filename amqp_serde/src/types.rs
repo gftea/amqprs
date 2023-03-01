@@ -415,37 +415,63 @@ impl fmt::Display for FieldValue {
 pub type FieldName = ShortStr;
 /// AMQP field table type.
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Default)]
-pub struct FieldTable(HashMap<FieldName, FieldValue>);
+pub struct FieldTable(LongUint, HashMap<FieldName, FieldValue>);
 
 impl FieldTable {
     pub fn new() -> Self {
-        Self(HashMap::new())
+        Self(0, HashMap::new())
     }
     pub fn insert(&mut self, k: FieldName, v: FieldValue) -> Option<FieldValue> {
-        self.0.insert(k, v)
+        match LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()) {
+            Ok(len) => {
+                self.0 += len;
+                self.1.insert(k, v)
+            },
+            Err(e) => {
+                println!("Error: {}", &e);
+                None
+            },
+        }
     }
 
     pub fn remove(&mut self, k: &FieldName) -> Option<FieldValue> {
-        self.0.remove(k)
+        if let Some(v) = self.1.remove(k) {
+            match LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()) {
+                Ok(len) => {
+                    self.0 -= len;
+                    Some(v)
+                },
+                Err(e) => {
+                    println!("Error: {}", &e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
     }
 
     pub fn get(&self, k: &FieldName) -> Option<&FieldValue> {
-        self.0.get(k)
+        self.1.get(k)
     }
 
-    pub fn len(&self) -> usize {
-        self.0.iter().fold(0, |acc, (k, v)| acc + k.0 as usize + 5 + v.len())
+    pub fn leni(&self) -> usize {
+        self.1.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.1.is_empty()
     }
 }
 impl fmt::Display for FieldTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{ ")?;
-        if self.0.len() > 1 {
-            for (k, v) in self.0.iter().take(self.0.len() - 1) {
+        if self.1.len() > 1 {
+            for (k, v) in self.1.iter().take(self.1.len() - 1) {
                 write!(f, "{}: {}, ", k, v)?;
             }
         }
-        if let Some((k, v)) = self.0.iter().last() {
+        if let Some((k, v)) = self.1.iter().last() {
             write!(f, "{}: {} ", k, v)?;
         }
 
@@ -563,10 +589,11 @@ mod tests {
     fn test_field_table() {
         let mut table = FieldTable::new();
         table.insert(
-            "Cash".try_into().unwrap(),
-            FieldValue::D(DecimalValue(3, 123456)),
+            "Cash".try_into().unwrap(), // Size (1 byte) + "Cash" (4 bytes) = 5 bytes
+            FieldValue::D(DecimalValue(3, 123456)), // Type (1 byte) + 1 Octect + LongUint (4 bytes) = 6 bytes
         );
 
+        assert_eq!(11, table.0);
         assert_eq!("{ Cash: Decimal(3, 123456) }", format!("{}", table));
     }
 

@@ -387,8 +387,8 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         // should have a length parsed right before
         // the length is number of bytes of the table, not the field-value pair
-        let len = self.parse_u32()?;
-        visitor.visit_map(DataSequence::new_struct(self, len as usize))
+        let len = self.get_parsed_length()?;
+        visitor.visit_map(DataSequence::new(self, len))
     }
 
     // length can be derived by fields
