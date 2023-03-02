@@ -280,7 +280,7 @@ pub enum FieldValue {
 impl FieldValue {
     const TAG_SIZE: usize = 1;
 
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         match self {
             Self::V => 0, // fixed size
             Self::t(_) => size_of::<Boolean>(), // fixed size
@@ -299,17 +299,6 @@ impl FieldValue {
             Self::A(v) => size_of_val(&v.0) + v.0 as usize, // variable size
             Self::F(v) => size_of_val(&v.0) + v.0 as usize, // variable size
             Self::x(v) => size_of_val(&v.0) + v.0 as usize, // variable size
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        match self {
-            Self::V => true,
-            Self::S(v) => v.0 == 0,
-            Self::A(v) => v.0 == 0,
-            Self::F(v) => v.0 == 0,
-            Self::x(v) => v.0 == 0,
-            _ => false,
         }
     }
 }
@@ -421,31 +410,16 @@ impl FieldTable {
     pub fn new() -> Self {
         Self(0, HashMap::new())
     }
+
     pub fn insert(&mut self, k: FieldName, v: FieldValue) -> Option<FieldValue> {
-        match LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()) {
-            Ok(len) => {
-                self.0 += len;
-                self.1.insert(k, v)
-            },
-            Err(e) => {
-                println!("Error: {}", &e);
-                None
-            },
-        }
+        self.0 += LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()).unwrap();
+        self.1.insert(k, v)
     }
 
     pub fn remove(&mut self, k: &FieldName) -> Option<FieldValue> {
         if let Some(v) = self.1.remove(k) {
-            match LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()) {
-                Ok(len) => {
-                    self.0 -= len;
-                    Some(v)
-                },
-                Err(e) => {
-                    println!("Error: {}", &e);
-                    None
-                }
-            }
+            self.0 -= LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()).unwrap();
+            Some(v)
         } else {
             None
         }
@@ -453,14 +427,6 @@ impl FieldTable {
 
     pub fn get(&self, k: &FieldName) -> Option<&FieldValue> {
         self.1.get(k)
-    }
-
-    pub fn leni(&self) -> usize {
-        self.1.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.1.is_empty()
     }
 }
 impl fmt::Display for FieldTable {
