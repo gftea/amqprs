@@ -9,7 +9,7 @@ pub(crate) struct ChannelIdRepository {
 impl ChannelIdRepository {
     pub fn new(channel_max: ShortUint) -> Self {
         let len = match channel_max {
-            0 => u16::MAX as usize,
+            0 => 1 + (u16::MAX as usize - 1) / 8,
             max => 1 + (max as usize - 1) / 8,
         };
 
