@@ -161,7 +161,7 @@ mod tests {
 
         let mut ids = HashSet::new();
         // allocate to max
-        for _ in 0..channel_max {
+        for _ in 0..u16::MAX {
             let id = id_repo.allocate();
             // id should be unique
             assert_eq!(true, ids.insert(id));
