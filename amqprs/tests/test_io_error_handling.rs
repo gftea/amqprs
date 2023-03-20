@@ -62,7 +62,7 @@ async fn test_net_io_err_handling() {
             }
         }
         // here, old connection should be closed no matter due to network failure or closed by server
-        assert!(connection2.is_open() == false);        
+        assert!(connection2.is_open() == false);
     });
     let handle1 = tokio::spawn(async move {
         // wait on io failure

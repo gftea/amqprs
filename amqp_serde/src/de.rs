@@ -644,7 +644,7 @@ mod tests {
         let result: FieldValue = from_bytes(&input).unwrap();
         assert_eq!(expected, result);
     }
-    
+
     #[test]
     fn test_struct() {
         #[derive(Deserialize, PartialEq, Debug)]
