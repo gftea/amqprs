@@ -5,12 +5,12 @@
 //! See [RabbitMQ errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html)
 use std::{
     collections::HashMap,
+    convert::TryFrom,
     fmt::{self, Debug},
+    mem::{size_of, size_of_val},
     num::TryFromIntError,
 };
-
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
 
 /// DO NOT USE. No primitive rust type to represent single bit.
 ///
@@ -209,7 +209,8 @@ impl TryFrom<Vec<FieldValue>> for FieldArray {
     type Error = TryFromIntError;
 
     fn try_from(values: Vec<FieldValue>) -> Result<Self, Self::Error> {
-        let len = LongUint::try_from(values.len())?;
+        let total_bytes = values.iter().fold(0, |acc, v| acc + FieldValue::TAG_SIZE + v.len());
+        let len = LongUint::try_from(total_bytes)?;
         Ok(Self(len, values))
     }
 }
@@ -274,6 +275,32 @@ pub enum FieldValue {
     F(FieldTable),
     V,
     x(ByteArray), // RabbitMQ only
+}
+
+impl FieldValue {
+    const TAG_SIZE: usize = 1;
+
+    fn len(&self) -> usize {
+        match self {
+            Self::V => 0, // fixed size
+            Self::t(_) => size_of::<Boolean>(), // fixed size
+            Self::b(_) => size_of::<ShortShortInt>(), // fixed size
+            Self::B(_) => size_of::<ShortShortUint>(), // fixed size
+            Self::s(_) => size_of::<ShortInt>(), // fixed size
+            Self::u(_) => size_of::<ShortUint>(), // fixed size
+            Self::I(_) => size_of::<LongInt>(), // fixed size
+            Self::i(_) => size_of::<LongUint>(), // fixed size
+            Self::l(_) => size_of::<LongLongInt>(), // fixed size
+            Self::f(_) => size_of::<Float>(), // fixed size
+            Self::d(_) => size_of::<Double>(), // fixed size
+            Self::T(_) => size_of::<TimeStamp>(), // fixed size
+            Self::D(v) => size_of_val(&v.0) + size_of_val(&v.1), // fixed size
+            Self::S(v) => size_of_val(&v.0) + v.0 as usize, // variable size
+            Self::A(v) => size_of_val(&v.0) + v.0 as usize, // variable size
+            Self::F(v) => size_of_val(&v.0) + v.0 as usize, // variable size
+            Self::x(v) => size_of_val(&v.0) + v.0 as usize, // variable size
+        }
+    }
 }
 
 impl From<bool> for FieldValue {
@@ -377,33 +404,40 @@ impl fmt::Display for FieldValue {
 pub type FieldName = ShortStr;
 /// AMQP field table type.
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Default)]
-pub struct FieldTable(HashMap<FieldName, FieldValue>);
+pub struct FieldTable(LongUint, HashMap<FieldName, FieldValue>);
 
 impl FieldTable {
     pub fn new() -> Self {
-        Self(HashMap::new())
+        Self(0, HashMap::new())
     }
+
     pub fn insert(&mut self, k: FieldName, v: FieldValue) -> Option<FieldValue> {
-        self.0.insert(k, v)
+        self.0 += LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()).unwrap();
+        self.1.insert(k, v)
     }
 
     pub fn remove(&mut self, k: &FieldName) -> Option<FieldValue> {
-        self.0.remove(k)
+        if let Some(v) = self.1.remove(k) {
+            self.0 -= LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()).unwrap();
+            Some(v)
+        } else {
+            None
+        }
     }
 
     pub fn get(&self, k: &FieldName) -> Option<&FieldValue> {
-        self.0.get(k)
+        self.1.get(k)
     }
 }
 impl fmt::Display for FieldTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{ ")?;
-        if self.0.len() > 1 {
-            for (k, v) in self.0.iter().take(self.0.len() - 1) {
+        if self.1.len() > 1 {
+            for (k, v) in self.1.iter().take(self.1.len() - 1) {
                 write!(f, "{}: {}, ", k, v)?;
             }
         }
-        if let Some((k, v)) = self.0.iter().last() {
+        if let Some((k, v)) = self.1.iter().last() {
             write!(f, "{}: {} ", k, v)?;
         }
 
@@ -521,10 +555,11 @@ mod tests {
     fn test_field_table() {
         let mut table = FieldTable::new();
         table.insert(
-            "Cash".try_into().unwrap(),
-            FieldValue::D(DecimalValue(3, 123456)),
+            "Cash".try_into().unwrap(), // Size (1 byte) + "Cash" (4 bytes) = 5 bytes
+            FieldValue::D(DecimalValue(3, 123456)), // Type (1 byte) + 1 Octect + LongUint (4 bytes) = 6 bytes
         );
 
+        assert_eq!(11, table.0);
         assert_eq!("{ Cash: Decimal(3, 123456) }", format!("{}", table));
     }
 

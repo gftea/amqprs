@@ -230,12 +230,13 @@ where
 
     // map is mainly for AMQP field-table, implicitly serailize length as `u32`
     // if to skip serailizing length, one can implement `Serialize` by passing `None` to `len`
-    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
+    fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
         let start = self.output.len();
-
-        // reserve u32 for length of table
-        self.serialize_u32(0)?;
-        Ok(MapSerializer { ser: self, start })
+        if len.is_none() {
+            // reserve u32 for length of table
+            self.serialize_u32(0)?;
+        }
+        Ok(MapSerializer { ser: self, start, is_len_known: len.is_some() })
     }
 }
 
@@ -316,6 +317,7 @@ where
 pub struct MapSerializer<'a, 'b: 'a, W: BufMut> {
     ser: &'a mut Serializer<'b, W>,
     start: usize,
+    is_len_known: bool,
 }
 
 impl<'a, 'b: 'a, W> ser::SerializeMap for MapSerializer<'a, 'b, W>
@@ -342,13 +344,15 @@ where
 
     fn end(self) -> Result<()> {
         // first 4 bytes are reserved for length
-        let len: u32 = (self.ser.output.len() - self.start - 4) as u32;
+        if !self.is_len_known {
+            let len: u32 = (self.ser.output.len() - self.start - 4) as u32;
 
-        let mut start = self.start;
-        for b in len.to_be_bytes() {
-            let p = self.ser.output.get_mut(start).unwrap();
-            *p = b;
-            start += 1;
+            let mut start = self.start;
+            for b in len.to_be_bytes() {
+                let p = self.ser.output.get_mut(start).unwrap();
+                *p = b;
+                start += 1;
+            }
         }
         Ok(())
     }
