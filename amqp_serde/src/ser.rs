@@ -400,7 +400,8 @@ where
 mod test {
     use crate::to_bytes;
     use crate::types::*;
-    use serde::Serialize;
+    use serde::{Serialize, Serializer, ser::SerializeMap};
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_size() {
@@ -531,6 +532,95 @@ mod test {
             b'o', // Some(b'o')
         ];
         let result = to_bytes(&frame).unwrap();
+        assert_eq!(expected, result);
+    }
+
+
+    #[test]
+    fn test_serialize_map_known_length_up_front() {
+        // We use BTreeMap in order to garantee that it iterates in a sorted way
+        struct TestStruct<K, V>(BTreeMap<K, V>);
+
+        impl<K, V> Serialize for TestStruct<K, V>
+        where
+            K: Serialize + AsRef<[u8]>,
+            V: Serialize + AsRef<[u8]>,
+        {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                /*
+                 * In this case the Serialize impl for the map has to manage by itself
+                * the serialization of the map lenght
+                 */
+                let len = self.0
+                    .iter()
+                    .fold(0, |l, (k, v)| { l + (k.as_ref().len() + v.as_ref().len()) as u32 });
+                let mut map = serializer.serialize_map(Some(self.0.len()))?; // Known up-front length
+                map.serialize_value(&len)?;
+                for (k, v) in self.0.iter() {
+                    map.serialize_entry(k, v)?;
+                }
+                map.end()
+            }
+        }
+
+        let mut map = BTreeMap::new();
+        map.insert("key1", "value1");
+        map.insert("key2", "value2");
+        map.insert("key3", "value3");
+        map.insert("key4", "value4");
+        let ts = TestStruct(map);
+
+        let result = to_bytes(&ts).unwrap();
+        let expected = vec![
+            0x00, 0x00, 0x00, 0x28, // len = 4 entries
+            b'k', b'e', b'y', b'1', b'v', b'a', b'l', b'u', b'e', b'1', // first entry
+            b'k', b'e', b'y', b'2', b'v', b'a', b'l', b'u', b'e', b'2', // sencond entry
+            b'k', b'e', b'y', b'3', b'v', b'a', b'l', b'u', b'e', b'3', // thrid entry
+            b'k', b'e', b'y', b'4', b'v', b'a', b'l', b'u', b'e', b'4', // fourth entry
+        ];
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn test_serialize_map_unknown_length_up_front() {
+        // We use BTreeMap in order to garantee that it iterates in a sorted way
+        struct TestStruct<K, V>(BTreeMap<K, V>);
+
+        impl<K, V> Serialize for TestStruct<K, V>
+        where
+            K: Serialize,
+            V: Serialize,
+        {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                let mut map = serializer.serialize_map(None)?; // Unknown up-front length
+                for (k, v) in self.0.iter() {
+                    map.serialize_entry(k, v)?;
+                }
+                map.end()
+            }
+        }
+
+        let mut map = BTreeMap::new();
+        map.insert("key1", "value1");
+        map.insert("key2", "value2");
+        map.insert("key3", "value3");
+        map.insert("key4", "value4");
+        let ts = TestStruct(map);
+
+        let result = to_bytes(&ts).unwrap();
+        let expected = vec![
+            0x00, 0x00, 0x00, 0x28, // len (10 bytes * 4 entries) = 40 bytes
+            b'k', b'e', b'y', b'1', b'v', b'a', b'l', b'u', b'e', b'1', // first entry
+            b'k', b'e', b'y', b'2', b'v', b'a', b'l', b'u', b'e', b'2', // sencond entry
+            b'k', b'e', b'y', b'3', b'v', b'a', b'l', b'u', b'e', b'3', // thrid entry
+            b'k', b'e', b'y', b'4', b'v', b'a', b'l', b'u', b'e', b'4', // fourth entry
+        ];
         assert_eq!(expected, result);
     }
 }
