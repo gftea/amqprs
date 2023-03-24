@@ -357,7 +357,7 @@ async fn publish_test_messages(
 
     // applicaton's headers
     let mut headers = FieldTable::new();
-    headers.insert("date".try_into().unwrap(), "2022-11".into());
+    headers.as_mut().insert("date".try_into().unwrap(), "2022-11".into());
 
     let basic_props = BasicProperties::default()
         .with_content_type("application/json")

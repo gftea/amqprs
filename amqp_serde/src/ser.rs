@@ -232,11 +232,13 @@ where
     // if to skip serailizing length, one can implement `Serialize` by passing `None` to `len`
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
         let start = self.output.len();
-        if len.is_none() {
-            // reserve u32 for length of table
-            self.serialize_u32(0)?;
-        }
-        Ok(MapSerializer { ser: self, start, is_len_known: len.is_some() })
+        // reserve u32 for length of table
+        self.serialize_u32(0)?;
+        Ok(MapSerializer {
+            ser: self,
+            start,
+            is_len_known: len.is_some(),
+        })
     }
 }
 
@@ -344,16 +346,15 @@ where
 
     fn end(self) -> Result<()> {
         // first 4 bytes are reserved for length
-        if !self.is_len_known {
-            let len: u32 = (self.ser.output.len() - self.start - 4) as u32;
+        let len: u32 = (self.ser.output.len() - self.start - 4) as u32;
 
-            let mut start = self.start;
-            for b in len.to_be_bytes() {
-                let p = self.ser.output.get_mut(start).unwrap();
-                *p = b;
-                start += 1;
-            }
+        let mut start = self.start;
+        for b in len.to_be_bytes() {
+            let p = self.ser.output.get_mut(start).unwrap();
+            *p = b;
+            start += 1;
         }
+
         Ok(())
     }
 }
@@ -400,7 +401,7 @@ where
 mod test {
     use crate::to_bytes;
     use crate::types::*;
-    use serde::{Serialize, Serializer, ser::SerializeMap};
+    use serde::{ser::SerializeMap, Serialize, Serializer};
     use std::collections::BTreeMap;
 
     #[test]
@@ -443,10 +444,18 @@ mod test {
     fn test_field_table() {
         fn create_field_table() -> FieldTable {
             let mut table = FieldTable::new();
-            table.insert("A".try_into().unwrap(), FieldValue::t(true));
-            table.insert("B".try_into().unwrap(), FieldValue::u(9));
-            table.insert("C".try_into().unwrap(), FieldValue::f(1.5));
-            table.insert("D".try_into().unwrap(), FieldValue::V);
+            table
+                .as_mut()
+                .insert("A".try_into().unwrap(), FieldValue::t(true));
+            table
+                .as_mut()
+                .insert("B".try_into().unwrap(), FieldValue::u(9));
+            table
+                .as_mut()
+                .insert("C".try_into().unwrap(), FieldValue::f(1.5));
+            table
+                .as_mut()
+                .insert("D".try_into().unwrap(), FieldValue::V);
 
             table
         }
@@ -532,55 +541,6 @@ mod test {
             b'o', // Some(b'o')
         ];
         let result = to_bytes(&frame).unwrap();
-        assert_eq!(expected, result);
-    }
-
-
-    #[test]
-    fn test_serialize_map_known_length_up_front() {
-        // We use BTreeMap in order to garantee that it iterates in a sorted way
-        struct TestStruct<K, V>(BTreeMap<K, V>);
-
-        impl<K, V> Serialize for TestStruct<K, V>
-        where
-            K: Serialize + AsRef<[u8]>,
-            V: Serialize + AsRef<[u8]>,
-        {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: Serializer,
-            {
-                /*
-                 * In this case the Serialize impl for the map has to manage by itself
-                * the serialization of the map lenght
-                 */
-                let len = self.0
-                    .iter()
-                    .fold(0, |l, (k, v)| { l + (k.as_ref().len() + v.as_ref().len()) as u32 });
-                let mut map = serializer.serialize_map(Some(self.0.len()))?; // Known up-front length
-                map.serialize_value(&len)?;
-                for (k, v) in self.0.iter() {
-                    map.serialize_entry(k, v)?;
-                }
-                map.end()
-            }
-        }
-
-        let mut map = BTreeMap::new();
-        map.insert("key1", "value1");
-        map.insert("key2", "value2");
-        map.insert("key3", "value3");
-        map.insert("key4", "value4");
-        let ts = TestStruct(map);
-
-        let result = to_bytes(&ts).unwrap();
-        let expected = vec![
-            0x00, 0x00, 0x00, 0x28, // len = 4 entries
-            b'k', b'e', b'y', b'1', b'v', b'a', b'l', b'u', b'e', b'1', // first entry
-            b'k', b'e', b'y', b'2', b'v', b'a', b'l', b'u', b'e', b'2', // sencond entry
-            b'k', b'e', b'y', b'3', b'v', b'a', b'l', b'u', b'e', b'3', // thrid entry
-            b'k', b'e', b'y', b'4', b'v', b'a', b'l', b'u', b'e', b'4', // fourth entry
-        ];
         assert_eq!(expected, result);
     }
 
