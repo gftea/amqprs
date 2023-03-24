@@ -589,20 +589,20 @@ impl Connection {
         };
         // construct client properties
         let mut client_properties = AmqpPeerProperties::new();
-        client_properties.insert(
+        client_properties.as_mut().insert(
             "connection_name".try_into().unwrap(),
             FieldValue::S(connection_name.clone().try_into().unwrap()),
         );
         // fields required by spec: "product", "platform", "version"
-        client_properties.insert(
+        client_properties.as_mut().insert(
             "product".try_into().unwrap(),
             FieldValue::S("AMQPRS".try_into().unwrap()),
         );
-        client_properties.insert(
+        client_properties.as_mut().insert(
             "platform".try_into().unwrap(),
             FieldValue::S("Rust".try_into().unwrap()),
         );
-        client_properties.insert(
+        client_properties.as_mut().insert(
             "version".try_into().unwrap(),
             FieldValue::S("0.1".try_into().unwrap()),
         );
@@ -748,14 +748,14 @@ impl Connection {
 
         // get server capabilities
         let mut caps_table: FieldTable = start
-            .server_properties
+            .server_properties.as_mut()
             .remove(&"capabilities".try_into().unwrap())
             .unwrap_or_else(|| FieldValue::F(FieldTable::default()))
             .try_into()
             .unwrap();
         // helper closure to get bool FieldValue
         let mut unwrap_bool_field = |key: &str| {
-            let value: bool = caps_table
+            let value: bool = caps_table.as_mut()
                 .remove(&key.try_into().unwrap())
                 .unwrap_or(FieldValue::t(false))
                 .try_into()
@@ -778,7 +778,7 @@ impl Connection {
         // helper closure to get LongStr FieldValue
         let mut unwrap_longstr_field = |key: &str| {
             let value: LongStr = start
-                .server_properties
+                .server_properties.as_mut()
                 .remove(&key.try_into().unwrap())
                 .unwrap_or_else(|| FieldValue::S("unknown".try_into().unwrap()))
                 .try_into()

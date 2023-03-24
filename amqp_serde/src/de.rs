@@ -387,6 +387,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         // should have a length parsed right before
         // the length is number of bytes of the table, not the field-value pair
+        self.parse_u32()?;
         let len = self.get_parsed_length()?;
         visitor.visit_map(DataSequence::new(self, len))
     }
@@ -695,9 +696,9 @@ mod tests {
 
         fn create_field_table() -> FieldTable {
             let mut table = FieldTable::new();
-            table.insert("A".try_into().unwrap(), FieldValue::t(true));
-            table.insert("B".try_into().unwrap(), FieldValue::u(9));
-            table.insert("C".try_into().unwrap(), FieldValue::f(1.5));
+            table.as_mut().insert("A".try_into().unwrap(), FieldValue::t(true));
+            table.as_mut().insert("B".try_into().unwrap(), FieldValue::u(9));
+            table.as_mut().insert("C".try_into().unwrap(), FieldValue::f(1.5));
             table
         }
 

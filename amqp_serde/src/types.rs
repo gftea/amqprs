@@ -3,14 +3,14 @@
 //! See [RabbitMQ's Definition](https://github.com/rabbitmq/rabbitmq-codegen/blob/main/amqp-rabbitmq-0.9.1.json).
 //!
 //! See [RabbitMQ errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html)
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     convert::TryFrom,
     fmt::{self, Debug},
-    mem::{size_of, size_of_val},
+    mem::{size_of, size_of_val, self},
     num::TryFromIntError,
 };
-use serde::{Deserialize, Serialize};
 
 /// DO NOT USE. No primitive rust type to represent single bit.
 ///
@@ -209,7 +209,9 @@ impl TryFrom<Vec<FieldValue>> for FieldArray {
     type Error = TryFromIntError;
 
     fn try_from(values: Vec<FieldValue>) -> Result<Self, Self::Error> {
-        let total_bytes = values.iter().fold(0, |acc, v| acc + FieldValue::TAG_SIZE + v.len());
+        let total_bytes = values
+            .iter()
+            .fold(0, |acc, v| acc + FieldValue::TAG_SIZE + v.len());
         let len = LongUint::try_from(total_bytes)?;
         Ok(Self(len, values))
     }
@@ -282,23 +284,23 @@ impl FieldValue {
 
     fn len(&self) -> usize {
         match self {
-            Self::V => 0, // fixed size
-            Self::t(_) => size_of::<Boolean>(), // fixed size
-            Self::b(_) => size_of::<ShortShortInt>(), // fixed size
-            Self::B(_) => size_of::<ShortShortUint>(), // fixed size
-            Self::s(_) => size_of::<ShortInt>(), // fixed size
-            Self::u(_) => size_of::<ShortUint>(), // fixed size
-            Self::I(_) => size_of::<LongInt>(), // fixed size
-            Self::i(_) => size_of::<LongUint>(), // fixed size
-            Self::l(_) => size_of::<LongLongInt>(), // fixed size
-            Self::f(_) => size_of::<Float>(), // fixed size
-            Self::d(_) => size_of::<Double>(), // fixed size
-            Self::T(_) => size_of::<TimeStamp>(), // fixed size
+            Self::V => 0,                                        // fixed size
+            Self::t(_) => size_of::<Boolean>(),                  // fixed size
+            Self::b(_) => size_of::<ShortShortInt>(),            // fixed size
+            Self::B(_) => size_of::<ShortShortUint>(),           // fixed size
+            Self::s(_) => size_of::<ShortInt>(),                 // fixed size
+            Self::u(_) => size_of::<ShortUint>(),                // fixed size
+            Self::I(_) => size_of::<LongInt>(),                  // fixed size
+            Self::i(_) => size_of::<LongUint>(),                 // fixed size
+            Self::l(_) => size_of::<LongLongInt>(),              // fixed size
+            Self::f(_) => size_of::<Float>(),                    // fixed size
+            Self::d(_) => size_of::<Double>(),                   // fixed size
+            Self::T(_) => size_of::<TimeStamp>(),                // fixed size
             Self::D(v) => size_of_val(&v.0) + size_of_val(&v.1), // fixed size
-            Self::S(v) => size_of_val(&v.0) + v.0 as usize, // variable size
-            Self::A(v) => size_of_val(&v.0) + v.0 as usize, // variable size
-            Self::F(v) => size_of_val(&v.0) + v.0 as usize, // variable size
-            Self::x(v) => size_of_val(&v.0) + v.0 as usize, // variable size
+            Self::S(v) => size_of_val(&v.0) + v.0 as usize,      // variable size
+            Self::A(v) => size_of_val(&v.0) + v.0 as usize,      // variable size
+            Self::F(v) => Self::TAG_SIZE + v.len_in_bytes(),              // variable size
+            Self::x(v) => size_of_val(&v.0) + v.0 as usize,      // variable size
         }
     }
 }
@@ -404,113 +406,62 @@ impl fmt::Display for FieldValue {
 pub type FieldName = ShortStr;
 /// AMQP field table type.
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Default)]
-pub struct FieldTable(LongUint, HashMap<FieldName, FieldValue>);
+pub struct FieldTable(HashMap<FieldName, FieldValue>);
 
+/// number of bytes of serialized map
+#[inline]
+fn bytes_of_map(v: &HashMap<FieldName, FieldValue>) -> usize {
+    v.iter().fold(0, |acc, (k, v)| {
+        // FiledName: length + content
+        // FieldValue: tag (1 byte) + content
+        acc + mem::size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()
+    })
+}
+
+/// Used to create `FieldTable` from `HashMap`.
+/// This is recommended method to create `FieldTable` because it checks the length of serialized map.
+impl TryFrom<HashMap<FieldName, FieldValue>> for FieldTable {
+    type Error = TryFromIntError;
+
+    fn try_from(v: HashMap<FieldName, FieldValue>) -> Result<Self, Self::Error> {        
+        LongUint::try_from(bytes_of_map(&v)).map(|_| Self(v))
+    }
+}
 impl FieldTable {
     pub fn new() -> Self {
-        Self(0, HashMap::new())
+        Self::default()
     }
 
-    pub fn insert(&mut self, k: FieldName, v: FieldValue) -> Option<FieldValue> {
-        self.0 += LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()).unwrap();
-        self.1.insert(k, v)
-    }
-
-    pub fn remove(&mut self, k: &FieldName) -> Option<FieldValue> {
-        if let Some(v) = self.1.remove(k) {
-            self.0 -= LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()).unwrap();
-            Some(v)
-        } else {
-            None
-        }
-    }
-
-    pub fn get(&self, k: &FieldName) -> Option<&FieldValue> {
-        self.1.get(k)
+    /// # Panic
+    /// if the length of serialized map is greater than [`u32::MAX`].  
+    /// 
+    /// This is private method, to avoid checking length in every mutation of `HashMap`,
+    /// the len will be only checked when `FieldTable` is created from `HashMap`, or when
+    /// `FieldTable` is serialized.  
+    fn len_in_bytes(&self) -> usize {
+       let len = bytes_of_map(&self.0);
+       if len > LongUint::MAX as usize {
+           panic!("FieldTable is too long");
+       }
+       len
     }
 }
 impl fmt::Display for FieldTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{ ")?;
-        if self.1.len() > 1 {
-            for (k, v) in self.1.iter().take(self.1.len() - 1) {
-                write!(f, "{}: {}, ", k, v)?;
-            }
-        }
-        if let Some((k, v)) = self.1.iter().last() {
-            write!(f, "{}: {} ", k, v)?;
-        }
-
-        write!(f, "}}")?;
-        Ok(())
+        f.debug_map().entries(self.0.iter().map(|(k, v)| (&k.1, v) )).finish()
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////
-// #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-// pub struct FieldTable(HashMap<FieldName, FieldValue>);
-// impl Default for FieldTable {
-//     fn default() -> Self {
-//         Self(HashMap::new())
-//     }
-// }
-
-// impl Deref for FieldTable {
-//     type Target = HashMap<FieldName, FieldValue>;
-
-//     fn deref(&self) -> &Self::Target {
-//         &self.0
-//     }
-// }
-
-// impl FieldTable {
-//     pub fn new() -> Self {
-//         Self(HashMap::new())
-//     }
-
-//     pub fn insert<V>(&mut self, k: String, v: V)
-//     where
-//         V: Any,
-//     {
-//         let k: FieldName = k.try_into().unwrap();
-//         let v = &v as &dyn Any;
-
-//         if v.is::<bool>() {
-//             let v = v.downcast_ref::<bool>().unwrap();
-//             let old = self.0.insert(k, FieldValue::t(v.clone()));
-//         } else if v.is::<i8>() {
-//             let v = v.downcast_ref::<i8>().unwrap();
-//             let old = self.0.insert(k, FieldValue::b(v.clone()));
-//         } else if v.is::<u8>() {
-//             let v = v.downcast_ref::<u8>().unwrap();
-//             let old = self.0.insert(k, FieldValue::B(v.clone()));
-//         } else if v.is::<i16>() {
-//             let v = v.downcast_ref::<bool>().unwrap();
-//             let old = self.0.insert(k, FieldValue::t(v.clone()));
-//         } else if v.is::<u16>() {
-//         } else if v.is::<i32>() {
-//         } else if v.is::<u32>() {
-//         } else if v.is::<i64>() {
-//         } else if v.is::<f32>() {
-//         } else if v.is::<f64>() {
-//         } else if v.is::<DecimalValue>() {
-//         } else if v.is::<String>() {
-//             // RabbitMQ does not have "short string" type in field value,
-//             let v = v.downcast_ref::<String>().unwrap();
-//             let old = self
-//                 .0
-//                 .insert(k, FieldValue::S(v.clone().try_into().unwrap()));
-//         } else if v.is::<FieldArray>() {
-//         } else if v.is::<u64>() { // RabbitMQ do not have "Unsigned 64-bit" field value, so `u64` can be uniquely mapped to TimeStamp
-//         } else if v.is::<Self>() {
-//         } else if v.is::<()>() {
-//         } else if v.is::<ByteArray>() {
-//         } else {
-//             panic!("unsupported value type {:?} ", v);
-//         }
-
-//     }
-// }
+impl AsRef<HashMap<FieldName, FieldValue>> for FieldTable {
+    fn as_ref(&self) -> &HashMap<FieldName, FieldValue> {
+        &self.0
+    }
+}
+impl AsMut<HashMap<FieldName, FieldValue>> for FieldTable {
+    fn as_mut(&mut self) -> &mut HashMap<FieldName, FieldValue> {
+        &mut self.0
+    }
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // AMQP domains
@@ -554,13 +505,13 @@ mod tests {
     #[test]
     fn test_field_table() {
         let mut table = FieldTable::new();
-        table.insert(
+        table.as_mut().insert(
             "Cash".try_into().unwrap(), // Size (1 byte) + "Cash" (4 bytes) = 5 bytes
             FieldValue::D(DecimalValue(3, 123456)), // Type (1 byte) + 1 Octect + LongUint (4 bytes) = 6 bytes
         );
 
-        assert_eq!(11, table.0);
-        assert_eq!("{ Cash: Decimal(3, 123456) }", format!("{}", table));
+        assert_eq!(11, table.len_in_bytes());
+        assert_eq!("{\"Cash\": D(DecimalValue(3, 123456))}", format!("{}", table));
     }
 
     #[test]
