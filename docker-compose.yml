@@ -3,7 +3,7 @@ version: '3.8'
 services:
   rabbitmq:
     restart: on-failure
-    image: bitnami/rabbitmq:3.9
+    image: bitnami/rabbitmq:3.11
     expose:
       - "15672"
       - "5672"
