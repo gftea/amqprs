@@ -130,16 +130,16 @@ pub(crate) enum DispatcherManagementCommand {
 /// [`Connection::open_channel`]: ../connection/struct.Connection.html#method.open_channel
 /// [`Channel::register_callback`]: struct.Channel.html#method.register_callback
 /// [`Java Client`]: https://www.rabbitmq.com/api-guide.html#concurrency
-// #[derive(Clone)]
+#[derive(Clone)]
 pub struct Channel {
     shared: Arc<SharedChannelInner>,
-    /// A primary channel is the one created by user, when drop, it will request
-    /// to close the channel.
-    /// A cloned channel has primary = `false`.
-    primary: bool,
     /// associated connection
     connection: Connection,
+    /// drop guard to close channel when dropped
+    _guard: Option<Arc<DropGuard>>,
 }
+
+struct DropGuard(Arc<SharedChannelInner>);
 
 pub(crate) struct SharedChannelInner {
     /// open state
@@ -152,6 +152,43 @@ pub(crate) struct SharedChannelInner {
     conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
     /// tx half to send management command to `ChannelDispatcher` task
     dispatcher_mgmt_tx: mpsc::UnboundedSender<DispatcherManagementCommand>,
+}
+
+impl SharedChannelInner {
+    /// Register oneshot responder for single message.
+    ///
+    /// Used for synchronous request/response protocol.
+    async fn register_responder(
+        &self,
+        method_header: &'static MethodHeader,
+    ) -> Result<oneshot::Receiver<IncomingMessage>> {
+        let (responder, responder_rx) = oneshot::channel();
+        let (acker, acker_rx) = oneshot::channel();
+        let cmd = RegisterOneshotResponder {
+            method_header,
+            responder,
+            acker,
+        };
+        self.dispatcher_mgmt_tx
+            .send(DispatcherManagementCommand::RegisterOneshotResponder(cmd))?;
+        acker_rx.await?;
+        Ok(responder_rx)
+    }
+    async fn close_handshake(&self) -> Result<()> {
+        let responder_rx = self.register_responder(CloseChannelOk::header()).await?;
+        synchronous_request!(
+            self.outgoing_tx,
+            (self.channel_id, CloseChannel::default().into_frame()),
+            responder_rx,
+            Frame::CloseChannelOk,
+            Error::ChannelCloseError
+        )?;
+        // deregister channel resource from connection handler,
+        // so that dispatcher will exit automatically.
+        let cmd = ConnManagementCommand::DeregisterChannelResource(self.channel_id);
+        self.conn_mgmt_tx.send(cmd).await?;
+        Ok(())
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -169,16 +206,18 @@ impl Channel {
         conn_mgmt_tx: mpsc::Sender<ConnManagementCommand>,
         dispatcher_mgmt_tx: mpsc::UnboundedSender<DispatcherManagementCommand>,
     ) -> Self {
+        let shared = Arc::new(SharedChannelInner::new(
+            is_open,
+            channel_id,
+            outgoing_tx,
+            conn_mgmt_tx,
+            dispatcher_mgmt_tx,
+        ));
+        let guard = Some(Arc::new(DropGuard(shared.clone())));
         Self {
-            primary: true,
+            _guard: guard,
             connection,
-            shared: Arc::new(SharedChannelInner::new(
-                is_open,
-                channel_id,
-                outgoing_tx,
-                conn_mgmt_tx,
-                dispatcher_mgmt_tx,
-            )),
+            shared,
         }
     }
 
@@ -277,9 +316,9 @@ impl Channel {
     ///
     /// Returns error if any failure in communication with server.
     /// Fail to close the channel may result in `channel leak` in server.
-    pub async fn close(mut self) -> Result<()> {
-        // if connection handler has been closed, no need to close
-        if !self.shared.conn_mgmt_tx.is_closed() {
+    pub async fn close(self) -> Result<()> {
+        // if connection closed, no need to close channel
+        if self.is_connection_open() {
             // check if channel is open
             if let Ok(true) = self.shared.is_open.compare_exchange(
                 true,
@@ -289,27 +328,9 @@ impl Channel {
             ) {
                 #[cfg(feature = "traces")]
                 info!("close channel {}", self);
-                self.close_handshake().await?;
-                // not necessary, but to skip atomic compare at `drop`
-                self.primary = false;
+                self.shared.close_handshake().await?;
             }
         }
-        Ok(())
-    }
-
-    async fn close_handshake(&self) -> Result<()> {
-        let responder_rx = self.register_responder(CloseChannelOk::header()).await?;
-        synchronous_request!(
-            self.shared.outgoing_tx,
-            (self.shared.channel_id, CloseChannel::default().into_frame()),
-            responder_rx,
-            Frame::CloseChannelOk,
-            Error::ChannelCloseError
-        )?;
-        // deregister channel resource from connection handler,
-        // so that dispatcher will exit automatically.
-        let cmd = ConnManagementCommand::DeregisterChannelResource(self.channel_id());
-        self.shared.conn_mgmt_tx.send(cmd).await?;
         Ok(())
     }
 
@@ -317,12 +338,12 @@ impl Channel {
         Self {
             shared: self.shared.clone(),
             connection: self.connection.clone_no_drop_guard(),
-            primary: false,
+            _guard: None,
         }
     }
 }
 
-impl Drop for Channel {
+impl Drop for DropGuard {
     /// When drops, try to gracefully shutdown the channel if it is still open.
     /// It is not guaranteed to succeed in a clean way because the connection
     /// may already be closed.
@@ -331,36 +352,31 @@ impl Drop for Channel {
     ///
     /// [`close`]: struct.Channel.html#method.close
     fn drop(&mut self) {
-        // only primary channel will spawn task to close channel
-        if self.primary {
-            // check if channel is open
-            if let Ok(true) = self.shared.is_open.compare_exchange(
-                true,
-                false,
-                Ordering::Acquire,
-                Ordering::Relaxed,
-            ) {
-                #[cfg(feature = "traces")]
-                trace!("drop channel {}", self);
+        if let Ok(true) =
+            self.0
+                .is_open
+                .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
+        {
+            #[cfg(feature = "traces")]
+            trace!("drop channel {}", self.0.channel_id);
 
-                let channel = self.clone_as_secondary();
-                tokio::spawn(async move {
+            let inner = self.0.clone();
+            tokio::spawn(async move {
+                #[cfg(feature = "traces")]
+                info!("try to close channel {} at drop", inner.channel_id);
+                if let Err(err) = inner.close_handshake().await {
+                    // Compliance: A peer that detects a socket closure without having received a Channel.Close-Ok
+                    // handshake method SHOULD log the error.
                     #[cfg(feature = "traces")]
-                    info!("try to close channel {} at drop", channel);
-                    if let Err(err) = channel.close_handshake().await {
-                        // Compliance: A peer that detects a socket closure without having received a Channel.Close-Ok
-                        // handshake method SHOULD log the error.
-                        #[cfg(feature = "traces")]
-                        error!(
-                            "failed to gracefully close channel {} at drop, cause: '{}'",
-                            channel, err,
-                        );
-                    } else {
-                        #[cfg(feature = "traces")]
-                        info!("channel {} is closed OK after drop", channel);
-                    }
-                });
-            }
+                    error!(
+                        "failed to gracefully close channel {} at drop, cause: '{}'",
+                        inner.channel_id, err,
+                    );
+                } else {
+                    #[cfg(feature = "traces")]
+                    info!("channel {} is closed OK after drop", inner.channel_id);
+                }
+            });
         }
     }
 }
@@ -397,9 +413,16 @@ impl SharedChannelInner {
 
 #[cfg(test)]
 mod tests {
-    use crate::channel::Channel;
+    use tokio::time;
+
+    use crate::{
+        channel::Channel,
+        connection::{Connection, OpenConnectionArguments},
+        test_utils::setup_logging,
+    };
     use std::marker::PhantomData;
 
+    #[ignore = "https://github.com/gftea/amqprs/issues/69"]
     #[tokio::test]
     async fn test_channel_is_not_cloneable() {
         // default: `IS_CLONEABLE = false` for all types
@@ -417,6 +440,27 @@ mod tests {
         }
 
         assert_eq!(false, <Wrapper<Channel>>::IS_CLONEABLE);
+    }
+
+    #[tokio::test]
+    async fn test_channel_clone_and_drop() {
+        // open one channel, clone it, and drop both, check        
+        setup_logging();
+
+        // test close on drop
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
+
+        let conn = Connection::open(&args).await.unwrap();
+        {
+            let ch1 = conn.open_channel(Some(1)).await.unwrap();
+            let ch2 = ch1.clone();
+            let h = tokio::spawn(async move {
+                assert!(ch1.is_open());
+            });
+            h.await.unwrap();
+            assert!(ch2.is_open());            
+        }
+        conn.close().await.unwrap();
     }
 }
 
