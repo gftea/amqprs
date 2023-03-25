@@ -408,6 +408,21 @@ impl fmt::Display for FieldValue {
 /// Calculating the size of `FieldTable` is O(n) where n is the number of fields, so it is recommended to finish all
 /// modifications to the `HashMap` before converting it to `FieldTable`, avoid unnecessary conversion back and forth.
 ///
+/// # Usage
+///
+/// ```
+/// # use amqp_serde::types::{FieldTable, FieldName, FieldValue};
+/// # use std::collections::HashMap;
+///
+/// let mut map = HashMap::new();
+/// map.insert("foo".try_into().unwrap(), FieldValue::t(true));
+/// map.insert("bar".try_into().unwrap(), FieldValue::i(42));
+/// let table = FieldTable::try_from(map).unwrap();
+///
+/// let map: HashMap<FieldName, FieldValue> = table.into();
+/// ```
+///
+///
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct FieldTable(HashMap<FieldName, FieldValue>);
 pub type FieldName = ShortStr;
