@@ -35,6 +35,7 @@
 //! [`close`]: struct.Connection.html#method.close
 
 use std::{
+    collections::HashMap,
     fmt,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -43,7 +44,8 @@ use std::{
 };
 
 use amqp_serde::types::{
-    AmqpChannelId, AmqpPeerProperties, FieldTable, FieldValue, LongStr, LongUint, ShortUint,
+    AmqpChannelId, AmqpPeerProperties, FieldName, FieldTable, FieldValue, LongStr, LongUint,
+    ShortUint,
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
 
@@ -588,25 +590,25 @@ impl Connection {
             )),
         };
         // construct client properties
-        let mut client_properties = AmqpPeerProperties::new();
-        client_properties.as_mut().insert(
+        let mut client_properties = HashMap::new();
+        client_properties.insert(
             "connection_name".try_into().unwrap(),
             FieldValue::S(connection_name.clone().try_into().unwrap()),
         );
         // fields required by spec: "product", "platform", "version"
-        client_properties.as_mut().insert(
+        client_properties.insert(
             "product".try_into().unwrap(),
             FieldValue::S("AMQPRS".try_into().unwrap()),
         );
-        client_properties.as_mut().insert(
+        client_properties.insert(
             "platform".try_into().unwrap(),
             FieldValue::S("Rust".try_into().unwrap()),
         );
-        client_properties.as_mut().insert(
+        client_properties.insert(
             "version".try_into().unwrap(),
             FieldValue::S("0.1".try_into().unwrap()),
         );
-
+        let client_properties: AmqpPeerProperties = client_properties.try_into().unwrap();
         // S: `Start` C: `StartOk`
         let server_properties =
             Self::start_connection_negotiation(&mut io_conn, client_properties, args).await?;
@@ -713,7 +715,7 @@ impl Connection {
     ) -> Result<ServerProperties> {
         // S: 'Start'
         let (_, frame) = io_conn.read_frame().await?;
-        let mut start = unwrap_expected_method!(
+        let start = unwrap_expected_method!(
             frame,
             Frame::Start,
             Error::ConnectionOpenError(format!(
@@ -747,15 +749,16 @@ impl Connection {
         }
 
         // get server capabilities
-        let mut caps_table: FieldTable = start
-            .server_properties.as_mut()
+        let mut server_properties: HashMap<_, _> = start.server_properties.into();
+        let caps_table: FieldTable = server_properties
             .remove(&"capabilities".try_into().unwrap())
             .unwrap_or_else(|| FieldValue::F(FieldTable::default()))
             .try_into()
             .unwrap();
+        let mut caps_table: HashMap<_, _> = caps_table.into();
         // helper closure to get bool FieldValue
         let mut unwrap_bool_field = |key: &str| {
-            let value: bool = caps_table.as_mut()
+            let value: bool = caps_table
                 .remove(&key.try_into().unwrap())
                 .unwrap_or(FieldValue::t(false))
                 .try_into()
@@ -777,8 +780,7 @@ impl Connection {
 
         // helper closure to get LongStr FieldValue
         let mut unwrap_longstr_field = |key: &str| {
-            let value: LongStr = start
-                .server_properties.as_mut()
+            let value: LongStr = server_properties
                 .remove(&key.try_into().unwrap())
                 .unwrap_or_else(|| FieldValue::S("unknown".try_into().unwrap()))
                 .try_into()

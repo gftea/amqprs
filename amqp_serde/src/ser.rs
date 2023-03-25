@@ -37,7 +37,7 @@ where
 
     type Error = Error;
 
-    type SerializeSeq = Self;
+    type SerializeSeq = SeqOrMapSerializer<'a, 'b, W>;
 
     type SerializeTuple = Self;
 
@@ -45,7 +45,7 @@ where
 
     type SerializeTupleVariant = Self;
 
-    type SerializeMap = MapSerializer<'a, 'b, W>;
+    type SerializeMap = SeqOrMapSerializer<'a, 'b, W>;
 
     type SerializeStruct = Self;
 
@@ -185,21 +185,24 @@ where
 
     // ignore length
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        Ok(self)
+        let start = self.output.len();
+        // just reserve u32 for length of table, will be filled in `end`
+        self.serialize_u32(0)?;
+        Ok(SeqOrMapSerializer { ser: self, start })
     }
 
     // same as seq
-    fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple> {
-        self.serialize_seq(Some(len))
+    fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
+        Ok(self)
     }
 
     // same as seq
     fn serialize_tuple_struct(
         self,
         _name: &'static str,
-        len: usize,
+        _len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
-        self.serialize_seq(Some(len))
+        Ok(self)
     }
 
     fn serialize_tuple_variant(
@@ -207,10 +210,11 @@ where
         _name: &'static str,
         _variant_index: u32,
         variant: &'static str,
-        len: usize,
+        _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
+        // serialize enum variant name first
         variant.serialize(&mut *self)?;
-        self.serialize_seq(Some(len))
+        Ok(self)
     }
 
     fn serialize_struct_variant(
@@ -218,31 +222,53 @@ where
         _name: &'static str,
         _variant_index: u32,
         variant: &'static str,
-        len: usize,
+        _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
+        // serialize enum variant name first
         variant.serialize(&mut *self)?;
-        self.serialize_seq(Some(len))
+        Ok(self)
     }
 
-    fn serialize_struct(self, _name: &'static str, len: usize) -> Result<Self::SerializeStruct> {
-        self.serialize_seq(Some(len))
+    fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
+        Ok(self)
     }
 
-    // map is mainly for AMQP field-table, implicitly serailize length as `u32`
-    // if to skip serailizing length, one can implement `Serialize` by passing `None` to `len`
-    fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
+    /// Only `map` type mapped to AMQP field-table
+    /// First, serialize length field of AMQP field-table
+    /// Then, serialize name-value pairs
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
         let start = self.output.len();
-        // reserve u32 for length of table
+        // just reserve u32 for length of table, will be filled in `end`
         self.serialize_u32(0)?;
-        Ok(MapSerializer {
-            ser: self,
-            start,
-            is_len_known: len.is_some(),
-        })
+        Ok(SeqOrMapSerializer { ser: self, start })
     }
 }
 
-impl<'a, 'b: 'a, W> ser::SerializeSeq for &'a mut Serializer<'b, W>
+pub struct SeqOrMapSerializer<'a, 'b: 'a, W: BufMut> {
+    ser: &'a mut Serializer<'b, W>,
+    start: usize,
+}
+
+impl<'a, 'b: 'a, W> SeqOrMapSerializer<'a, 'b, W>
+where
+    W: BufMut + DerefMut<Target = [u8]>,
+{
+    fn fill_length_field(self) {
+        // calculate length of serialized table content
+        // so need to subtract 4 bytes length field from current position
+        let len: u32 = (self.ser.output.len() - self.start - 4) as u32;
+
+        // fill the length field with actual length
+        let mut start = self.start;
+        for b in len.to_be_bytes() {
+            let p = self.ser.output.get_mut(start).unwrap();
+            *p = b;
+            start += 1;
+        }
+    }
+}
+
+impl<'a, 'b: 'a, W> ser::SerializeSeq for SeqOrMapSerializer<'a, 'b, W>
 where
     W: BufMut + DerefMut<Target = [u8]>,
 {
@@ -254,13 +280,43 @@ where
     where
         T: Serialize,
     {
-        value.serialize(&mut **self)
+        value.serialize(&mut *self.ser)
     }
 
     fn end(self) -> Result<Self::Ok> {
+        self.fill_length_field();
         Ok(())
     }
 }
+
+impl<'a, 'b: 'a, W> ser::SerializeMap for SeqOrMapSerializer<'a, 'b, W>
+where
+    W: BufMut + DerefMut<Target = [u8]>,
+{
+    type Ok = ();
+    type Error = Error;
+
+    // The Serde data model allows map keys to be any serializable type.
+    fn serialize_key<T>(&mut self, key: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        key.serialize(&mut *self.ser)
+    }
+
+    fn serialize_value<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        value.serialize(&mut *self.ser)
+    }
+
+    fn end(self) -> Result<()> {
+        self.fill_length_field();
+        Ok(())
+    }
+}
+
 impl<'a, 'b: 'a, W> ser::SerializeTuple for &'a mut Serializer<'b, W>
 where
     W: BufMut + DerefMut<Target = [u8]>,
@@ -316,49 +372,6 @@ where
     }
 }
 
-pub struct MapSerializer<'a, 'b: 'a, W: BufMut> {
-    ser: &'a mut Serializer<'b, W>,
-    start: usize,
-    is_len_known: bool,
-}
-
-impl<'a, 'b: 'a, W> ser::SerializeMap for MapSerializer<'a, 'b, W>
-where
-    W: BufMut + DerefMut<Target = [u8]>,
-{
-    type Ok = ();
-    type Error = Error;
-
-    // The Serde data model allows map keys to be any serializable type.
-    fn serialize_key<T>(&mut self, key: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        key.serialize(&mut *self.ser)
-    }
-
-    fn serialize_value<T>(&mut self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        value.serialize(&mut *self.ser)
-    }
-
-    fn end(self) -> Result<()> {
-        // first 4 bytes are reserved for length
-        let len: u32 = (self.ser.output.len() - self.start - 4) as u32;
-
-        let mut start = self.start;
-        for b in len.to_be_bytes() {
-            let p = self.ser.output.get_mut(start).unwrap();
-            *p = b;
-            start += 1;
-        }
-
-        Ok(())
-    }
-}
-
 impl<'a, 'b: 'a, W> ser::SerializeStruct for &'a mut Serializer<'b, W>
 where
     W: BufMut + DerefMut<Target = [u8]>,
@@ -403,6 +416,7 @@ mod test {
     use crate::types::*;
     use serde::{ser::SerializeMap, Serialize, Serializer};
     use std::collections::BTreeMap;
+    use std::collections::HashMap;
 
     #[test]
     fn test_size() {
@@ -443,21 +457,13 @@ mod test {
     #[test]
     fn test_field_table() {
         fn create_field_table() -> FieldTable {
-            let mut table = FieldTable::new();
-            table
-                .as_mut()
-                .insert("A".try_into().unwrap(), FieldValue::t(true));
-            table
-                .as_mut()
-                .insert("B".try_into().unwrap(), FieldValue::u(9));
-            table
-                .as_mut()
-                .insert("C".try_into().unwrap(), FieldValue::f(1.5));
-            table
-                .as_mut()
-                .insert("D".try_into().unwrap(), FieldValue::V);
+            let mut table = HashMap::new();
+            table.insert("A".try_into().unwrap(), FieldValue::t(true));
+            table.insert("B".try_into().unwrap(), FieldValue::u(9));
+            table.insert("C".try_into().unwrap(), FieldValue::f(1.5));
+            table.insert("D".try_into().unwrap(), FieldValue::V);
 
-            table
+            table.try_into().unwrap()
         }
 
         let test = create_field_table();
@@ -513,7 +519,7 @@ mod test {
             m_u64: u64,
             m_f64: f64,
             m_char: (u8, char), // require length field because `char` is variable lengh type,
-            m_owned_bytes: (u8, Vec<u8>), // require length field because `Vec` is variable lengh type,
+            m_owned_bytes: Vec<u8>,
             m_opt: Option<u8>,
             m_unit: (),
         }
@@ -525,7 +531,7 @@ mod test {
             m_u64: 0x80_00_00_00_00_00_00_00,
             m_f64: 1.5,
             m_char: (3, '€'),
-            m_owned_bytes: (4, b"beef".to_vec()),
+            m_owned_bytes: b"beef".to_vec(),
             m_opt: Some(b'o'),
             m_unit: (),
         };
@@ -537,7 +543,7 @@ mod test {
             0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 9223372036854775808
             0x3F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 1.5
             0x03, 0xE2, 0x82, 0xAC, // (3, '€')
-            0x04, b'b', b'e', b'e', b'f', // (4, b"beef")
+            0x00, 0x00, 0x00, 0x04, b'b', b'e', b'e', b'f', // (4, b"beef")
             b'o', // Some(b'o')
         ];
         let result = to_bytes(&frame).unwrap();
