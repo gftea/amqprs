@@ -395,8 +395,7 @@ impl fmt::Display for FieldValue {
 }
 //////////////////////////////////////////////////////////////////////////////
 
-/// AMQP field-table type that is serializable and deserializable.
-/// `FieldTable` is immutable after creation.
+/// `FieldTable` can be safely serialized to AMQP field-table. It is immutable after creation.
 ///
 /// Use `HashMap<FieldName, FieldValue>` to construct a table, then convert it to `FieldTable` before serialization.
 /// After deserializing a `FieldTable` from bytes, convert it to `HashMap<FieldName, FieldValue>` if you need to modify it.
@@ -474,43 +473,9 @@ impl AsRef<HashMap<FieldName, FieldValue>> for FieldTable {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-/// AMQP byte array type.
-
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Default)]
-pub struct ByteArray(Vec<u8>);
-
-impl ByteArray {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    #[inline]
-    fn len_in_bytes(&self) -> usize {
-        self.0.len()
-    }
-}
-
-impl TryFrom<Vec<u8>> for ByteArray {
-    type Error = TryFromIntError;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        LongUint::try_from(bytes.len()).map(|_| Self(bytes))
-    }
-}
-impl From<ByteArray> for Vec<u8> {
-    fn from(arr: ByteArray) -> Self {
-        arr.0
-    }
-}
-impl fmt::Display for ByteArray {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(&self.0).finish()
-    }
-}
-/////////////////////////////////////////////////////////////////////////////
-/// AMQP field array type.
+/// `FieldArray` can be safely serialized to AMQP field-array type.
 ///
-/// Same design as `FieldTable`.
+/// Same principles as `FieldTable`.
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct FieldArray(Vec<FieldValue>); // RabbitMQ use LongUint as length value
@@ -555,6 +520,40 @@ impl From<FieldArray> for Vec<FieldValue> {
 impl AsRef<Vec<FieldValue>> for FieldArray {
     fn as_ref(&self) -> &Vec<FieldValue> {
         &self.0
+    }
+}
+/////////////////////////////////////////////////////////////////////////////
+/// `ByteArray` can be safely serialized to RabbitMQ byte-array type.
+///
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Default)]
+pub struct ByteArray(Vec<u8>);
+
+impl ByteArray {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[inline]
+    fn len_in_bytes(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl TryFrom<Vec<u8>> for ByteArray {
+    type Error = TryFromIntError;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        LongUint::try_from(bytes.len()).map(|_| Self(bytes))
+    }
+}
+impl From<ByteArray> for Vec<u8> {
+    fn from(arr: ByteArray) -> Self {
+        arr.0
+    }
+}
+impl fmt::Display for ByteArray {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(&self.0).finish()
     }
 }
 
