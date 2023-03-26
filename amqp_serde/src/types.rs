@@ -595,7 +595,6 @@ pub type AmqpTimeStamp = TimeStamp;
 mod tests {
     use std::collections::HashMap;
     use std::mem;
-
     use crate::types::{ByteArray, DecimalValue, FieldArray, FieldValue, LongStr};
 
     use super::{FieldTable, ShortStr, LongUint};
