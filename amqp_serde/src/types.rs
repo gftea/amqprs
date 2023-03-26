@@ -548,7 +548,8 @@ pub type AmqpTimeStamp = TimeStamp;
 /////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
-    use crate::types::{ByteArray, DecimalValue, FieldArray, FieldValue, LongStr};
+    use std::mem::size_of;
+    use crate::types::{ByteArray, DecimalValue, FieldArray, FieldValue, LongStr, LongUint};
 
     use super::{FieldTable, ShortStr};
     #[test]
@@ -627,5 +628,63 @@ mod tests {
         assert_eq!(exp, "X".to_owned().into());
         let t: String = exp.try_into().unwrap();
         assert_eq!("X".to_owned(), t);
+    }
+
+    #[test]
+    fn test_len_for_field_value_of_type_field_array() {
+        let s1: LongStr = "1".try_into().unwrap();
+        let s2: LongStr = "2".try_into().unwrap();
+        let s3: LongStr = "3".try_into().unwrap();
+        let s4: LongStr = "finally".try_into().unwrap();
+        let mut total_length = s1.1.len() + s2.1.len() + s3.1.len() + s4.1.len();
+        let v = vec![
+            FieldValue::S(s1), 
+            FieldValue::S(s2), 
+            FieldValue::S(s3), 
+            FieldValue::S(s4),
+        ];
+
+        v.iter().for_each(|_fv| total_length += FieldValue::TAG_SIZE + size_of::<LongUint>());
+        
+        let a = FieldArray::try_from(v).unwrap();
+
+        total_length += size_of::<LongUint>();
+        
+        let exp = FieldValue::A(a);
+        assert_eq!(exp.len(), total_length);
+    }
+
+    #[test]
+    fn test_len_for_field_value_of_type_field_table() {
+        let mut ft = FieldTable::new();
+        let v_kv: Vec<(ShortStr, LongStr)> = vec![
+            ("key1".try_into().unwrap(), "value1".try_into().unwrap()),
+            ("key2".try_into().unwrap(), "value2".try_into().unwrap()),
+            ("key3".try_into().unwrap(), "value3".try_into().unwrap()),
+            ("key4".try_into().unwrap(), "value4".try_into().unwrap()),
+            ("key5".try_into().unwrap(), "value5".try_into().unwrap()),
+            ("key6".try_into().unwrap(), "value6".try_into().unwrap()),
+            ("key7".try_into().unwrap(), "value7".try_into().unwrap()),
+        ];
+        let mut total_length = 0;
+        v_kv.into_iter().for_each(|(k, v)| {
+            total_length += k.1.len() + v.1.len() + 2 * FieldValue::TAG_SIZE + size_of::<LongUint>();
+            ft.insert(k, FieldValue::S(v));
+        });
+
+        total_length += size_of::<LongUint>();
+        
+        let exp = FieldValue::F(ft);
+        assert_eq!(exp.len(), total_length);
+    }
+    
+    #[test]
+    fn test_len_for_field_value_of_type_bytearray() {
+        let v = b"This is un example".to_vec();
+        let length = v.len() + size_of::<LongUint>();
+        let ba: ByteArray = v.try_into().unwrap();
+        let exp = FieldValue::x(ba);
+        
+        assert_eq!(exp.len(), length);
     }
 }
