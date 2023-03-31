@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use amqp_serde::types::FieldTable;
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
@@ -356,12 +358,12 @@ async fn publish_test_messages(
     let args = BasicPublishArguments::new(exchange_name, routing_key);
 
     // applicaton's headers
-    let mut headers = FieldTable::new();
+    let mut headers = HashMap::new();
     headers.insert("date".try_into().unwrap(), "2022-11".into());
 
     let basic_props = BasicProperties::default()
         .with_content_type("application/json")
-        .with_headers(headers)
+        .with_headers(headers.try_into().unwrap())
         .with_delivery_mode(DELIVERY_MODE_TRANSIENT)
         .with_user_id("user")
         .with_app_id("consumer_test")

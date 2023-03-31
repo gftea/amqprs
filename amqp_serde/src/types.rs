@@ -3,14 +3,14 @@
 //! See [RabbitMQ's Definition](https://github.com/rabbitmq/rabbitmq-codegen/blob/main/amqp-rabbitmq-0.9.1.json).
 //!
 //! See [RabbitMQ errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html)
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     convert::TryFrom,
     fmt::{self, Debug},
-    mem::{size_of, size_of_val},
+    mem,
     num::TryFromIntError,
 };
-use serde::{Deserialize, Serialize};
 
 /// DO NOT USE. No primitive rust type to represent single bit.
 ///
@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 pub type Bit = u8;
 
 pub type Octect = u8;
-pub type Boolean = bool; // 0 = FALSE, else TRUE
+pub type Boolean = bool; // 0 = FALSE, else TRUE. `bool` size is 1 byte in Rust
 pub type ShortShortUint = u8;
 pub type ShortShortInt = i8;
 pub type ShortUint = u16;
@@ -47,13 +47,26 @@ pub type Double = f64;
 /// // create a ShortStr from String
 /// let s: ShortStr = String::from("hello").try_into().unwrap();
 ///
+/// // convert ShortStr to String
+/// let s: String = s.into();
 /// ```
-#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone)]
 pub struct ShortStr(u8, String);
 
+impl ShortStr {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[inline]
+    fn len_in_bytes(&self) -> usize {
+        // size of length field + size of content
+        mem::size_of_val(&self.0) + self.1.len()
+    }
+}
 impl fmt::Display for ShortStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_ref())
+        write!(f, "{}", self.1)
     }
 }
 impl Default for ShortStr {
@@ -100,15 +113,30 @@ impl TryFrom<&str> for ShortStr {
 /// # use amqp_serde::types::LongStr;
 /// // create a LongStr from `&str`
 /// let s: LongStr = "hello".try_into().unwrap();
+///
 /// // create a LongStr from `String`
 /// let s: LongStr = String::from("hello").try_into().unwrap();
+///
+/// // convert LongStr to String
+/// let s: String = s.into();
 /// ```
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct LongStr(u32, String);
 
+impl LongStr {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[inline]
+    fn len_in_bytes(&self) -> usize {
+        // size of length field + size of content
+        mem::size_of_val(&self.0) + self.1.len()
+    }
+}
 impl fmt::Display for LongStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_ref())
+        write!(f, "{}", self.1)
     }
 }
 impl Default for LongStr {
@@ -150,91 +178,56 @@ impl From<LongStr> for String {
 ///
 /// RabbitMQ treat the decimal value as signed integer.
 /// See notes "Decimals encoding" in [amqp-0-9-1-errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html).
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+///
+/// # Usage
+///
+/// ```
+/// # use amqp_serde::types::{DecimalValue, Octect, LongInt};
+///
+/// let decimal = DecimalValue::new(0, 12345);
+/// assert_eq!("12345", decimal.to_string());
+///
+/// let decimal = DecimalValue::new(2, 12345);
+/// assert_eq!("123.45", decimal.to_string());
+///
+/// let decimal = DecimalValue::new(5, 12345);
+/// assert_eq!("0.12345", decimal.to_string());
+///
+/// let decimal = DecimalValue::new(8, 12345);
+/// assert_eq!("0.00012345", decimal.to_string());
+/// ```
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct DecimalValue(Octect, LongInt);
 
 impl DecimalValue {
     pub fn new(scale: Octect, value: LongInt) -> Self {
         Self(scale, value)
     }
+
+    #[inline]
+    fn len_in_bytes(&self) -> usize {
+        mem::size_of_val(&self.0) + mem::size_of_val(&self.1)
+    }
 }
 
 impl fmt::Display for DecimalValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Decimal({}, {})", self.0, self.1)
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////
-/// AMQP byte array type.
-
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
-pub struct ByteArray(LongUint, Vec<u8>);
-impl TryFrom<Vec<u8>> for ByteArray {
-    type Error = TryFromIntError;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        let len = LongUint::try_from(bytes.len())?;
-        Ok(Self(len, bytes))
-    }
-}
-impl From<ByteArray> for Vec<u8> {
-    fn from(arr: ByteArray) -> Self {
-        arr.1
-    }
-}
-impl fmt::Display for ByteArray {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.1)
-    }
-}
-/////////////////////////////////////////////////////////////////////////////
-
-/// AMQP field array type.
-
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct FieldArray(LongUint, Vec<FieldValue>); // RabbitMQ use LongUint as length value
-
-impl FieldArray {
-    pub fn new() -> Self {
-        Self(0, Vec::with_capacity(0))
-    }
-}
-impl Default for FieldArray {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-impl TryFrom<Vec<FieldValue>> for FieldArray {
-    type Error = TryFromIntError;
-
-    fn try_from(values: Vec<FieldValue>) -> Result<Self, Self::Error> {
-        let total_bytes = values.iter().fold(0, |acc, v| acc + FieldValue::TAG_SIZE + v.len());
-        let len = LongUint::try_from(total_bytes)?;
-        Ok(Self(len, values))
-    }
-}
-impl From<FieldArray> for Vec<FieldValue> {
-    fn from(arr: FieldArray) -> Self {
-        arr.1
-    }
-}
-
-impl fmt::Display for FieldArray {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[ ")?;
-        let len = self.1.len();
-        for v in self.1.iter().take(len - 1) {
-            write!(f, "{}, ", v)?;
+        let scale = self.0 as usize;
+        if scale == 0 {
+            return write!(f, "{}", self.1);
         }
-        if let Some(v) = self.1.last() {
-            write!(f, "{} ", v)?;
-        }
+        let sign = if self.1 < 0 { "-" } else { "" };
+        let value = self.1.abs().to_string();
 
-        write!(f, "]")?;
-        Ok(())
+        if scale < value.len() {
+            let (int, frac) = value.split_at(value.len() - scale);
+            write!(f, "{}{}.{}", sign, int, frac)
+        } else {
+            write!(f, "{}0.{:0>width$}", sign, value, width = scale)
+        }
     }
 }
+
 //////////////////////////////////////////////////////////////////////////////
 /// AMQP field value type.
 ///
@@ -278,27 +271,28 @@ pub enum FieldValue {
 }
 
 impl FieldValue {
-    const TAG_SIZE: usize = 1;
+    // Every field-value serialized with a type tag of one byte size
+    const TYPE_TAG_SIZE: usize = 1;
 
-    fn len(&self) -> usize {
+    fn len_in_bytes(&self) -> usize {
         match self {
-            Self::V => 0, // fixed size
-            Self::t(_) => size_of::<Boolean>(), // fixed size
-            Self::b(_) => size_of::<ShortShortInt>(), // fixed size
-            Self::B(_) => size_of::<ShortShortUint>(), // fixed size
-            Self::s(_) => size_of::<ShortInt>(), // fixed size
-            Self::u(_) => size_of::<ShortUint>(), // fixed size
-            Self::I(_) => size_of::<LongInt>(), // fixed size
-            Self::i(_) => size_of::<LongUint>(), // fixed size
-            Self::l(_) => size_of::<LongLongInt>(), // fixed size
-            Self::f(_) => size_of::<Float>(), // fixed size
-            Self::d(_) => size_of::<Double>(), // fixed size
-            Self::T(_) => size_of::<TimeStamp>(), // fixed size
-            Self::D(v) => size_of_val(&v.0) + size_of_val(&v.1), // fixed size
-            Self::S(v) => size_of_val(&v.0) + v.0 as usize, // variable size
-            Self::A(v) => size_of_val(&v.0) + v.0 as usize, // variable size
-            Self::F(v) => size_of_val(&v.0) + v.0 as usize, // variable size
-            Self::x(v) => size_of_val(&v.0) + v.0 as usize, // variable size
+            Self::V => 0,                                                         // fixed size
+            Self::t(_) => Self::TYPE_TAG_SIZE + mem::size_of::<Boolean>(),        // fixed size
+            Self::b(_) => Self::TYPE_TAG_SIZE + mem::size_of::<ShortShortInt>(),  // fixed size
+            Self::B(_) => Self::TYPE_TAG_SIZE + mem::size_of::<ShortShortUint>(), // fixed size
+            Self::s(_) => Self::TYPE_TAG_SIZE + mem::size_of::<ShortInt>(),       // fixed size
+            Self::u(_) => Self::TYPE_TAG_SIZE + mem::size_of::<ShortUint>(),      // fixed size
+            Self::I(_) => Self::TYPE_TAG_SIZE + mem::size_of::<LongInt>(),        // fixed size
+            Self::i(_) => Self::TYPE_TAG_SIZE + mem::size_of::<LongUint>(),       // fixed size
+            Self::l(_) => Self::TYPE_TAG_SIZE + mem::size_of::<LongLongInt>(),    // fixed size
+            Self::f(_) => Self::TYPE_TAG_SIZE + mem::size_of::<Float>(),          // fixed size
+            Self::d(_) => Self::TYPE_TAG_SIZE + mem::size_of::<Double>(),         // fixed size
+            Self::T(_) => Self::TYPE_TAG_SIZE + mem::size_of::<TimeStamp>(),      // fixed size
+            Self::D(v) => Self::TYPE_TAG_SIZE + v.len_in_bytes(),                 // fixed size
+            Self::S(v) => Self::TYPE_TAG_SIZE + v.len_in_bytes(),                 // variable size
+            Self::A(v) => Self::TYPE_TAG_SIZE + v.len_in_bytes(),                 // variable size
+            Self::F(v) => Self::TYPE_TAG_SIZE + v.len_in_bytes(),                 // variable size
+            Self::x(v) => Self::TYPE_TAG_SIZE + v.len_in_bytes(),                 // variable size
         }
     }
 }
@@ -314,7 +308,7 @@ impl TryInto<bool> for FieldValue {
     fn try_into(self) -> Result<bool, Self::Error> {
         match self {
             FieldValue::t(v) => Ok(v),
-            _ => Err(crate::Error::Message("not a bool".to_string())),
+            _ => Err(crate::Error::Message("not a boolean".to_string())),
         }
     }
 }
@@ -394,123 +388,174 @@ impl fmt::Display for FieldValue {
             FieldValue::A(v) => write!(f, "{}", v),
             FieldValue::T(v) => write!(f, "{}", v),
             FieldValue::F(v) => write!(f, "{}", v),
-            FieldValue::V => write!(f, "()"),
+            FieldValue::V => write!(f, ""),
             FieldValue::x(v) => write!(f, "{}", v),
         }
     }
 }
 //////////////////////////////////////////////////////////////////////////////
 
-pub type FieldName = ShortStr;
-/// AMQP field table type.
+/// `FieldTable` can be safely serialized to AMQP field-table. It is immutable after creation.
+///
+/// Use `HashMap<FieldName, FieldValue>` to construct a table, then convert it to `FieldTable` before serialization.
+/// After deserializing a `FieldTable` from bytes, convert it to `HashMap<FieldName, FieldValue>` if you need to modify it.
+///
+/// Every time converting a `HashMap<FieldName, FieldValue>` to `FieldTable`, it will calculate the size of the table, and
+/// return an error if the size is over AMQP's limit. So, the `FiledTable` is guaranteed to be serialized without overflow.
+/// This simplifies the serialization process.
+///
+/// Calculating the size of `FieldTable` is O(n) where n is the number of fields, so it is recommended to finish all
+/// modifications to the `HashMap` before converting it to `FieldTable`, avoid unnecessary conversion back and forth.
+///
+/// # Usage
+///
+/// ```
+/// # use amqp_serde::types::{FieldTable, FieldName, FieldValue};
+/// # use std::collections::HashMap;
+///
+/// let mut map = HashMap::new();
+/// map.insert("foo".try_into().unwrap(), FieldValue::t(true));
+/// map.insert("bar".try_into().unwrap(), FieldValue::i(42));
+/// let table = FieldTable::try_from(map).unwrap();
+///
+/// let map: HashMap<FieldName, FieldValue> = table.into();
+/// ```
+///
+///
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Default)]
-pub struct FieldTable(LongUint, HashMap<FieldName, FieldValue>);
+pub struct FieldTable(HashMap<FieldName, FieldValue>);
+pub type FieldName = ShortStr;
 
 impl FieldTable {
     pub fn new() -> Self {
-        Self(0, HashMap::new())
+        Self::default()
     }
 
-    pub fn insert(&mut self, k: FieldName, v: FieldValue) -> Option<FieldValue> {
-        self.0 += LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()).unwrap();
-        self.1.insert(k, v)
+    /// calculate number of bytes required to serialize field table.
+    #[inline]
+    fn calculate_bytes(v: &HashMap<FieldName, FieldValue>) -> usize {
+        v.iter()
+            .fold(0, |acc, (k, v)| acc + k.len_in_bytes() + v.len_in_bytes())
     }
 
-    pub fn remove(&mut self, k: &FieldName) -> Option<FieldValue> {
-        if let Some(v) = self.1.remove(k) {
-            self.0 -= LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()).unwrap();
-            Some(v)
-        } else {
-            None
-        }
-    }
-
-    pub fn get(&self, k: &FieldName) -> Option<&FieldValue> {
-        self.1.get(k)
+    #[inline]
+    fn len_in_bytes(&self) -> usize {
+        mem::size_of::<LongUint>() + Self::calculate_bytes(&self.0)
     }
 }
 impl fmt::Display for FieldTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{ ")?;
-        if self.1.len() > 1 {
-            for (k, v) in self.1.iter().take(self.1.len() - 1) {
-                write!(f, "{}: {}, ", k, v)?;
-            }
-        }
-        if let Some((k, v)) = self.1.iter().last() {
-            write!(f, "{}: {} ", k, v)?;
-        }
+        f.debug_map()
+            .entries(self.0.iter().map(|(k, v)| (k.to_string(), v.to_string())))
+            .finish()
+    }
+}
 
-        write!(f, "}}")?;
-        Ok(())
+impl TryFrom<HashMap<FieldName, FieldValue>> for FieldTable {
+    type Error = TryFromIntError;
+
+    fn try_from(v: HashMap<FieldName, FieldValue>) -> Result<Self, Self::Error> {
+        LongUint::try_from(Self::calculate_bytes(&v)).map(|_| Self(v))
+    }
+}
+
+/// Convert to `HashMap` from `FieldTable`.
+impl From<FieldTable> for HashMap<FieldName, FieldValue> {
+    fn from(v: FieldTable) -> Self {
+        v.0
+    }
+}
+
+impl AsRef<HashMap<FieldName, FieldValue>> for FieldTable {
+    fn as_ref(&self) -> &HashMap<FieldName, FieldValue> {
+        &self.0
     }
 }
 
 /////////////////////////////////////////////////////////////////////////////
-// #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-// pub struct FieldTable(HashMap<FieldName, FieldValue>);
-// impl Default for FieldTable {
-//     fn default() -> Self {
-//         Self(HashMap::new())
-//     }
-// }
+/// `FieldArray` can be safely serialized to AMQP field-array type.
+///
+/// Same principles as `FieldTable`.
 
-// impl Deref for FieldTable {
-//     type Target = HashMap<FieldName, FieldValue>;
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Default)]
+pub struct FieldArray(Vec<FieldValue>); // RabbitMQ use LongUint as length value
 
-//     fn deref(&self) -> &Self::Target {
-//         &self.0
-//     }
-// }
+impl FieldArray {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    #[inline]
+    fn calculate_bytes(arr: &[FieldValue]) -> usize {
+        arr.iter().fold(0, |acc, v| acc + v.len_in_bytes())
+    }
 
-// impl FieldTable {
-//     pub fn new() -> Self {
-//         Self(HashMap::new())
-//     }
+    #[inline]
+    fn len_in_bytes(&self) -> usize {
+        mem::size_of::<LongUint>() + Self::calculate_bytes(&self.0)
+    }
+}
 
-//     pub fn insert<V>(&mut self, k: String, v: V)
-//     where
-//         V: Any,
-//     {
-//         let k: FieldName = k.try_into().unwrap();
-//         let v = &v as &dyn Any;
+impl fmt::Display for FieldArray {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list()
+            .entries(self.0.iter().map(|v| v.to_string()))
+            .finish()
+    }
+}
 
-//         if v.is::<bool>() {
-//             let v = v.downcast_ref::<bool>().unwrap();
-//             let old = self.0.insert(k, FieldValue::t(v.clone()));
-//         } else if v.is::<i8>() {
-//             let v = v.downcast_ref::<i8>().unwrap();
-//             let old = self.0.insert(k, FieldValue::b(v.clone()));
-//         } else if v.is::<u8>() {
-//             let v = v.downcast_ref::<u8>().unwrap();
-//             let old = self.0.insert(k, FieldValue::B(v.clone()));
-//         } else if v.is::<i16>() {
-//             let v = v.downcast_ref::<bool>().unwrap();
-//             let old = self.0.insert(k, FieldValue::t(v.clone()));
-//         } else if v.is::<u16>() {
-//         } else if v.is::<i32>() {
-//         } else if v.is::<u32>() {
-//         } else if v.is::<i64>() {
-//         } else if v.is::<f32>() {
-//         } else if v.is::<f64>() {
-//         } else if v.is::<DecimalValue>() {
-//         } else if v.is::<String>() {
-//             // RabbitMQ does not have "short string" type in field value,
-//             let v = v.downcast_ref::<String>().unwrap();
-//             let old = self
-//                 .0
-//                 .insert(k, FieldValue::S(v.clone().try_into().unwrap()));
-//         } else if v.is::<FieldArray>() {
-//         } else if v.is::<u64>() { // RabbitMQ do not have "Unsigned 64-bit" field value, so `u64` can be uniquely mapped to TimeStamp
-//         } else if v.is::<Self>() {
-//         } else if v.is::<()>() {
-//         } else if v.is::<ByteArray>() {
-//         } else {
-//             panic!("unsupported value type {:?} ", v);
-//         }
+impl TryFrom<Vec<FieldValue>> for FieldArray {
+    type Error = TryFromIntError;
 
-//     }
-// }
+    fn try_from(v: Vec<FieldValue>) -> Result<Self, Self::Error> {
+        LongUint::try_from(Self::calculate_bytes(&v)).map(|_| Self(v))
+    }
+}
+
+impl From<FieldArray> for Vec<FieldValue> {
+    fn from(arr: FieldArray) -> Self {
+        arr.0
+    }
+}
+
+impl AsRef<Vec<FieldValue>> for FieldArray {
+    fn as_ref(&self) -> &Vec<FieldValue> {
+        &self.0
+    }
+}
+/////////////////////////////////////////////////////////////////////////////
+/// `ByteArray` can be safely serialized to RabbitMQ byte-array type.
+///
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Default)]
+pub struct ByteArray(Vec<u8>);
+
+impl ByteArray {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[inline]
+    fn len_in_bytes(&self) -> usize {
+        mem::size_of::<LongUint>() + self.0.len()
+    }
+}
+
+impl TryFrom<Vec<u8>> for ByteArray {
+    type Error = TryFromIntError;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        LongUint::try_from(bytes.len()).map(|_| Self(bytes))
+    }
+}
+impl From<ByteArray> for Vec<u8> {
+    fn from(arr: ByteArray) -> Self {
+        arr.0
+    }
+}
+impl fmt::Display for ByteArray {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(&self.0).finish()
+    }
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // AMQP domains
@@ -548,27 +593,28 @@ pub type AmqpTimeStamp = TimeStamp;
 /////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::mem;
     use crate::types::{ByteArray, DecimalValue, FieldArray, FieldValue, LongStr};
 
-    use super::{FieldTable, ShortStr};
+    use super::{FieldTable, ShortStr, LongUint};
     #[test]
     fn test_field_table() {
-        let mut table = FieldTable::new();
+        let mut table = HashMap::new();
         table.insert(
             "Cash".try_into().unwrap(), // Size (1 byte) + "Cash" (4 bytes) = 5 bytes
-            FieldValue::D(DecimalValue(3, 123456)), // Type (1 byte) + 1 Octect + LongUint (4 bytes) = 6 bytes
+            FieldValue::D(DecimalValue(3, -123456)), // Type (1 byte) + 1 Octect + LongUint (4 bytes) = 6 bytes
         );
-
-        assert_eq!(11, table.0);
-        assert_eq!("{ Cash: Decimal(3, 123456) }", format!("{}", table));
+        let table: FieldTable = table.try_into().unwrap();
+        assert_eq!(15, table.len_in_bytes()); // 4 bytes to store the length and 11 bytes of content
+        assert_eq!("{\"Cash\": \"-123.456\"}", format!("{}", table));
     }
 
     #[test]
     fn test_field_array() {
         let exp = vec![FieldValue::t(true), FieldValue::D(DecimalValue(3, 123456))];
         let field_arr: FieldArray = exp.clone().try_into().unwrap();
-        assert_eq!("[ true, Decimal(3, 123456) ]", format!("{}", field_arr));
-
+        assert_eq!("[\"true\", \"123.456\"]", format!("{}", field_arr));
         let arr: Vec<FieldValue> = field_arr.into();
         assert_eq!(exp, arr);
     }
@@ -577,7 +623,7 @@ mod tests {
     fn test_bytes_array() {
         let exp: Vec<u8> = vec![1, 2, 3];
         let bytes_arr: ByteArray = exp.clone().try_into().unwrap();
-        assert_eq!(3, bytes_arr.0);
+        assert_eq!(7, bytes_arr.len_in_bytes()); // 4 bytes to store the length + 3 bytes of content
 
         let arr: Vec<u8> = bytes_arr.into();
         assert_eq!(exp, arr);
@@ -627,5 +673,63 @@ mod tests {
         assert_eq!(exp, "X".to_owned().into());
         let t: String = exp.try_into().unwrap();
         assert_eq!("X".to_owned(), t);
+    }
+
+    #[test]
+    fn test_len_for_field_value_of_type_field_array() {
+        let s1: LongStr = "1".try_into().unwrap();
+        let s2: LongStr = "2".try_into().unwrap();
+        let s3: LongStr = "3".try_into().unwrap();
+        let s4: LongStr = "finally".try_into().unwrap();
+        let mut total_length = s1.1.len() + s2.1.len() + s3.1.len() + s4.1.len();
+        let v = vec![
+            FieldValue::S(s1), 
+            FieldValue::S(s2), 
+            FieldValue::S(s3), 
+            FieldValue::S(s4),
+        ];
+
+        v.iter().for_each(|_fv| total_length += FieldValue::TYPE_TAG_SIZE + mem::size_of::<LongUint>());
+        
+        let a = FieldArray::try_from(v).unwrap();
+
+        total_length += FieldValue::TYPE_TAG_SIZE + mem::size_of::<LongUint>();
+        
+        let exp = FieldValue::A(a);
+        assert_eq!(exp.len_in_bytes(), total_length);
+    }
+
+    #[test]
+    fn test_len_for_field_value_of_type_field_table() {
+        let mut ft = FieldTable::new();
+        let v_kv: Vec<(ShortStr, LongStr)> = vec![
+            ("key1".try_into().unwrap(), "value1".try_into().unwrap()),
+            ("key2".try_into().unwrap(), "value2".try_into().unwrap()),
+            ("key3".try_into().unwrap(), "value3".try_into().unwrap()),
+            ("key4".try_into().unwrap(), "value4".try_into().unwrap()),
+            ("key5".try_into().unwrap(), "value5".try_into().unwrap()),
+            ("key6".try_into().unwrap(), "value6".try_into().unwrap()),
+            ("key7".try_into().unwrap(), "value7".try_into().unwrap()),
+        ];
+        let mut total_length = 0;
+        v_kv.into_iter().for_each(|(k, v)| {
+            total_length += k.1.len() + v.1.len() + 2 * FieldValue::TYPE_TAG_SIZE + mem::size_of::<LongUint>();
+            ft.0.insert(k, FieldValue::S(v));
+        });
+
+        total_length += FieldValue::TYPE_TAG_SIZE + mem::size_of::<LongUint>();
+        
+        let exp = FieldValue::F(ft);
+        assert_eq!(exp.len_in_bytes(), total_length);
+    }
+    
+    #[test]
+    fn test_len_for_field_value_of_type_bytearray() {
+        let v = b"This is un example".to_vec();
+        let length = v.len() + FieldValue::TYPE_TAG_SIZE + mem::size_of::<LongUint>();
+        let ba: ByteArray = v.try_into().unwrap();
+        let exp = FieldValue::x(ba);
+        
+        assert_eq!(exp.len_in_bytes(), length);
     }
 }
