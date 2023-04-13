@@ -72,8 +72,8 @@ impl BasicQosArguments {
 /// # use amqprs::channel::BasicConsumeArguments;
 ///
 /// let x = BasicConsumeArguments::new("q", "c")
-///     .no_ack(true)
-///     .exclusive(true)
+///     .manual_ack(true)
+///     .exclusive(false)
 ///     .finish();
 /// ```
 ///
@@ -82,15 +82,15 @@ impl BasicQosArguments {
 /// [`basic_consume`]: struct.Channel.html#method.basic_consume
 #[derive(Debug, Clone, Default)]
 pub struct BasicConsumeArguments {
-    /// Queue Name. Default: "".
+    /// Target queue name. Must be provided.
     pub queue: String,
-    /// Default: "".
+    /// Consumer identifier. Default: "" (server-generated).
     pub consumer_tag: String,
-    /// Default: `false`.
+    /// Ignored by modern RabbitMQ releases. Default: `false`.
     pub no_local: bool,
-    /// Default: `false`.
+    /// Should automatic acknowedgements be used? Default: `false`.
     pub no_ack: bool,
-    /// Default: `false`.
+    /// Should this consumer be exclusive (the only one allowed on the target queue)? Default: `false`.
     pub exclusive: bool,
     /// Default: `false`.
     pub no_wait: bool,
@@ -125,6 +125,14 @@ impl BasicConsumeArguments {
     impl_chainable_setter! {
         /// Chainable setter method.
         no_local, bool
+    }
+    impl_chainable_alias_setter! {
+        /// Chainable setter method.
+        auto_ack, no_ack, bool
+    }
+    pub fn manual_ack(&mut self, value: bool) -> &mut Self {
+        self.no_ack = !value;
+        self
     }
     impl_chainable_setter! {
         /// Chainable setter method.
