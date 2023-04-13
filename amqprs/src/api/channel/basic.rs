@@ -340,6 +340,7 @@ pub struct BasicPublishArguments {
     /// Default: "".
     pub routing_key: String,
     /// Default: `false`.
+    #[deprecated(since="1.2.1", note="RabbitMQ versions after 3.0.0 do not support this flag")]
     pub mandatory: bool,
     /// Default: `false`.
     pub immediate: bool,
@@ -372,6 +373,7 @@ impl BasicPublishArguments {
     }
     impl_chainable_setter! {
         /// Chainable setter method.
+        #[deprecated(since="0.5.0", note="please use `new_method` instead")]
         immediate, bool
     }
     /// Finish chained configuration and return new arguments.
