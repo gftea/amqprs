@@ -39,7 +39,7 @@ async fn main() {
         .await
         .unwrap();
 
-    // declare a queue
+    // declare a server-named transient queue
     let (queue_name, _, _) = channel
         .queue_declare(QueueDeclareArguments::default())
         .await

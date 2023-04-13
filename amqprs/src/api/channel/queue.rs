@@ -47,7 +47,7 @@ pub struct QueueDeclareArguments {
 }
 
 impl QueueDeclareArguments {
-    /// Create new arguments with defaults.
+    /// Default arguments: declares a transient, client-named, non-exclusive and non-autodelete queue
     pub fn new(queue: &str) -> Self {
         #[cfg(feature = "compliance_assert")]
         assert_queue_name(queue);
@@ -62,6 +62,53 @@ impl QueueDeclareArguments {
             arguments: FieldTable::new(),
         }
     }
+
+    /// Arguments of a durable, non-exclusive, non-autodelete
+    // queue. Usually a good fit for queues with well-known names.
+    pub fn durable_client_named(queue: &str) -> Self {
+        #[cfg(feature = "compliance_assert")]
+        assert_queue_name(queue);
+
+        Self {
+            queue: queue.to_owned(),
+            passive: false,
+            durable: true,
+            exclusive: false,
+            auto_delete: false,
+            no_wait: false,
+            arguments: FieldTable::new(),
+        }
+    }
+
+    /// Arguments of an exclusive, transient, server-named
+    // queue. Usually a good fit for queues that store client-specific transient state.
+    pub fn exclusive_server_named() -> Self {
+        Self {
+            queue: "".to_owned(),
+            passive: false,
+            durable: false,
+            exclusive: true,
+            auto_delete: false,
+            no_wait: false,
+            arguments: FieldTable::new(),
+        }
+    }
+
+    /// Arguments of an autodelete, transient, client-named
+    // queue. Usually a good fit for queues that store client-specific transient state
+    // when server-named queues are not an option.
+    pub fn transient_autodelete(queue: &str) -> Self {
+        Self {
+            queue: queue.to_owned(),
+            passive: false,
+            durable: false,
+            exclusive: false,
+            auto_delete: true,
+            no_wait: false,
+            arguments: FieldTable::new(),
+        }
+    }
+
     //-------------------------------------------------------------------------
     impl_chainable_setter! {
         /// Chainable setter method.
