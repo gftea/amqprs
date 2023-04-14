@@ -12,12 +12,12 @@ use tokio::time;
 mod common;
 
 struct MixedConsumer {
-    no_ack: bool,
+    auto_ack: bool,
 }
 
 impl MixedConsumer {
-    pub fn new(no_ack: bool) -> Self {
-        Self { no_ack }
+    pub fn new(auto_ack: bool) -> Self {
+        Self { auto_ack }
     }
 }
 
@@ -36,7 +36,7 @@ impl AsyncConsumer for MixedConsumer {
             channel
         );
         // ack explicitly if manual ack
-        if !self.no_ack {
+        if !self.auto_ack {
             let tag = deliver.delivery_tag();
             let prio = basic_properties.priority().unwrap_or_else(|| 0);
             if prio <= 1 {
@@ -84,7 +84,7 @@ impl BlockingConsumer for MixedConsumer {
         );
 
         // ack explicitly if manual ack
-        if !self.no_ack {
+        if !self.auto_ack {
             let tag = deliver.delivery_tag();
             let prio = basic_properties.priority().unwrap_or_else(|| 0);
             if prio <= 1 {

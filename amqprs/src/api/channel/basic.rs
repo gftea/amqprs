@@ -524,7 +524,7 @@ impl Channel {
     /// #     .await
     /// #     .unwrap();
     /// let args = BasicConsumeArguments::new(&queue_name, "basic_consumer")
-    ///     .no_ack(true)
+    ///     .manual_ack(false)
     ///     .finish();
     ///
     /// let (ctag, mut messages_rx) = channel.basic_consume_rx(args).await.unwrap();
@@ -1002,7 +1002,7 @@ mod tests {
                 .unwrap();
 
             let args = BasicConsumeArguments::new(&queue_name, "test_auto_ack")
-                .no_ack(true)
+                .auto_ack(true)
                 .finish();
 
             channel
