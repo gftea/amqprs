@@ -72,8 +72,8 @@ impl BasicQosArguments {
 /// # use amqprs::channel::BasicConsumeArguments;
 ///
 /// let x = BasicConsumeArguments::new("q", "c")
-///     .no_ack(true)
-///     .exclusive(true)
+///     .manual_ack(true)
+///     .exclusive(false)
 ///     .finish();
 /// ```
 ///
@@ -82,15 +82,15 @@ impl BasicQosArguments {
 /// [`basic_consume`]: struct.Channel.html#method.basic_consume
 #[derive(Debug, Clone, Default)]
 pub struct BasicConsumeArguments {
-    /// Queue Name. Default: "".
+    /// Target queue name. Must be provided.
     pub queue: String,
-    /// Default: "".
+    /// Consumer identifier. Default: "" (server-generated).
     pub consumer_tag: String,
-    /// Default: `false`.
+    /// Ignored by modern RabbitMQ releases. Default: `false`.
     pub no_local: bool,
-    /// Default: `false`.
+    /// Should automatic acknowledgements be used? Default: `false`.
     pub no_ack: bool,
-    /// Default: `false`.
+    /// Should this consumer be exclusive (the only one allowed on the target queue)? Default: `false`.
     pub exclusive: bool,
     /// Default: `false`.
     pub no_wait: bool,
@@ -126,8 +126,17 @@ impl BasicConsumeArguments {
         /// Chainable setter method.
         no_local, bool
     }
+    impl_chainable_alias_setter! {
+        /// Chainable setter method.
+        auto_ack, no_ack, bool
+    }
+    pub fn manual_ack(&mut self, value: bool) -> &mut Self {
+        self.no_ack = !value;
+        self
+    }
     impl_chainable_setter! {
         /// Chainable setter method.
+        #[deprecated(since="1.2.0", note="use the manual_ack builder method")]
         no_ack, bool
     }
 
@@ -515,7 +524,7 @@ impl Channel {
     /// #     .await
     /// #     .unwrap();
     /// let args = BasicConsumeArguments::new(&queue_name, "basic_consumer")
-    ///     .no_ack(true)
+    ///     .manual_ack(false)
     ///     .finish();
     ///
     /// let (ctag, mut messages_rx) = channel.basic_consume_rx(args).await.unwrap();
@@ -915,7 +924,8 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.
+    /// Returns error in case of a network I/O failure. For data safety, use
+    /// [publisher confirms](https://rabbitmq.com/publishers.html#data-safety).
     pub async fn basic_publish(
         &self,
         basic_properties: BasicProperties,
@@ -992,7 +1002,7 @@ mod tests {
                 .unwrap();
 
             let args = BasicConsumeArguments::new(&queue_name, "test_auto_ack")
-                .no_ack(true)
+                .auto_ack(true)
                 .finish();
 
             channel

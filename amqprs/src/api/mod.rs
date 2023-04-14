@@ -37,6 +37,17 @@ pub(crate) mod helpers {
         };
     }
 
+    macro_rules! impl_chainable_alias_setter {
+        ($(#[$($attrss:tt)*])* $method_name:ident, $field_name:ident, $input_type:ty) => {
+            $(#[$($attrss)*])*
+            pub fn $method_name(&mut self, $field_name: $input_type) -> &mut Self {
+                self.$field_name = $field_name;
+                self
+            }
+
+        };
+    }
+
     // pub(crate) use impl_chainable_setter;
 }
 
