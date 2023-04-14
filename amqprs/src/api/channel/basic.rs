@@ -1,7 +1,7 @@
 use amqp_serde::types::AmqpDeliveryTag;
 use tokio::sync::mpsc;
 #[cfg(feature = "traces")]
-use tracing::{debug, trace};
+use tracing::{trace};
 
 use crate::{
     api::{
