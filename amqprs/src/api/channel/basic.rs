@@ -633,24 +633,14 @@ impl Channel {
                 channel
             );
 
-            loop {
-                match consumer_rx.recv().await {
-                    Some(mut msg) => {
-                        consumer
-                            .consume(
-                                &channel,
-                                msg.deliver.take().unwrap(),
-                                msg.basic_properties.take().unwrap(),
-                                msg.content.take().unwrap(),
-                            )
-                            .await;
-                    }
-                    None => {
-                        #[cfg(feature = "traces")]
-                        debug!("exit task of async consumer {}", ctag);
-                        break;
-                    }
-                }
+            while let Some(mut msg) = consumer_rx.recv().await {
+                consumer.consume(
+                    &channel,
+                    msg.deliver.take().unwrap(),
+                    msg.basic_properties.take().unwrap(),
+                    msg.content.take().unwrap(),
+                )
+                .await;
             }
         });
 
@@ -681,22 +671,13 @@ impl Channel {
                 channel
             );
 
-            loop {
-                match consumer_rx.blocking_recv() {
-                    Some(mut msg) => {
-                        consumer.consume(
-                            &channel,
-                            msg.deliver.take().unwrap(),
-                            msg.basic_properties.take().unwrap(),
-                            msg.content.take().unwrap(),
-                        );
-                    }
-                    None => {
-                        #[cfg(feature = "traces")]
-                        debug!("exit task of blocking consumer {}", ctag);
-                        break;
-                    }
-                }
+            while let Some(mut msg) = consumer_rx.blocking_recv() {
+                consumer.consume(
+                    &channel,
+                    msg.deliver.take().unwrap(),
+                    msg.basic_properties.take().unwrap(),
+                    msg.content.take().unwrap(),
+                );
             }
         });
 

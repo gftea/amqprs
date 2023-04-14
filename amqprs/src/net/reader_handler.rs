@@ -102,6 +102,7 @@ impl ReaderHandler {
             Frame::CloseOk(method_header, close_ok) => {
                 self.amqp_connection.set_is_open(false);
 
+                #[allow(clippy::single_match)]
                 match self
                     .channel_manager
                     .remove_responder(&channel_id, method_header)
