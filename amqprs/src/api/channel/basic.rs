@@ -88,7 +88,7 @@ pub struct BasicConsumeArguments {
     pub consumer_tag: String,
     /// Ignored by modern RabbitMQ releases. Default: `false`.
     pub no_local: bool,
-    /// Should automatic acknowedgements be used? Default: `false`.
+    /// Should automatic acknowledgements be used? Default: `false`.
     pub no_ack: bool,
     /// Should this consumer be exclusive (the only one allowed on the target queue)? Default: `false`.
     pub exclusive: bool,
@@ -136,6 +136,7 @@ impl BasicConsumeArguments {
     }
     impl_chainable_setter! {
         /// Chainable setter method.
+        #[deprecated(since="1.2.0", note="use the manual_ack builder method")]
         no_ack, bool
     }
 
@@ -923,7 +924,8 @@ impl Channel {
     ///
     /// # Errors
     ///
-    /// Returns error if any failure in comunication with server.
+    /// Returns error in case of a network I/O failure. For data safety, use
+    /// [publisher confirms](https://rabbitmq.com/publishers.html#data-safety).
     pub async fn basic_publish(
         &self,
         basic_properties: BasicProperties,
