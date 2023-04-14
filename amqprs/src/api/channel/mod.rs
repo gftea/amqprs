@@ -351,6 +351,7 @@ impl Drop for DropGuard {
     /// User is recommended to explictly call the [`close`] method.
     ///
     /// [`close`]: struct.Channel.html#method.close
+    #[allow(unused)]
     fn drop(&mut self) {
         if let Ok(true) =
             self.0

@@ -80,8 +80,11 @@ use tracing::{debug, error, info};
 use uriparse::URIReference;
 
 const DEFAULT_AMQP_PORT: u16 = 5672;
+#[allow(unused)]
 const DEFAULT_AMQPS_PORT: u16 = 5671;
+#[allow(unused)]
 const DEFAULT_HEARTBEAT: u16 = 60;
+#[allow(unused)]
 const AMQP_SCHEME: &str = "amqp";
 const AMQPS_SCHEME: &str = "amqps";
 
@@ -946,6 +949,7 @@ impl Connection {
 
         // If no channel id is given, it will be allocated by management task and included in acker response
         // otherwise same id will be received in response
+        #[allow(unused)]
         if let Err(err) = self.shared.conn_mgmt_tx.send(cmd).await {
             #[cfg(feature = "traces")]
             debug!(
@@ -956,6 +960,7 @@ impl Connection {
         }
 
         // expect a channel id in response
+        #[allow(unused)]
         match acker_rx.await {
             Ok(res) => {
                 if res.is_none() {
@@ -1180,6 +1185,7 @@ impl Drop for DropGuard {
             self.is_open
                 .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
         {
+            #[allow(unused)]
             let connection_name = self.connection_name.clone();
             let outgoing_tx = self.outgoing_tx.clone();
             tokio::spawn(async move {
@@ -1188,6 +1194,7 @@ impl Drop for DropGuard {
 
                 let close = Close::default();
 
+                #[allow(unused)]
                 if let Err(err) = outgoing_tx
                     .send((DEFAULT_CONN_CHANNEL, close.into_frame()))
                     .await

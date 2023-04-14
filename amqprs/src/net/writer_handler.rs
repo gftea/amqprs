@@ -54,6 +54,7 @@ impl WriterHandler {
                         None => break,
                         Some(v) => v,
                     };
+                    #[allow(unused)]
                     if let Err(err) = self.stream.write_frame(channel_id, frame, self.amqp_connection.frame_max()).await {
                         #[cfg(feature="tracing")]
                         error!("failed to send frame over connection {}, cause: {}", self.amqp_connection, err);
@@ -67,6 +68,7 @@ impl WriterHandler {
                     if expiration <= time::Instant::now() {
                         expiration = time::Instant::now() + time::Duration::from_secs(interval);
 
+                        #[allow(unused)]
                         if let Err(err) = self.stream.write_frame(DEFAULT_CONN_CHANNEL, Frame::HeartBeat(HeartBeat), self.amqp_connection.frame_max()).await {
                             #[cfg(feature="tracing")]
                             error!("failed to send heartbeat over connection {}, cause: {}", self.amqp_connection, err);
@@ -90,6 +92,7 @@ impl WriterHandler {
         }
         self.amqp_connection.set_is_open(false);
 
+        #[allow(unused)]
         if let Err(err) = self.stream.close().await {
             #[cfg(feature = "traces")]
             error!(

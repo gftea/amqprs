@@ -63,6 +63,7 @@ pub struct DefaultConnectionCallback;
 
 #[async_trait]
 impl ConnectionCallback for DefaultConnectionCallback {
+    #[allow(unused)]
     async fn close(&mut self, connection: &Connection, close: Close) -> Result<()> {
         #[cfg(feature = "traces")]
         error!(
@@ -72,6 +73,7 @@ impl ConnectionCallback for DefaultConnectionCallback {
         Ok(())
     }
 
+    #[allow(unused)]
     async fn blocked(&mut self, connection: &Connection, reason: String) {
         #[cfg(feature = "traces")]
         info!(
@@ -80,6 +82,7 @@ impl ConnectionCallback for DefaultConnectionCallback {
         );
     }
 
+    #[allow(unused)]
     async fn unblocked(&mut self, connection: &Connection) {
         #[cfg(feature = "traces")]
         info!(
@@ -165,6 +168,7 @@ pub struct DefaultChannelCallback;
 
 #[async_trait]
 impl ChannelCallback for DefaultChannelCallback {
+    #[allow(unused)]
     async fn close(&mut self, channel: &Channel, close: CloseChannel) -> Result<()> {
         #[cfg(feature = "traces")]
         error!(
@@ -173,6 +177,7 @@ impl ChannelCallback for DefaultChannelCallback {
         );
         Ok(())
     }
+    #[allow(unused)]
     async fn cancel(&mut self, channel: &Channel, cancel: Cancel) -> Result<()> {
         #[cfg(feature = "traces")]
         warn!(
@@ -182,6 +187,7 @@ impl ChannelCallback for DefaultChannelCallback {
         );
         Ok(())
     }
+    #[allow(unused)]
     async fn flow(&mut self, channel: &Channel, active: bool) -> Result<bool> {
         #[cfg(feature = "traces")]
         info!(
@@ -190,6 +196,7 @@ impl ChannelCallback for DefaultChannelCallback {
         );
         Ok(true)
     }
+    #[allow(unused)]
     async fn publish_ack(&mut self, channel: &Channel, ack: Ack) {
         #[cfg(feature = "traces")]
         info!(
@@ -198,6 +205,7 @@ impl ChannelCallback for DefaultChannelCallback {
             channel
         );
     }
+    #[allow(unused)]
     async fn publish_nack(&mut self, channel: &Channel, nack: Nack) {
         #[cfg(feature = "traces")]
         warn!(
@@ -206,6 +214,7 @@ impl ChannelCallback for DefaultChannelCallback {
             channel
         );
     }
+    #[allow(unused)]
     async fn publish_return(
         &mut self,
         channel: &Channel,

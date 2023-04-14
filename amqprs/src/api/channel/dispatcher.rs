@@ -233,6 +233,7 @@ impl ChannelDispatcher {
             let mut purge_timer = time::interval(CONSUMER_PURGE_INTERVAL);
             purge_timer.tick().await;
             // main loop of dispatcher
+            #[allow(unused)]
             loop {
                 tokio::select! {
                     biased;

@@ -130,6 +130,7 @@ impl ReaderHandler {
             // Server request to close connection
             Frame::Close(_, close) => {
                 if let Some(ref mut callback) = self.callback {
+                    #[allow(unused)]
                     if let Err(err) = callback.close(&self.amqp_connection, close).await {
                         #[cfg(feature = "traces")]
                         error!(
@@ -254,8 +255,10 @@ impl ReaderHandler {
                     #[cfg(feature="traces")]
                     trace!("server heartbeat deadline is updated to {:?}", expiration);
 
+                    #[allow(unused)]
                     match res {
                         Ok((channel_id, frame)) => {
+                            #[allow(unused)]
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
                                 // notifiy network failure
                                 is_network_failure = true;

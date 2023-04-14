@@ -620,6 +620,7 @@ impl Channel {
             mpsc::UnboundedReceiver<ConsumerMessage>,
         ) = mpsc::unbounded_channel();
 
+        #[allow(unused)]
         let ctag = consumer_tag.clone();
         let channel = self.clone_as_secondary();
 
@@ -667,6 +668,7 @@ impl Channel {
             mpsc::UnboundedReceiver<ConsumerMessage>,
         ) = mpsc::unbounded_channel();
 
+        #[allow(unused)]
         let ctag = consumer_tag.clone();
         let channel = self.clone_as_secondary();
 

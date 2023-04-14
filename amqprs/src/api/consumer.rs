@@ -86,6 +86,7 @@ impl DefaultConsumer {
 
 #[async_trait]
 impl AsyncConsumer for DefaultConsumer {
+    #[allow(unused)]
     async fn consume(
         &mut self,
         channel: &Channel,
@@ -151,6 +152,7 @@ impl DefaultBlockingConsumer {
 }
 
 impl BlockingConsumer for DefaultBlockingConsumer {
+    #[allow(unused)]
     fn consume(
         &mut self,
         channel: &Channel,
