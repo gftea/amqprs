@@ -62,9 +62,15 @@ impl From<&str> for ExchangeType {
     }
 }
 
-impl Into<String> for ExchangeType {
-    fn into(self) -> String {
-        match self {
+impl From<String> for ExchangeType {
+    fn from(value: String) -> Self {
+        ExchangeType::from(value.as_str())
+    }
+}
+
+impl From<ExchangeType> for String {
+    fn from(value: ExchangeType) -> String {
+        match value {
             ExchangeType::Fanout => EXCHANGE_TYPE_FANOUT.to_owned(),
             ExchangeType::Topic => EXCHANGE_TYPE_TOPIC.to_owned(),
             ExchangeType::Direct => EXCHANGE_TYPE_DIRECT.to_owned(),
@@ -74,7 +80,7 @@ impl Into<String> for ExchangeType {
             ExchangeType::Random => EXCHANGE_TYPE_RANDOM.to_owned(),
             ExchangeType::JmsTopic => EXCHANGE_TYPE_JMS_TOPIC.to_owned(),
             ExchangeType::RecentHistory => EXCHANGE_TYPE_RECENT_HISTORY.to_owned(),
-            ExchangeType::Plugin(exchange_type) => exchange_type.clone()
+            ExchangeType::Plugin(exchange_type) => exchange_type
         }
     }
 }
