@@ -57,7 +57,7 @@ impl From<&str> for ExchangeType {
             EXCHANGE_TYPE_RANDOM => ExchangeType::Random,
             EXCHANGE_TYPE_JMS_TOPIC => ExchangeType::JmsTopic,
             EXCHANGE_TYPE_RECENT_HISTORY => ExchangeType::RecentHistory,
-            other => ExchangeType::Plugin(value.to_owned())
+            other => ExchangeType::Plugin(other.to_owned())
         }
     }
 }
