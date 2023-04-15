@@ -103,7 +103,6 @@ impl Display for ExchangeType {
 /// # use amqprs::channel::{ExchangeDeclareArguments, ExchangeType};
 ///
 /// let x = ExchangeDeclareArguments::of_type("amq.direct", ExchangeType::Direct)
-///     .auto_delete(true)
 ///     .durable(true)
 ///     .finish();
 /// ```
