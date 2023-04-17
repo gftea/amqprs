@@ -547,8 +547,23 @@ mod tests {
     #[tokio::test]
     async fn test_exchange_type() {
         assert_eq!(ExchangeType::Fanout.to_string(), "fanout");
+        assert_eq!(ExchangeType::Topic.to_string(), "topic");
+        assert_eq!(ExchangeType::Direct.to_string(), "direct");
+        assert_eq!(ExchangeType::Headers.to_string(), "headers");
+        assert_eq!(ExchangeType::ConsistentHashing.to_string(), "x-consistent-hash");
+        assert_eq!(ExchangeType::Random.to_string(), "x-random");
+        assert_eq!(ExchangeType::RecentHistory.to_string(), "x-recent-history");
+        assert_eq!(ExchangeType::Plugin(String::from("x-custom-exchange-2")).to_string(), "x-custom-exchange-2");
 
+        assert_eq!(ExchangeType::from("fanout"), ExchangeType::Fanout);
+        assert_eq!(ExchangeType::from("topic"), ExchangeType::Topic);
+        assert_eq!(ExchangeType::from("direct"), ExchangeType::Direct);
+        assert_eq!(ExchangeType::from("headers"), ExchangeType::Headers);
         assert_eq!(ExchangeType::from("x-consistent-hash"), ExchangeType::ConsistentHashing);
+        assert_eq!(ExchangeType::from("x-random"), ExchangeType::Random);
+        assert_eq!(ExchangeType::from("x-jms-topic"), ExchangeType::JmsTopic);
+        assert_eq!(ExchangeType::from("x-modulus-hash"), ExchangeType::ModulusHash);
+        assert_eq!(ExchangeType::from("x-custom-exchange-2"), ExchangeType::Plugin(String::from("x-custom-exchange-2")));
     }
 
     #[tokio::test]
