@@ -1,6 +1,6 @@
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
-    channel::ExchangeDeclareArguments,
+    channel::{ExchangeDeclareArguments, ExchangeType},
     connection::Connection,
 };
 
@@ -52,6 +52,6 @@ async fn test_channel_callback() {
 
     // expect panic because "amp.topic" is `durable = true`, we declare "durable = false",
     // which is the default value in arguments.
-    let args = ExchangeDeclareArguments::new("amq.topic", "topic");
+    let args = ExchangeDeclareArguments::of_type("amq.topic", ExchangeType::Topic);
     channel.exchange_declare(args).await.unwrap();
 }

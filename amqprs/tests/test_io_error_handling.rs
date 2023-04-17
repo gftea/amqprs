@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
-    channel::ExchangeDeclareArguments,
+    channel::{ExchangeDeclareArguments, ExchangeType},
     connection::Connection,
 };
 use tokio::time;
@@ -31,10 +31,9 @@ async fn test_net_io_err_handling() {
         .unwrap();
 
     let exchange_name = "amq.topic";
-    let exchange_type = "topic";
 
     // create arguments for exchange_declare
-    let args = ExchangeDeclareArguments::new(exchange_name, exchange_type)
+    let args = ExchangeDeclareArguments::of_type(exchange_name, ExchangeType::Topic)
         .passive(true)
         .finish();
 

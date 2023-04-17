@@ -1,3 +1,5 @@
+use std::borrow::ToOwned;
+use std::fmt::{Debug, Display, Formatter};
 use crate::{
     api::{error::Error, FieldTable},
     frame::{Bind, BindOk, Declare, DeclareOk, Delete, DeleteOk, Frame, Unbind, UnbindOk},
@@ -8,14 +10,106 @@ use super::{Channel, Result};
 #[cfg(feature = "compliance_assert")]
 use crate::api::compliance_asserts::assert_exchange_name;
 
+/// Exchange types. Most variants are for exchange types included with modern RabbitMQ distributions.
+/// For custom types provided by 3rd party plugins, use the `Plugin(String)` variant.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ExchangeType {
+    /// Fanout exchange
+    Fanout,
+    /// Topic exchange
+    Topic,
+    /// Direct exchange
+    Direct,
+    /// Headers exchange
+    Headers,
+    /// Consistent hashing (consistent hash) exchange
+    ConsistentHashing,
+    /// Modulus hash, ships with the 'rabbitmq-sharding' plugin
+    ModulusHash,
+    /// Random exchange
+    Random,
+    /// JMS topic exchange
+    JmsTopic,
+    /// Recent history exchange
+    RecentHistory,
+    /// All other x-* exchange types, for example, those provided by plugins
+    Plugin(String)
+}
+
+const EXCHANGE_TYPE_FANOUT: &str = "fanout";
+const EXCHANGE_TYPE_TOPIC:  &str = "topic";
+const EXCHANGE_TYPE_DIRECT:  &str = "direct";
+const EXCHANGE_TYPE_HEADERS:  &str = "headers";
+const EXCHANGE_TYPE_CONSISTENT_HASHING:  &str = "x-consistent-hash";
+const EXCHANGE_TYPE_MODULUS_HASH:  &str = "x-modulus-hash";
+const EXCHANGE_TYPE_RANDOM:  &str = "x-random";
+const EXCHANGE_TYPE_JMS_TOPIC:  &str = "x-jms-topic";
+const EXCHANGE_TYPE_RECENT_HISTORY:  &str = "x-recent-history";
+
+impl From<&str> for ExchangeType {
+    fn from(value: &str) -> Self {
+        match value {
+            EXCHANGE_TYPE_FANOUT => ExchangeType::Fanout,
+            EXCHANGE_TYPE_TOPIC => ExchangeType::Topic,
+            EXCHANGE_TYPE_DIRECT => ExchangeType::Direct,
+            EXCHANGE_TYPE_HEADERS => ExchangeType::Headers,
+            EXCHANGE_TYPE_CONSISTENT_HASHING => ExchangeType::ConsistentHashing,
+            EXCHANGE_TYPE_MODULUS_HASH => ExchangeType::ModulusHash,
+            EXCHANGE_TYPE_RANDOM => ExchangeType::Random,
+            EXCHANGE_TYPE_JMS_TOPIC => ExchangeType::JmsTopic,
+            EXCHANGE_TYPE_RECENT_HISTORY => ExchangeType::RecentHistory,
+            other => ExchangeType::Plugin(other.to_owned())
+        }
+    }
+}
+
+impl From<String> for ExchangeType {
+    fn from(value: String) -> Self {
+        ExchangeType::from(value.as_str())
+    }
+}
+
+impl From<ExchangeType> for String {
+    fn from(value: ExchangeType) -> String {
+        match value {
+            ExchangeType::Fanout => EXCHANGE_TYPE_FANOUT.to_owned(),
+            ExchangeType::Topic => EXCHANGE_TYPE_TOPIC.to_owned(),
+            ExchangeType::Direct => EXCHANGE_TYPE_DIRECT.to_owned(),
+            ExchangeType::Headers => EXCHANGE_TYPE_HEADERS.to_owned(),
+            ExchangeType::ConsistentHashing => EXCHANGE_TYPE_CONSISTENT_HASHING.to_owned(),
+            ExchangeType::ModulusHash => EXCHANGE_TYPE_MODULUS_HASH.to_owned(),
+            ExchangeType::Random => EXCHANGE_TYPE_RANDOM.to_owned(),
+            ExchangeType::JmsTopic => EXCHANGE_TYPE_JMS_TOPIC.to_owned(),
+            ExchangeType::RecentHistory => EXCHANGE_TYPE_RECENT_HISTORY.to_owned(),
+            ExchangeType::Plugin(exchange_type) => exchange_type
+        }
+    }
+}
+
+impl Display for ExchangeType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExchangeType::Fanout => Display::fmt(&EXCHANGE_TYPE_FANOUT, f),
+            ExchangeType::Topic => Display::fmt(&EXCHANGE_TYPE_TOPIC, f),
+            ExchangeType::Direct => Display::fmt(&EXCHANGE_TYPE_DIRECT, f),
+            ExchangeType::Headers => Display::fmt(&EXCHANGE_TYPE_HEADERS, f),
+            ExchangeType::ConsistentHashing => Display::fmt(&EXCHANGE_TYPE_CONSISTENT_HASHING, f),
+            ExchangeType::ModulusHash => Display::fmt(&EXCHANGE_TYPE_MODULUS_HASH, f),
+            ExchangeType::Random => Display::fmt(&EXCHANGE_TYPE_RANDOM, f),
+            ExchangeType::JmsTopic => Display::fmt(&EXCHANGE_TYPE_JMS_TOPIC, f),
+            ExchangeType::RecentHistory => Display::fmt(&EXCHANGE_TYPE_RECENT_HISTORY,f),
+            ExchangeType::Plugin(exchange_type) => Display::fmt(&exchange_type, f)
+        }
+    }
+}
+
 /// Arguments for [`exchange_declare`]
 ///
 /// # Support chainable methods to build arguments
 /// ```
-/// # use amqprs::channel::ExchangeDeclareArguments;
+/// # use amqprs::channel::{ExchangeDeclareArguments, ExchangeType};
 ///
-/// let x = ExchangeDeclareArguments::new("amq.direct", "direct")
-///     .auto_delete(true)
+/// let x = ExchangeDeclareArguments::of_type("amq.direct", ExchangeType::Direct)
 ///     .durable(true)
 ///     .finish();
 /// ```
@@ -74,6 +168,13 @@ impl ExchangeDeclareArguments {
             arguments: FieldTable::new(),
         }
     }
+
+    // Creates new arguments with defaults
+    pub fn of_type(exchange: &str, exchange_type: ExchangeType) -> Self {
+        let s: String = Into::<String>::into(exchange_type);
+        Self::new(exchange, &s)
+    }
+
     impl_chainable_setter! {
         /// Chainable setter method.
         exchange, String
@@ -435,13 +536,49 @@ impl Channel {
 mod tests {
     use super::{
         ExchangeBindArguments, ExchangeDeclareArguments, ExchangeDeleteArguments,
-        ExchangeUnbindArguments,
+        ExchangeUnbindArguments, ExchangeType,
     };
     use crate::{
         api::connection::{Connection, OpenConnectionArguments},
         callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
         test_utils,
     };
+
+    #[tokio::test]
+    async fn test_exchange_type() {
+        assert_eq!(ExchangeType::Fanout.to_string(), "fanout");
+        assert_eq!(ExchangeType::Topic.to_string(), "topic");
+        assert_eq!(ExchangeType::Direct.to_string(), "direct");
+        assert_eq!(ExchangeType::Headers.to_string(), "headers");
+        assert_eq!(ExchangeType::ConsistentHashing.to_string(), "x-consistent-hash");
+        assert_eq!(ExchangeType::Random.to_string(), "x-random");
+        assert_eq!(ExchangeType::JmsTopic.to_string(), "x-jms-topic");
+        assert_eq!(ExchangeType::RecentHistory.to_string(), "x-recent-history");
+        assert_eq!(ExchangeType::ModulusHash.to_string(), "x-modulus-hash");
+        assert_eq!(ExchangeType::Plugin(String::from("x-custom-exchange-2")).to_string(), "x-custom-exchange-2");
+
+        assert_eq!(ExchangeType::from("fanout"), ExchangeType::Fanout);
+        assert_eq!(ExchangeType::from("topic"), ExchangeType::Topic);
+        assert_eq!(ExchangeType::from("direct"), ExchangeType::Direct);
+        assert_eq!(ExchangeType::from("headers"), ExchangeType::Headers);
+        assert_eq!(ExchangeType::from("x-consistent-hash"), ExchangeType::ConsistentHashing);
+        assert_eq!(ExchangeType::from("x-random"), ExchangeType::Random);
+        assert_eq!(ExchangeType::from("x-jms-topic"), ExchangeType::JmsTopic);
+        assert_eq!(ExchangeType::from("x-modulus-hash"), ExchangeType::ModulusHash);
+        assert_eq!(ExchangeType::from("x-custom-exchange-2"), ExchangeType::Plugin(String::from("x-custom-exchange-2")));
+
+        assert_eq!(String::from(ExchangeType::Fanout), "fanout");
+        assert_eq!(String::from(ExchangeType::Topic), "topic");
+        assert_eq!(String::from(ExchangeType::Direct), "direct");
+        assert_eq!(String::from(ExchangeType::Headers), "headers");
+        assert_eq!(String::from(ExchangeType::ModulusHash), "x-modulus-hash");
+        assert_eq!(String::from(ExchangeType::ConsistentHashing), "x-consistent-hash");
+        assert_eq!(String::from(ExchangeType::RecentHistory), "x-recent-history");
+        assert_eq!(String::from(ExchangeType::Random), "x-random");
+        assert_eq!(String::from(ExchangeType::JmsTopic), "x-jms-topic");
+        assert_eq!(String::from(ExchangeType::Plugin(String::from("x-custom-exchange-3"))), "x-custom-exchange-3");
+
+    }
 
     #[tokio::test]
     async fn test_exchange_declare() {
@@ -459,7 +596,7 @@ mod tests {
             .await
             .unwrap();
 
-        let args = ExchangeDeclareArguments::new("amq.topic", "topic")
+        let args = ExchangeDeclareArguments::of_type("amq.topic", ExchangeType::Topic)
             .passive(true)
             .finish();
         channel.exchange_declare(args).await.unwrap();

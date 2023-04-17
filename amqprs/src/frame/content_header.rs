@@ -42,10 +42,10 @@ pub struct ContentHeaderCommon {
 /// # Example
 ///
 /// ```
-/// # use amqprs::{BasicProperties, DELIVERY_MODE_TRANSIENT};
+/// # use amqprs::{BasicProperties, DELIVERY_MODE_PERSISTENT};
 /// let basic_props = BasicProperties::default()
 ///     .with_content_type("application/json")
-///     .with_delivery_mode(DELIVERY_MODE_TRANSIENT)
+///     .with_delivery_mode(DELIVERY_MODE_PERSISTENT)
 ///     .with_user_id("user")
 ///     .with_app_id("consumer_test")
 ///     .finish();
