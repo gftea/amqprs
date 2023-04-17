@@ -11,7 +11,7 @@ use super::{Channel, Result};
 use crate::api::compliance_asserts::assert_exchange_name;
 
 /// Exchange types. Most variants are for exchange types included with modern RabbitMQ distributions.
-/// For custom types provided by 3rd party plugins, use the `Plugin(String` variant.
+/// For custom types provided by 3rd party plugins, use the `Plugin(String)` variant.
 pub enum ExchangeType {
     /// Fanout exchange
     Fanout,
