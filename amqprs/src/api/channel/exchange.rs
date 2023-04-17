@@ -552,6 +552,7 @@ mod tests {
         assert_eq!(ExchangeType::Headers.to_string(), "headers");
         assert_eq!(ExchangeType::ConsistentHashing.to_string(), "x-consistent-hash");
         assert_eq!(ExchangeType::Random.to_string(), "x-random");
+        assert_eq!(ExchangeType::JmsTopic.to_string(), "x-jms-topic");
         assert_eq!(ExchangeType::RecentHistory.to_string(), "x-recent-history");
         assert_eq!(ExchangeType::ModulusHash.to_string(), "x-modulus-hash");
         assert_eq!(ExchangeType::Plugin(String::from("x-custom-exchange-2")).to_string(), "x-custom-exchange-2");
