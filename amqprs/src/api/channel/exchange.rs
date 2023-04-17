@@ -553,6 +553,7 @@ mod tests {
         assert_eq!(ExchangeType::ConsistentHashing.to_string(), "x-consistent-hash");
         assert_eq!(ExchangeType::Random.to_string(), "x-random");
         assert_eq!(ExchangeType::RecentHistory.to_string(), "x-recent-history");
+        assert_eq!(ExchangeType::ModulusHash.to_string(), "x-modulus-hash");
         assert_eq!(ExchangeType::Plugin(String::from("x-custom-exchange-2")).to_string(), "x-custom-exchange-2");
 
         assert_eq!(ExchangeType::from("fanout"), ExchangeType::Fanout);
@@ -564,6 +565,18 @@ mod tests {
         assert_eq!(ExchangeType::from("x-jms-topic"), ExchangeType::JmsTopic);
         assert_eq!(ExchangeType::from("x-modulus-hash"), ExchangeType::ModulusHash);
         assert_eq!(ExchangeType::from("x-custom-exchange-2"), ExchangeType::Plugin(String::from("x-custom-exchange-2")));
+
+        assert_eq!(String::from(ExchangeType::Fanout), "fanout");
+        assert_eq!(String::from(ExchangeType::Topic), "topic");
+        assert_eq!(String::from(ExchangeType::Direct), "direct");
+        assert_eq!(String::from(ExchangeType::Headers), "headers");
+        assert_eq!(String::from(ExchangeType::ModulusHash), "x-modulus-hash");
+        assert_eq!(String::from(ExchangeType::ConsistentHashing), "x-consistent-hash");
+        assert_eq!(String::from(ExchangeType::RecentHistory), "x-recent-history");
+        assert_eq!(String::from(ExchangeType::Random), "x-random");
+        assert_eq!(String::from(ExchangeType::JmsTopic), "x-jms-topic");
+        assert_eq!(String::from(ExchangeType::Plugin(String::from("x-custom-exchange-3"))), "x-custom-exchange-3");
+
     }
 
     #[tokio::test]
