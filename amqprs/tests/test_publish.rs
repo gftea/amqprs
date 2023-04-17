@@ -1,6 +1,6 @@
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
-    channel::{BasicPublishArguments, ExchangeDeclareArguments},
+    channel::{BasicPublishArguments, ExchangeDeclareArguments, ExchangeType},
     connection::Connection,
     BasicProperties,
 };
@@ -27,10 +27,9 @@ async fn test_publish() {
         .unwrap();
 
     let exchange_name = "amq.topic";
-    let exchange_type = "topic";
 
     // create arguments for exchange_declare
-    let args = ExchangeDeclareArguments::new(exchange_name, exchange_type)
+    let args = ExchangeDeclareArguments::of_type(exchange_name, ExchangeType::Topic)
         .passive(true)
         .finish();
 

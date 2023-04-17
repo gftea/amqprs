@@ -12,6 +12,7 @@ use crate::api::compliance_asserts::assert_exchange_name;
 
 /// Exchange types. Most variants are for exchange types included with modern RabbitMQ distributions.
 /// For custom types provided by 3rd party plugins, use the `Plugin(String)` variant.
+#[derive(Debug, PartialEq, Eq)]
 pub enum ExchangeType {
     /// Fanout exchange
     Fanout,
@@ -535,13 +536,20 @@ impl Channel {
 mod tests {
     use super::{
         ExchangeBindArguments, ExchangeDeclareArguments, ExchangeDeleteArguments,
-        ExchangeUnbindArguments,
+        ExchangeUnbindArguments, ExchangeType,
     };
     use crate::{
         api::connection::{Connection, OpenConnectionArguments},
         callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
         test_utils,
     };
+
+    #[tokio::test]
+    async fn test_exchange_type() {
+        assert_eq!(ExchangeType::Fanout.to_string(), "fanout");
+
+        assert_eq!(ExchangeType::from("x-consistent-hash"), ExchangeType::ConsistentHashing);
+    }
 
     #[tokio::test]
     async fn test_exchange_declare() {
@@ -559,7 +567,7 @@ mod tests {
             .await
             .unwrap();
 
-        let args = ExchangeDeclareArguments::new("amq.topic", "topic")
+        let args = ExchangeDeclareArguments::of_type("amq.topic", ExchangeType::Topic)
             .passive(true)
             .finish();
         channel.exchange_declare(args).await.unwrap();

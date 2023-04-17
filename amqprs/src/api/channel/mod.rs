@@ -413,8 +413,6 @@ impl SharedChannelInner {
 
 #[cfg(test)]
 mod tests {
-    use tokio::time;
-
     use crate::{
         channel::Channel,
         connection::{Connection, OpenConnectionArguments},
