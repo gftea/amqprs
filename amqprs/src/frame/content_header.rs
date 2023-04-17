@@ -2,6 +2,7 @@ use std::fmt;
 
 use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
 use serde::{de::Visitor, Deserialize, Serialize};
+use crate::{DELIVERY_MODE_PERSISTENT, DELIVERY_MODE_TRANSIENT};
 
 use super::Frame;
 
@@ -307,6 +308,21 @@ impl BasicProperties {
     /// [`DELIVERY_MODE_TRANSIENT`]: ../constant.DELIVERY_MODE_TRANSIENT.html
     /// [`DELIVERY_MODE_PERSISTENT`]: ../constant.DELIVERY_MODE_PERSISTENT.html
     pub fn with_delivery_mode(&mut self, delivery_mode: u8) -> &mut Self {
+        Self::set_delivery_mode_flag(&mut self.property_flags);
+        self.delivery_mode = Some(delivery_mode);
+        self
+    }
+
+    /// Sets delivery mode using a boolean.
+    ///
+    /// `persistent`: true for persistent delivery mode (2), false for transient (1)
+    ///
+    pub fn with_persistence(&mut self, persistent: bool) -> &mut Self {
+        let delivery_mode = if persistent {
+            DELIVERY_MODE_PERSISTENT
+        } else {
+            DELIVERY_MODE_TRANSIENT
+        };
         Self::set_delivery_mode_flag(&mut self.property_flags);
         self.delivery_mode = Some(delivery_mode);
         self

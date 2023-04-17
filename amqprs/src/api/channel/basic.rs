@@ -1068,7 +1068,7 @@ mod tests {
 
             let basic_properties = BasicProperties::default()
                 .with_content_type("application/json;charset=utf-8")
-                .with_delivery_mode(DELIVERY_MODE_TRANSIENT)
+                .with_persistence(true)
                 .finish();
 
             let content = String::from(
