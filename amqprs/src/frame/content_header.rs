@@ -326,7 +326,8 @@ impl BasicProperties {
     /// publishing messages as persistent.
     ///
     /// `persistent`: true for persistent delivery mode (2), false for transient (1)
-    ///
+    /// `with_persistence(true)` is equivalent to `with_delivery_mode(DELIVERY_MODE_PERSISTENT)`.
+    /// `with_persistence(false)` is equivalent to `with_delivery_mode(DELIVERY_MODE_TRANSIENT)`.
     /// # Example
     ///
     /// ```
