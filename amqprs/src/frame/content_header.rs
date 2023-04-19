@@ -331,11 +331,12 @@ impl BasicProperties {
     /// # Example
     ///
     /// ```
-    /// # use amqprs::BasicProperties;
-    /// let prop1 = BasicProperties::default()
+    /// use amqprs::BasicProperties;
+    /// use amqprs::{DELIVERY_MODE_PERSISTENT, DELIVERY_MODE_TRANSIENT};
+    /// let mut prop1 = BasicProperties::default()
     ///     .with_persistence(true)
     ///     .finish();
-    /// let prop2 = BasicProperties::default().
+    /// let mut prop2 = BasicProperties::default()
     ///     .with_delivery_mode(DELIVERY_MODE_PERSISTENT)
     ///     .finish();
     /// assert_eq!(prop1.delivery_mode(), prop2.delivery_mode());
