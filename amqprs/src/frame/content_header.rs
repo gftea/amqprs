@@ -332,10 +332,16 @@ impl BasicProperties {
     ///
     /// ```
     /// # use amqprs::BasicProperties;
-    /// let basic_props = BasicProperties::default()
-    ///     .with_content_type("application/json")
+    /// let prop1 = BasicProperties::default()
     ///     .with_persistence(true)
     ///     .finish();
+    /// let prop2 = BasicProperties::default().
+    ///     .with_delivery_mode(DELIVERY_MODE_PERSISTENT)
+    ///     .finish();
+    /// assert_eq!(prop1.delivery_mode(), prop2.delivery_mode());
+    /// prop1.with_persistence(false);
+    /// prop2.with_delivery_mode(DELIVERY_MODE_TRANSIENT);
+    /// assert_eq!(prop1.delivery_mode(), prop2.delivery_mode());
     /// ```
     pub fn with_persistence(&mut self, persistent: bool) -> &mut Self {
         let delivery_mode = if persistent {
