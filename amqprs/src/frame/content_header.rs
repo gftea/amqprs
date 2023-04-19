@@ -2,6 +2,7 @@ use std::fmt;
 
 use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
 use serde::{de::Visitor, Deserialize, Serialize};
+use crate::{DELIVERY_MODE_PERSISTENT, DELIVERY_MODE_TRANSIENT};
 
 use super::Frame;
 
@@ -45,9 +46,9 @@ pub struct ContentHeaderCommon {
 /// # use amqprs::{BasicProperties, DELIVERY_MODE_PERSISTENT};
 /// let basic_props = BasicProperties::default()
 ///     .with_content_type("application/json")
-///     .with_delivery_mode(DELIVERY_MODE_PERSISTENT)
-///     .with_user_id("user")
-///     .with_app_id("consumer_test")
+///     .with_persistence(true)
+///     .with_message_type("app1.notifications.orders.created")
+///     .with_app_id("app1")
 ///     .finish();
 /// ```
 #[derive(Debug, Serialize, Default, Clone)]
@@ -298,7 +299,7 @@ impl BasicProperties {
         self.delivery_mode
     }
 
-    /// Chainable setter of delivery mode.
+    /// Chainable setter of delivery mode. Prefer `with_persistence` as it is more to the point.
     ///
     /// `delivery_mode`: either [`DELIVERY_MODE_TRANSIENT`] or [`DELIVERY_MODE_PERSISTENT`]
     ///
@@ -306,7 +307,49 @@ impl BasicProperties {
     ///
     /// [`DELIVERY_MODE_TRANSIENT`]: ../constant.DELIVERY_MODE_TRANSIENT.html
     /// [`DELIVERY_MODE_PERSISTENT`]: ../constant.DELIVERY_MODE_PERSISTENT.html
+    ///
+    /// # Example
+    /// ```
+    /// # use amqprs::{BasicProperties, DELIVERY_MODE_PERSISTENT};
+    /// let basic_props = BasicProperties::default()
+    ///     .with_content_type("application/json")
+    ///     .with_delivery_mode(DELIVERY_MODE_PERSISTENT)
+    ///     .finish();
+    /// ```
     pub fn with_delivery_mode(&mut self, delivery_mode: u8) -> &mut Self {
+        Self::set_delivery_mode_flag(&mut self.property_flags);
+        self.delivery_mode = Some(delivery_mode);
+        self
+    }
+
+    /// Marks a message as persistent (or not) using a boolean. When in doubt, prefer
+    /// publishing messages as persistent.
+    ///
+    /// `persistent`: true for persistent delivery mode (2), false for transient (1)
+    /// `with_persistence(true)` is equivalent to `with_delivery_mode(DELIVERY_MODE_PERSISTENT)`.
+    /// `with_persistence(false)` is equivalent to `with_delivery_mode(DELIVERY_MODE_TRANSIENT)`.
+    /// # Example
+    ///
+    /// ```
+    /// use amqprs::BasicProperties;
+    /// use amqprs::{DELIVERY_MODE_PERSISTENT, DELIVERY_MODE_TRANSIENT};
+    /// let mut prop1 = BasicProperties::default()
+    ///     .with_persistence(true)
+    ///     .finish();
+    /// let mut prop2 = BasicProperties::default()
+    ///     .with_delivery_mode(DELIVERY_MODE_PERSISTENT)
+    ///     .finish();
+    /// assert_eq!(prop1.delivery_mode(), prop2.delivery_mode());
+    /// prop1.with_persistence(false);
+    /// prop2.with_delivery_mode(DELIVERY_MODE_TRANSIENT);
+    /// assert_eq!(prop1.delivery_mode(), prop2.delivery_mode());
+    /// ```
+    pub fn with_persistence(&mut self, persistent: bool) -> &mut Self {
+        let delivery_mode = if persistent {
+            DELIVERY_MODE_PERSISTENT
+        } else {
+            DELIVERY_MODE_TRANSIENT
+        };
         Self::set_delivery_mode_flag(&mut self.property_flags);
         self.delivery_mode = Some(delivery_mode);
         self

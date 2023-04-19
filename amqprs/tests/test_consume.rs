@@ -362,7 +362,7 @@ async fn publish_test_messages(
     let basic_props = BasicProperties::default()
         .with_content_type("application/json")
         .with_headers(headers)
-        .with_delivery_mode(DELIVERY_MODE_TRANSIENT)
+        .with_persistence(true)
         .with_user_id("user")
         .with_app_id("consumer_test")
         .finish();
