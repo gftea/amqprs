@@ -442,7 +442,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_channel_clone_and_drop() {
-        // open one channel, clone it, and drop both, check        
+        // open one channel, clone it, and drop both, check
         setup_logging();
 
         // test close on drop
@@ -456,7 +456,7 @@ mod tests {
                 assert!(ch1.is_open());
             });
             h.await.unwrap();
-            assert!(ch2.is_open());            
+            assert!(ch2.is_open());
         }
         conn.close().await.unwrap();
     }

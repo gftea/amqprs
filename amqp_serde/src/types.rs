@@ -638,18 +638,18 @@ mod tests {
         let s4: LongStr = "finally".try_into().unwrap();
         let mut total_length = s1.1.len() + s2.1.len() + s3.1.len() + s4.1.len();
         let v = vec![
-            FieldValue::S(s1), 
-            FieldValue::S(s2), 
-            FieldValue::S(s3), 
+            FieldValue::S(s1),
+            FieldValue::S(s2),
+            FieldValue::S(s3),
             FieldValue::S(s4),
         ];
 
         v.iter().for_each(|_fv| total_length += FieldValue::TAG_SIZE + size_of::<LongUint>());
-        
+
         let a = FieldArray::try_from(v).unwrap();
 
         total_length += size_of::<LongUint>();
-        
+
         let exp = FieldValue::A(a);
         assert_eq!(exp.len(), total_length);
     }
@@ -673,18 +673,18 @@ mod tests {
         });
 
         total_length += size_of::<LongUint>();
-        
+
         let exp = FieldValue::F(ft);
         assert_eq!(exp.len(), total_length);
     }
-    
+
     #[test]
     fn test_len_for_field_value_of_type_bytearray() {
         let v = b"This is un example".to_vec();
         let length = v.len() + size_of::<LongUint>();
         let ba: ByteArray = v.try_into().unwrap();
         let exp = FieldValue::x(ba);
-        
+
         assert_eq!(exp.len(), length);
     }
 }
