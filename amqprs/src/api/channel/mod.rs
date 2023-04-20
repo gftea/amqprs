@@ -413,6 +413,8 @@ impl SharedChannelInner {
 
 #[cfg(test)]
 mod tests {
+    use tokio::time;
+
     use crate::{
         channel::Channel,
         connection::{Connection, OpenConnectionArguments},
@@ -459,6 +461,7 @@ mod tests {
             assert!(ch2.is_open());
         }
         conn.close().await.unwrap();
+        time::sleep(time::Duration::from_millis(100)).await;
     }
 }
 
