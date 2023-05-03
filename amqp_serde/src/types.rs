@@ -446,6 +446,12 @@ impl fmt::Display for FieldTable {
     }
 }
 
+impl AsRef<HashMap<FieldName, FieldValue>> for FieldTable {
+    fn as_ref(&self) -> &HashMap<FieldName, FieldValue> {
+        &self.1
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 // pub struct FieldTable(HashMap<FieldName, FieldValue>);
