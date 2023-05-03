@@ -3,7 +3,7 @@ version: '3.8'
 services:
   rabbitmq:
     restart: on-failure
-    image: bitnami/rabbitmq:3.11
+    image: bitnami/rabbitmq:3.11.15
     expose:
       - "15672"
       - "5672"
@@ -24,12 +24,12 @@ services:
       - RABBITMQ_USERNAME=user
       - RABBITMQ_PASSWORD=bitnami
       - RABBITMQ_VHOST=/
-     
+
     volumes:
       - "./rabbitmq_conf/custom.conf:/bitnami/rabbitmq/conf/custom.conf"
       - "./rabbitmq_conf/server:/bitnami/tls-test"
       - rmq_data:/bitnami/rabbitmq
-        
+
 networks:
   integration-net:
     driver: bridge
