@@ -66,10 +66,10 @@ impl fmt::Display for Error {
             Error::ConnectionCloseError(msg) => write!(f, "AMQP connection close error: {}", msg),
             Error::ConnectionUseError(msg) => write!(f, "AMQP connection usage error: {}", msg),
             Error::ChannelOpenError(msg) => write!(f, "AMQP channel open error: {}", msg),
-            Error::ChannelUseError(msg) => write!(f, "AMQP channel close error: {}", msg),
-            Error::ChannelCloseError(msg) => write!(f, "AMQP channel usage error: {}", msg),
+            Error::ChannelUseError(msg) => write!(f, "AMQP channel usage error: {}", msg),
+            Error::ChannelCloseError(msg) => write!(f, "AMQP channel close error: {}", msg),
             Error::InternalChannelError(msg) => {
-                write!(f, "internal communication error: {}", msg)
+                write!(f, "AMQP internal communication error: {}", msg)
             }
         }
     }

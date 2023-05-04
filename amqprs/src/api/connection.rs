@@ -1137,7 +1137,10 @@ impl Connection {
         // connection's close method , should use default channel id
         let responder_rx = self
             .register_responder(DEFAULT_CONN_CHANNEL, CloseOk::header())
-            .await?;
+            .await
+            .map_err(|err| {
+                Error::ConnectionCloseError(format!("failed to register responder {}", err))
+            })?;
 
         let close = Close::default();
         synchronous_request!(
