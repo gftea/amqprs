@@ -351,6 +351,40 @@ impl TryInto<LongStr> for FieldValue {
     }
 }
 
+impl<'a> TryInto<&'a LongStr> for &'a FieldValue {
+    type Error = crate::Error;
+
+    fn try_into(self) -> Result<&'a LongStr, Self::Error> {
+        match self {
+            FieldValue::S(v) => Ok(v),
+            _ => Err(crate::Error::Message("not a LongStr".to_string())),
+        }
+    }
+}
+
+impl<'a> TryInto<&'a String> for &'a FieldValue {
+    type Error = crate::Error;
+
+    fn try_into(self) -> Result<&'a String, Self::Error> {
+        match self {
+            FieldValue::S(v) => Ok(v.as_ref()),
+            _ => Err(crate::Error::Message("not a LongStr".to_string())),
+        }
+    }
+}
+
+impl<'a> TryInto<&'a str> for &'a FieldValue {
+    type Error = crate::Error;
+
+    fn try_into(self) -> Result<&'a str, Self::Error> {
+        match self {
+            FieldValue::S(v) => Ok(v.as_ref()),
+            _ => Err(crate::Error::Message("not a LongStr".to_string())),
+        }
+    }
+}
+
+
 /// RabbitMQ's field value support only long string variant, so rust string type
 /// always converted to long string variant.
 impl From<String> for FieldValue {
