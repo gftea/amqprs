@@ -681,8 +681,8 @@ mod tests {
         let extracted_longstr: &LongStr = exp_ref.try_into().unwrap();
         let extracted_string: &String = exp_ref.try_into().unwrap();
         assert_eq!(test_str, extracted_str);
-        assert_eq!(test_string, *extracted_string);
-        assert_eq!(test_longstr, *extracted_longstr);
+        assert_eq!(&test_string, extracted_string);
+        assert_eq!(&test_longstr, extracted_longstr);
     }
 
     #[test]
