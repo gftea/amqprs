@@ -671,6 +671,21 @@ mod tests {
     }
 
     #[test]
+    fn test_field_value_try_into_strings() {
+        let test_str = "test_string";
+        let test_string = String::from(test_str);
+        let test_longstr = LongStr::try_from(test_str).unwrap();
+        let exp = FieldValue::S(test_longstr.clone());
+        let exp_ref = &exp;
+        let extracted_str: &str = exp_ref.try_into().unwrap();
+        let extracted_longstr: &LongStr = exp_ref.try_into().unwrap();
+        let extracted_string: &String = exp_ref.try_into().unwrap();
+        assert_eq!(test_str, extracted_str);
+        assert_eq!(test_string, *extracted_string);
+        assert_eq!(test_longstr, *extracted_longstr);
+    }
+
+    #[test]
     fn test_len_for_field_value_of_type_field_array() {
         let s1: LongStr = "1".try_into().unwrap();
         let s2: LongStr = "2".try_into().unwrap();
