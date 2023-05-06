@@ -351,6 +351,40 @@ impl TryInto<LongStr> for FieldValue {
     }
 }
 
+impl<'a> TryInto<&'a LongStr> for &'a FieldValue {
+    type Error = crate::Error;
+
+    fn try_into(self) -> Result<&'a LongStr, Self::Error> {
+        match self {
+            FieldValue::S(v) => Ok(v),
+            _ => Err(crate::Error::Message("not a LongStr".to_string())),
+        }
+    }
+}
+
+impl<'a> TryInto<&'a String> for &'a FieldValue {
+    type Error = crate::Error;
+
+    fn try_into(self) -> Result<&'a String, Self::Error> {
+        match self {
+            FieldValue::S(v) => Ok(v.as_ref()),
+            _ => Err(crate::Error::Message("not a LongStr".to_string())),
+        }
+    }
+}
+
+impl<'a> TryInto<&'a str> for &'a FieldValue {
+    type Error = crate::Error;
+
+    fn try_into(self) -> Result<&'a str, Self::Error> {
+        match self {
+            FieldValue::S(v) => Ok(v.as_ref()),
+            _ => Err(crate::Error::Message("not a LongStr".to_string())),
+        }
+    }
+}
+
+
 /// RabbitMQ's field value support only long string variant, so rust string type
 /// always converted to long string variant.
 impl From<String> for FieldValue {
@@ -634,6 +668,21 @@ mod tests {
         assert_eq!(exp, "X".to_owned().into());
         let t: String = exp.try_into().unwrap();
         assert_eq!("X".to_owned(), t);
+    }
+
+    #[test]
+    fn test_field_value_try_into_strings() {
+        let test_str = "test_string";
+        let test_string = String::from(test_str);
+        let test_longstr = LongStr::try_from(test_str).unwrap();
+        let exp = FieldValue::S(test_longstr.clone());
+        let exp_ref = &exp;
+        let extracted_str: &str = exp_ref.try_into().unwrap();
+        let extracted_longstr: &LongStr = exp_ref.try_into().unwrap();
+        let extracted_string: &String = exp_ref.try_into().unwrap();
+        assert_eq!(test_str, extracted_str);
+        assert_eq!(&test_string, extracted_string);
+        assert_eq!(&test_longstr, extracted_longstr);
     }
 
     #[test]
