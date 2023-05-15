@@ -1,11 +1,6 @@
 [workspace]
 
-members = [
-    "amqprs",
-    "amqp_serde",
-    "examples",
-    "benchmarks",
-]
+members = ["amqprs", "amqp_serde", "examples", "benchmarks"]
 
 
 # [profile.bench]

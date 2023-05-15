@@ -3,6 +3,9 @@ name = "examples"
 version = "0.0.0"
 publish = false
 edition = "2021"
+license = "MIT"
+description = "Examples for amqprs"
+repository = "https://github.com/gftea/amqprs"
 
 # If you copy one of the examples into a new project, you should be using
 # [dependencies] instead, and delete the **path**.

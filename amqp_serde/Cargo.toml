@@ -1,12 +1,13 @@
 [package]
 name = "amqp_serde"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.56"
 license = "MIT"
 description = "Serde implementation for AMQP 0-9-1 types"
 repository = "https://github.com/gftea/amqprs"
 keywords = ["amqp", "rabbitmq", "serde"]
+documentation = "https://docs.rs/amqp_serde/latest/amqp_serde/"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

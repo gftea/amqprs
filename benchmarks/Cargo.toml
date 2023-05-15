@@ -3,11 +3,13 @@ name = "benchmarks"
 version = "0.0.0"
 publish = false
 edition = "2021"
-
+license = "MIT"
+description = "Benchmarks for amqprs"
+repository = "https://github.com/gftea/amqprs"
 
 [dependencies]
 # benchmark tools
-criterion_bencher_compat ={ version = "0.4.0"}
+criterion_bencher_compat = { version = "0.4.0" }
 criterion = { version = "0.4" }
 
 # common 
