@@ -144,7 +144,7 @@ RUST_LOG=debug ./regression_test.sh
 [See benchmarks's README](https://github.com/gftea/amqprs/blob/main/benchmarks/README.md)
 
 <details>
-<summary>Users Feedbacks</summary>
+<summary>Community Feedbacks</summary>
 
 #### Luc Georges @ Hugging Face 
 
