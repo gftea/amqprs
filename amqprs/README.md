@@ -142,3 +142,17 @@ RUST_LOG=debug ./regression_test.sh
 # Benchmarks
 
 [See benchmarks's README](https://github.com/gftea/amqprs/blob/main/benchmarks/README.md)
+
+<details>
+<summary>Users Feedbacks</summary>
+
+#### Luc Georges @ Hugging Face 
+
+> I've put amqprs in production and it's working very nicely so far! I've had spikes of publish and delivery over 10k msg/sec without breaking a sweat
+    
+#### Michael Klishin @ RabbitMQ team
+    
+> We usually add new clients after they get some traction in the community. But this client seems to be fairly well documented and I like the API (it is a bit complicated with some other Rust clients)
+    
+</details>
+
