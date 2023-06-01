@@ -80,3 +80,5 @@ pub use frame::Return;
 
 pub use frame::DELIVERY_MODE_PERSISTENT;
 pub use frame::DELIVERY_MODE_TRANSIENT;
+
+pub use amqp_serde::types::*;

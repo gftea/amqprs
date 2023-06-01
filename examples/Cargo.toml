@@ -36,3 +36,7 @@ path = "src/callbacks_impl.rs"
 name = "tls"
 path = "src/tls.rs"
 required-features = ["example-tls"]
+
+[[example]]
+name = "field_table"
+path = "src/field_table.rs"
