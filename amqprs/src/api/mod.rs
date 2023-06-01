@@ -1,6 +1,6 @@
-pub use amqp_serde::types::FieldTable;
-
 use self::error::Error;
+use crate::FieldTable;
+
 pub(in crate::api) type Result<T> = std::result::Result<T, Error>;
 
 // macro should appear before module declaration
