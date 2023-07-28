@@ -148,7 +148,7 @@ impl ReaderHandler {
                 // respond to server if no callback registered or callback succeed
                 self.amqp_connection.set_is_open(false);
                 self.outgoing_tx
-                    .send((DEFAULT_CONN_CHANNEL, CloseOk::default().into_frame()))
+                    .send((DEFAULT_CONN_CHANNEL, CloseOk.into_frame()))
                     .await?;
                 #[cfg(feature = "traces")]
                 info!(

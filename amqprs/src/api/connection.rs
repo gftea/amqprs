@@ -485,10 +485,10 @@ impl TryFrom<&str> for OpenConnectionArguments {
 
         // Check & apply virtual host
         let pu_path = pu.path().to_string();
-        if pu_path.is_empty() {
+        if pu_path.len() <= 1 {
             args.virtual_host("/");
         } else {
-            args.virtual_host(pu_path.as_str());
+            args.virtual_host(&pu_path[1..]);
         }
 
         // Check & apply query
@@ -1400,14 +1400,14 @@ mod tests {
         let args = OpenConnectionArguments::try_from("amqp://user:pass@host:10000/vhost").unwrap();
         assert_eq!(args.host, "host");
         assert_eq!(args.port, 10000);
-        assert_eq!(args.virtual_host, "/vhost");
+        assert_eq!(args.virtual_host, "vhost");
 
         let args =
             OpenConnectionArguments::try_from("amqp://user%61:%61pass@ho%61st:10000/v%2fhost")
                 .unwrap();
         assert_eq!(args.host, "ho%61st");
         assert_eq!(args.port, 10000);
-        assert_eq!(args.virtual_host, "/v%2fhost");
+        assert_eq!(args.virtual_host, "v%2fhost");
 
         let args = OpenConnectionArguments::try_from("amqp://").unwrap();
         assert_eq!(args.host, "");
