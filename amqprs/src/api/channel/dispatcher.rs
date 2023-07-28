@@ -334,7 +334,7 @@ impl ChannelDispatcher {
 
                                 // implictly respond OK to server
                                 self.channel.shared.outgoing_tx
-                                .send((self.channel.channel_id(), CloseChannelOk::default().into_frame()))
+                                .send((self.channel.channel_id(), CloseChannelOk.into_frame()))
                                 .await.unwrap();
                                 // exit
                                 break;
