@@ -60,6 +60,9 @@ jobs:
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov
 
+      - name: Cargo update
+        run: cargo update -p proc-macro2
+
       - name: Measure coverage
         run: RUST_LOG=trace cargo llvm-cov --all-features --lcov --output-path ./lcov.info
 
