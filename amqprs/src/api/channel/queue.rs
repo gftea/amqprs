@@ -389,7 +389,7 @@ impl Channel {
             Ok(None)
         } else {
             let responder_rx = self.register_responder(DeclareQueueOk::header()).await?;
-            let delcare_ok = synchronous_request!(
+            let declare_ok = synchronous_request!(
                 self.shared.outgoing_tx,
                 (self.channel_id(), declare.into_frame()),
                 responder_rx,
@@ -397,9 +397,9 @@ impl Channel {
                 Error::ChannelUseError
             )?;
             Ok(Some((
-                delcare_ok.queue.into(),
-                delcare_ok.message_count,
-                delcare_ok.consumer_count,
+                declare_ok.queue.into(),
+                declare_ok.message_count,
+                declare_ok.consumer_count,
             )))
         }
     }
