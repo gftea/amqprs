@@ -64,7 +64,7 @@ impl QueueDeclareArguments {
     }
 
     /// Arguments of a durable, non-exclusive, non-autodelete
-    // queue. Usually a good fit for queues with well-known names.
+    /// queue. Usually a good fit for queues with well-known names.
     pub fn durable_client_named(queue: &str) -> Self {
         #[cfg(feature = "compliance_assert")]
         assert_queue_name(queue);
@@ -81,7 +81,7 @@ impl QueueDeclareArguments {
     }
 
     /// Arguments of an exclusive, transient, server-named
-    // queue. Usually a good fit for queues that store client-specific transient state.
+    /// queue. Usually a good fit for queues that store client-specific transient state.
     pub fn exclusive_server_named() -> Self {
         Self {
             queue: "".to_owned(),
@@ -95,8 +95,8 @@ impl QueueDeclareArguments {
     }
 
     /// Arguments of an autodelete, transient, client-named
-    // queue. Usually a good fit for queues that store client-specific transient state
-    // when server-named queues are not an option.
+    /// queue. Usually a good fit for queues that store client-specific transient state
+    /// when server-named queues are not an option.
     pub fn transient_autodelete(queue: &str) -> Self {
         Self {
             queue: queue.to_owned(),
