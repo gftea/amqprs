@@ -2,6 +2,7 @@
 
 members = ["amqprs", "amqp_serde", "examples", "benchmarks"]
 
+resolver = "2"
 
 # [profile.bench]
 # opt-level = 3
