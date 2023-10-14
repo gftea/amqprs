@@ -51,6 +51,8 @@ impl SecurityCredentials {
     }
 
     /// Create and return EXTERNAL without credentials
+    ///
+    /// This must be used together with mTLS connection.
     pub fn new_external() -> Self {
         Self {
             username: "".to_owned(),
