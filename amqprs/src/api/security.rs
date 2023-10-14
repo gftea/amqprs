@@ -24,7 +24,7 @@ pub struct SecurityCredentials {
 enum AuthenticationMechanism {
     PLAIN,
     AMQPLAIN,
-    // EXTERNAL,
+    EXTERNAL,
     // RABBIT-CR-DEMO,
 }
 
@@ -50,11 +50,24 @@ impl SecurityCredentials {
         }
     }
 
+    /// Create and return EXTERNAL without credentials
+    ///
+    /// This must be used together with mTLS connection.
+    pub fn new_external() -> Self {
+        Self {
+            username: "".to_owned(),
+            password: "".to_owned(),
+            mechanism: AuthenticationMechanism::EXTERNAL,
+        }
+    }
+
+
     /// Get the name of authentication mechanism of current credential
     pub(crate) fn get_mechanism_name(&self) -> &str {
         match self.mechanism {
             AuthenticationMechanism::PLAIN => "PLAIN",
             AuthenticationMechanism::AMQPLAIN => "AMQPLAIN",
+            AuthenticationMechanism::EXTERNAL => "EXTERNAL"
         }
     }
     /// Get the security challenge `response` string, to be sent to server.
@@ -88,6 +101,7 @@ impl SecurityCredentials {
                 .unwrap();
                 String::from_utf8(buf.to_vec()).unwrap()
             }
+            AuthenticationMechanism::EXTERNAL => "".to_string(),
         }
     }
 }

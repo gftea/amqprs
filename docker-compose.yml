@@ -24,6 +24,7 @@ services:
       - RABBITMQ_USERNAME=user
       - RABBITMQ_PASSWORD=bitnami
       - RABBITMQ_VHOST=/
+      - RABBITMQ_PLUGINS=rabbitmq_management,rabbitmq_management_agent,rabbitmq_web_dispatch,rabbitmq_auth_mechanism_ssl
 
     volumes:
       - "./rabbitmq_conf/custom.conf:/bitnami/rabbitmq/conf/custom.conf"

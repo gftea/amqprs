@@ -19,6 +19,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # features for example target 
 [features]
 example-tls = ["amqprs/tls", "amqprs/traces"]
+default = ["amqprs/traces"]
 
 [[example]]
 name = "basic_pub_sub"
@@ -35,6 +36,11 @@ path = "src/callbacks_impl.rs"
 [[example]]
 name = "tls"
 path = "src/tls.rs"
+required-features = ["example-tls"]
+
+[[example]]
+name = "mtls"
+path = "src/mtls.rs"
 required-features = ["example-tls"]
 
 [[example]]
