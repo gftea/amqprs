@@ -1,6 +1,7 @@
 #!/bin/bash
 
 COMMON_NAME=AMQPRS_TEST
+USERNAME=user
 
 # Create directories for rabbitmq server and client and alter permissions
 #------------------------
@@ -15,7 +16,7 @@ sudo chmod 444 rabbitmq_conf/client/*
 #------------------------
 git clone https://github.com/rabbitmq/tls-gen tls-gen
 cd tls-gen/basic
-make CN=$COMMON_NAME
+make CN=$COMMON_NAME CLIENT_ALT_NAME=$USERNAME
 make verify CN=$COMMON_NAME
 make info CN=$COMMON_NAME
 ls -lha ./result
