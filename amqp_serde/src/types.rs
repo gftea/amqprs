@@ -3,6 +3,7 @@
 //! See [RabbitMQ's Definition](https://github.com/rabbitmq/rabbitmq-codegen/blob/main/amqp-rabbitmq-0.9.1.json).
 //!
 //! See [RabbitMQ errata](https://www.rabbitmq.com/amqp-0-9-1-errata.html)
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     convert::TryFrom,
@@ -10,7 +11,6 @@ use std::{
     mem::{size_of, size_of_val},
     num::TryFromIntError,
 };
-use serde::{Deserialize, Serialize};
 
 /// DO NOT USE. No primitive rust type to represent single bit.
 ///
@@ -209,7 +209,9 @@ impl TryFrom<Vec<FieldValue>> for FieldArray {
     type Error = TryFromIntError;
 
     fn try_from(values: Vec<FieldValue>) -> Result<Self, Self::Error> {
-        let total_bytes = values.iter().fold(0, |acc, v| acc + FieldValue::TAG_SIZE + v.len());
+        let total_bytes = values
+            .iter()
+            .fold(0, |acc, v| acc + FieldValue::TAG_SIZE + v.len());
         let len = LongUint::try_from(total_bytes)?;
         Ok(Self(len, values))
     }
@@ -282,23 +284,23 @@ impl FieldValue {
 
     fn len(&self) -> usize {
         match self {
-            Self::V => 0, // fixed size
-            Self::t(_) => size_of::<Boolean>(), // fixed size
-            Self::b(_) => size_of::<ShortShortInt>(), // fixed size
-            Self::B(_) => size_of::<ShortShortUint>(), // fixed size
-            Self::s(_) => size_of::<ShortInt>(), // fixed size
-            Self::u(_) => size_of::<ShortUint>(), // fixed size
-            Self::I(_) => size_of::<LongInt>(), // fixed size
-            Self::i(_) => size_of::<LongUint>(), // fixed size
-            Self::l(_) => size_of::<LongLongInt>(), // fixed size
-            Self::f(_) => size_of::<Float>(), // fixed size
-            Self::d(_) => size_of::<Double>(), // fixed size
-            Self::T(_) => size_of::<TimeStamp>(), // fixed size
+            Self::V => 0,                                        // fixed size
+            Self::t(_) => size_of::<Boolean>(),                  // fixed size
+            Self::b(_) => size_of::<ShortShortInt>(),            // fixed size
+            Self::B(_) => size_of::<ShortShortUint>(),           // fixed size
+            Self::s(_) => size_of::<ShortInt>(),                 // fixed size
+            Self::u(_) => size_of::<ShortUint>(),                // fixed size
+            Self::I(_) => size_of::<LongInt>(),                  // fixed size
+            Self::i(_) => size_of::<LongUint>(),                 // fixed size
+            Self::l(_) => size_of::<LongLongInt>(),              // fixed size
+            Self::f(_) => size_of::<Float>(),                    // fixed size
+            Self::d(_) => size_of::<Double>(),                   // fixed size
+            Self::T(_) => size_of::<TimeStamp>(),                // fixed size
             Self::D(v) => size_of_val(&v.0) + size_of_val(&v.1), // fixed size
-            Self::S(v) => size_of_val(&v.0) + v.0 as usize, // variable size
-            Self::A(v) => size_of_val(&v.0) + v.0 as usize, // variable size
-            Self::F(v) => size_of_val(&v.0) + v.0 as usize, // variable size
-            Self::x(v) => size_of_val(&v.0) + v.0 as usize, // variable size
+            Self::S(v) => size_of_val(&v.0) + v.0 as usize,      // variable size
+            Self::A(v) => size_of_val(&v.0) + v.0 as usize,      // variable size
+            Self::F(v) => size_of_val(&v.0) + v.0 as usize,      // variable size
+            Self::x(v) => size_of_val(&v.0) + v.0 as usize,      // variable size
         }
     }
 }
@@ -384,7 +386,6 @@ impl<'a> TryInto<&'a str> for &'a FieldValue {
     }
 }
 
-
 /// RabbitMQ's field value support only long string variant, so rust string type
 /// always converted to long string variant.
 impl From<String> for FieldValue {
@@ -446,13 +447,18 @@ impl FieldTable {
     }
 
     pub fn insert(&mut self, k: FieldName, v: FieldValue) -> Option<FieldValue> {
-        self.0 += LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()).unwrap();
+        self.0 +=
+            LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len())
+                .unwrap();
         self.1.insert(k, v)
     }
 
     pub fn remove(&mut self, k: &FieldName) -> Option<FieldValue> {
         if let Some(v) = self.1.remove(k) {
-            self.0 -= LongUint::try_from(size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len()).unwrap();
+            self.0 -= LongUint::try_from(
+                size_of_val(&k.0) + k.0 as usize + FieldValue::TAG_SIZE + v.len(),
+            )
+            .unwrap();
             Some(v)
         } else {
             None
@@ -588,8 +594,8 @@ pub type AmqpTimeStamp = TimeStamp;
 /////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
-    use std::mem::size_of;
     use crate::types::{ByteArray, DecimalValue, FieldArray, FieldValue, LongStr, LongUint};
+    use std::mem::size_of;
 
     use super::{FieldTable, ShortStr};
     #[test]
@@ -657,7 +663,7 @@ mod tests {
         let exp = FieldValue::t(true);
         assert_eq!(exp, true.into());
         let t: bool = exp.try_into().unwrap();
-        assert_eq!(true, t);
+        assert!(t);
 
         let exp = FieldValue::F(FieldTable::default());
         assert_eq!(exp, FieldTable::default().into());
@@ -699,7 +705,8 @@ mod tests {
             FieldValue::S(s4),
         ];
 
-        v.iter().for_each(|_fv| total_length += FieldValue::TAG_SIZE + size_of::<LongUint>());
+        v.iter()
+            .for_each(|_fv| total_length += FieldValue::TAG_SIZE + size_of::<LongUint>());
 
         let a = FieldArray::try_from(v).unwrap();
 
@@ -723,7 +730,8 @@ mod tests {
         ];
         let mut total_length = 0;
         v_kv.into_iter().for_each(|(k, v)| {
-            total_length += k.1.len() + v.1.len() + 2 * FieldValue::TAG_SIZE + size_of::<LongUint>();
+            total_length +=
+                k.1.len() + v.1.len() + 2 * FieldValue::TAG_SIZE + size_of::<LongUint>();
             ft.insert(k, FieldValue::S(v));
         });
 
