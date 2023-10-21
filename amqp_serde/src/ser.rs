@@ -236,7 +236,11 @@ where
             // reserve u32 for length of table
             self.serialize_u32(0)?;
         }
-        Ok(MapSerializer { ser: self, start, is_len_known: len.is_some() })
+        Ok(MapSerializer {
+            ser: self,
+            start,
+            is_len_known: len.is_some(),
+        })
     }
 }
 
@@ -400,7 +404,7 @@ where
 mod test {
     use crate::to_bytes;
     use crate::types::*;
-    use serde::{Serialize, Serializer, ser::SerializeMap};
+    use serde::{ser::SerializeMap, Serialize, Serializer};
     use std::collections::BTreeMap;
 
     #[test]
@@ -535,7 +539,6 @@ mod test {
         assert_eq!(expected, result);
     }
 
-
     #[test]
     fn test_serialize_map_known_length_up_front() {
         // We use BTreeMap in order to garantee that it iterates in a sorted way
@@ -552,11 +555,11 @@ mod test {
             {
                 /*
                  * In this case the Serialize impl for the map has to manage by itself
-                * the serialization of the map lenght
+                 * the serialization of the map lenght
                  */
-                let len = self.0
-                    .iter()
-                    .fold(0, |l, (k, v)| { l + (k.as_ref().len() + v.as_ref().len()) as u32 });
+                let len = self.0.iter().fold(0, |l, (k, v)| {
+                    l + (k.as_ref().len() + v.as_ref().len()) as u32
+                });
                 let mut map = serializer.serialize_map(Some(self.0.len()))?; // Known up-front length
                 map.serialize_value(&len)?;
                 for (k, v) in self.0.iter() {

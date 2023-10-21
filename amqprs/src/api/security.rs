@@ -61,13 +61,12 @@ impl SecurityCredentials {
         }
     }
 
-
     /// Get the name of authentication mechanism of current credential
     pub(crate) fn get_mechanism_name(&self) -> &str {
         match self.mechanism {
             AuthenticationMechanism::PLAIN => "PLAIN",
             AuthenticationMechanism::AMQPLAIN => "AMQPLAIN",
-            AuthenticationMechanism::EXTERNAL => "EXTERNAL"
+            AuthenticationMechanism::EXTERNAL => "EXTERNAL",
         }
     }
     /// Get the security challenge `response` string, to be sent to server.
