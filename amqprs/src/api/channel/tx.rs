@@ -120,9 +120,7 @@ mod tests {
 
         let args = BasicPublishArguments::new("amq.topic", "amqprs.test.transaction");
 
-        let basic_properties = BasicProperties::default()
-            .with_persistence(true)
-            .finish();
+        let basic_properties = BasicProperties::default().with_persistence(true).finish();
 
         let content = String::from("AMQPRS test transactions").into_bytes();
 

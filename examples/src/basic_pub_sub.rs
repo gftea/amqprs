@@ -44,7 +44,9 @@ async fn main() {
 
     // declare a durable queue
     let (queue_name, _, _) = channel
-        .queue_declare(QueueDeclareArguments::durable_client_named("amqprs.examples.basic"))
+        .queue_declare(QueueDeclareArguments::durable_client_named(
+            "amqprs.examples.basic",
+        ))
         .await
         .unwrap()
         .unwrap();

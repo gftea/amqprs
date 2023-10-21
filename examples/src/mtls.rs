@@ -1,3 +1,4 @@
+use amqprs::security::SecurityCredentials;
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
     channel::{
@@ -9,7 +10,6 @@ use amqprs::{
 };
 use tokio::time;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
-use amqprs::security::SecurityCredentials;
 
 use amqprs::tls::TlsAdaptor;
 

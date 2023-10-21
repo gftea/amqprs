@@ -78,13 +78,9 @@ fn main() {
         //////////////////////////////////////////////////////////////////////////////
         let now = std::time::Instant::now();
         // publish  messages of variable sizes
-        for &i in msg_size_list.iter().take(count)  {
+        for &i in msg_size_list.iter().take(count) {
             channel
-                .basic_publish(
-                    BasicProperties::default(),
-                    vec![0xc5; i],
-                    pubargs.clone(),
-                )
+                .basic_publish(BasicProperties::default(), vec![0xc5; i], pubargs.clone())
                 .await
                 .unwrap();
         }

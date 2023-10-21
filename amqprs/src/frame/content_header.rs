@@ -1,8 +1,8 @@
 use std::fmt;
 
+use crate::{DELIVERY_MODE_PERSISTENT, DELIVERY_MODE_TRANSIENT};
 use amqp_serde::types::{FieldTable, LongLongUint, Octect, ShortStr, ShortUint, TimeStamp};
 use serde::{de::Visitor, Deserialize, Serialize};
-use crate::{DELIVERY_MODE_PERSISTENT, DELIVERY_MODE_TRANSIENT};
 
 use super::Frame;
 

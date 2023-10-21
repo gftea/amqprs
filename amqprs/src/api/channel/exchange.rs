@@ -1,9 +1,9 @@
-use std::borrow::ToOwned;
-use std::fmt::{Debug, Display, Formatter};
 use crate::{
     api::{error::Error, FieldTable},
     frame::{Bind, BindOk, Declare, DeclareOk, Delete, DeleteOk, Frame, Unbind, UnbindOk},
 };
+use std::borrow::ToOwned;
+use std::fmt::{Debug, Display, Formatter};
 
 use super::{Channel, Result};
 
@@ -33,18 +33,18 @@ pub enum ExchangeType {
     /// Recent history exchange
     RecentHistory,
     /// All other x-* exchange types, for example, those provided by plugins
-    Plugin(String)
+    Plugin(String),
 }
 
 const EXCHANGE_TYPE_FANOUT: &str = "fanout";
-const EXCHANGE_TYPE_TOPIC:  &str = "topic";
-const EXCHANGE_TYPE_DIRECT:  &str = "direct";
-const EXCHANGE_TYPE_HEADERS:  &str = "headers";
-const EXCHANGE_TYPE_CONSISTENT_HASHING:  &str = "x-consistent-hash";
-const EXCHANGE_TYPE_MODULUS_HASH:  &str = "x-modulus-hash";
-const EXCHANGE_TYPE_RANDOM:  &str = "x-random";
-const EXCHANGE_TYPE_JMS_TOPIC:  &str = "x-jms-topic";
-const EXCHANGE_TYPE_RECENT_HISTORY:  &str = "x-recent-history";
+const EXCHANGE_TYPE_TOPIC: &str = "topic";
+const EXCHANGE_TYPE_DIRECT: &str = "direct";
+const EXCHANGE_TYPE_HEADERS: &str = "headers";
+const EXCHANGE_TYPE_CONSISTENT_HASHING: &str = "x-consistent-hash";
+const EXCHANGE_TYPE_MODULUS_HASH: &str = "x-modulus-hash";
+const EXCHANGE_TYPE_RANDOM: &str = "x-random";
+const EXCHANGE_TYPE_JMS_TOPIC: &str = "x-jms-topic";
+const EXCHANGE_TYPE_RECENT_HISTORY: &str = "x-recent-history";
 
 impl From<&str> for ExchangeType {
     fn from(value: &str) -> Self {
@@ -58,7 +58,7 @@ impl From<&str> for ExchangeType {
             EXCHANGE_TYPE_RANDOM => ExchangeType::Random,
             EXCHANGE_TYPE_JMS_TOPIC => ExchangeType::JmsTopic,
             EXCHANGE_TYPE_RECENT_HISTORY => ExchangeType::RecentHistory,
-            other => ExchangeType::Plugin(other.to_owned())
+            other => ExchangeType::Plugin(other.to_owned()),
         }
     }
 }
@@ -81,7 +81,7 @@ impl From<ExchangeType> for String {
             ExchangeType::Random => EXCHANGE_TYPE_RANDOM.to_owned(),
             ExchangeType::JmsTopic => EXCHANGE_TYPE_JMS_TOPIC.to_owned(),
             ExchangeType::RecentHistory => EXCHANGE_TYPE_RECENT_HISTORY.to_owned(),
-            ExchangeType::Plugin(exchange_type) => exchange_type
+            ExchangeType::Plugin(exchange_type) => exchange_type,
         }
     }
 }
@@ -97,8 +97,8 @@ impl Display for ExchangeType {
             ExchangeType::ModulusHash => Display::fmt(&EXCHANGE_TYPE_MODULUS_HASH, f),
             ExchangeType::Random => Display::fmt(&EXCHANGE_TYPE_RANDOM, f),
             ExchangeType::JmsTopic => Display::fmt(&EXCHANGE_TYPE_JMS_TOPIC, f),
-            ExchangeType::RecentHistory => Display::fmt(&EXCHANGE_TYPE_RECENT_HISTORY,f),
-            ExchangeType::Plugin(exchange_type) => Display::fmt(&exchange_type, f)
+            ExchangeType::RecentHistory => Display::fmt(&EXCHANGE_TYPE_RECENT_HISTORY, f),
+            ExchangeType::Plugin(exchange_type) => Display::fmt(&exchange_type, f),
         }
     }
 }
@@ -535,8 +535,8 @@ impl Channel {
 #[cfg(test)]
 mod tests {
     use super::{
-        ExchangeBindArguments, ExchangeDeclareArguments, ExchangeDeleteArguments,
-        ExchangeUnbindArguments, ExchangeType,
+        ExchangeBindArguments, ExchangeDeclareArguments, ExchangeDeleteArguments, ExchangeType,
+        ExchangeUnbindArguments,
     };
     use crate::{
         api::connection::{Connection, OpenConnectionArguments},
@@ -550,34 +550,57 @@ mod tests {
         assert_eq!(ExchangeType::Topic.to_string(), "topic");
         assert_eq!(ExchangeType::Direct.to_string(), "direct");
         assert_eq!(ExchangeType::Headers.to_string(), "headers");
-        assert_eq!(ExchangeType::ConsistentHashing.to_string(), "x-consistent-hash");
+        assert_eq!(
+            ExchangeType::ConsistentHashing.to_string(),
+            "x-consistent-hash"
+        );
         assert_eq!(ExchangeType::Random.to_string(), "x-random");
         assert_eq!(ExchangeType::JmsTopic.to_string(), "x-jms-topic");
         assert_eq!(ExchangeType::RecentHistory.to_string(), "x-recent-history");
         assert_eq!(ExchangeType::ModulusHash.to_string(), "x-modulus-hash");
-        assert_eq!(ExchangeType::Plugin(String::from("x-custom-exchange-2")).to_string(), "x-custom-exchange-2");
+        assert_eq!(
+            ExchangeType::Plugin(String::from("x-custom-exchange-2")).to_string(),
+            "x-custom-exchange-2"
+        );
 
         assert_eq!(ExchangeType::from("fanout"), ExchangeType::Fanout);
         assert_eq!(ExchangeType::from("topic"), ExchangeType::Topic);
         assert_eq!(ExchangeType::from("direct"), ExchangeType::Direct);
         assert_eq!(ExchangeType::from("headers"), ExchangeType::Headers);
-        assert_eq!(ExchangeType::from("x-consistent-hash"), ExchangeType::ConsistentHashing);
+        assert_eq!(
+            ExchangeType::from("x-consistent-hash"),
+            ExchangeType::ConsistentHashing
+        );
         assert_eq!(ExchangeType::from("x-random"), ExchangeType::Random);
         assert_eq!(ExchangeType::from("x-jms-topic"), ExchangeType::JmsTopic);
-        assert_eq!(ExchangeType::from("x-modulus-hash"), ExchangeType::ModulusHash);
-        assert_eq!(ExchangeType::from("x-custom-exchange-2"), ExchangeType::Plugin(String::from("x-custom-exchange-2")));
+        assert_eq!(
+            ExchangeType::from("x-modulus-hash"),
+            ExchangeType::ModulusHash
+        );
+        assert_eq!(
+            ExchangeType::from("x-custom-exchange-2"),
+            ExchangeType::Plugin(String::from("x-custom-exchange-2"))
+        );
 
         assert_eq!(String::from(ExchangeType::Fanout), "fanout");
         assert_eq!(String::from(ExchangeType::Topic), "topic");
         assert_eq!(String::from(ExchangeType::Direct), "direct");
         assert_eq!(String::from(ExchangeType::Headers), "headers");
         assert_eq!(String::from(ExchangeType::ModulusHash), "x-modulus-hash");
-        assert_eq!(String::from(ExchangeType::ConsistentHashing), "x-consistent-hash");
-        assert_eq!(String::from(ExchangeType::RecentHistory), "x-recent-history");
+        assert_eq!(
+            String::from(ExchangeType::ConsistentHashing),
+            "x-consistent-hash"
+        );
+        assert_eq!(
+            String::from(ExchangeType::RecentHistory),
+            "x-recent-history"
+        );
         assert_eq!(String::from(ExchangeType::Random), "x-random");
         assert_eq!(String::from(ExchangeType::JmsTopic), "x-jms-topic");
-        assert_eq!(String::from(ExchangeType::Plugin(String::from("x-custom-exchange-3"))), "x-custom-exchange-3");
-
+        assert_eq!(
+            String::from(ExchangeType::Plugin(String::from("x-custom-exchange-3"))),
+            "x-custom-exchange-3"
+        );
     }
 
     #[tokio::test]

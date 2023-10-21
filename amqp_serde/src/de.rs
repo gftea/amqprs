@@ -134,7 +134,6 @@ impl<'de> Deserializer<'de> {
     fn get_parsed_length(&self) -> Result<usize> {
         match self.last_parsed_len {
             Some(len) if len <= u32::MAX as usize => {
-                let len = len;
                 if self.input.len() < len {
                     Err(Error::Syntax)
                 } else {
