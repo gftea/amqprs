@@ -606,6 +606,15 @@ impl Connection {
             "version".try_into().unwrap(),
             FieldValue::S("0.1".try_into().unwrap()),
         );
+        let mut client_properties_capabilities = FieldTable::new();
+        client_properties_capabilities.insert(
+            "consumer_cancel_notify".try_into().unwrap(), 
+            true.into()
+        );
+        client_properties.insert(
+            "capabilities".try_into().unwrap(),
+            FieldValue::F(client_properties_capabilities)
+        );
 
         // S: `Start` C: `StartOk`
         let server_properties =
