@@ -52,13 +52,13 @@ async fn main() {
         .unwrap();
 
     // bind the queue to exchange
-    let rounting_key = "amqprs.example";
+    let routing_key = "amqprs.example";
     let exchange_name = "amq.topic";
     channel
         .queue_bind(QueueBindArguments::new(
             &queue_name,
             exchange_name,
-            rounting_key,
+            routing_key,
         ))
         .await
         .unwrap();
@@ -85,7 +85,7 @@ async fn main() {
     .into_bytes();
 
     // create arguments for basic_publish
-    let args = BasicPublishArguments::new(exchange_name, rounting_key);
+    let args = BasicPublishArguments::new(exchange_name, routing_key);
 
     channel
         .basic_publish(BasicProperties::default(), content, args)
