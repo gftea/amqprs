@@ -424,7 +424,7 @@ mod tests {
 
     #[ignore = "https://github.com/gftea/amqprs/issues/69"]
     #[tokio::test]
-    async fn test_channel_is_not_cloneable() {
+    async fn test_channel_cloneable() {
         // default: `IS_CLONEABLE = false` for all types
         trait NotCloneable {
             const IS_CLONEABLE: bool = false;
@@ -438,8 +438,8 @@ mod tests {
         impl<T: Clone> Wrapper<T> {
             const IS_CLONEABLE: bool = true;
         }
-
-        assert_eq!(false, <Wrapper<Channel>>::IS_CLONEABLE);
+        // Prevent clippy to report assertion on const value.
+        assert_eq!(<Wrapper<Channel>>::IS_CLONEABLE.to_string(), "true");
     }
 
     #[tokio::test]

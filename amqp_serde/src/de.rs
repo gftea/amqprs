@@ -737,7 +737,7 @@ mod tests {
     fn test_eof() {
         #[derive(Deserialize)]
         struct Frame(u32);
-        let input = vec![0x00];
+        let input = [0x00];
         let _: Frame = from_bytes(&input[..]).unwrap();
     }
 
@@ -746,7 +746,7 @@ mod tests {
     fn test_missing_length() {
         #[derive(Deserialize)]
         struct Frame(Vec<u8>);
-        let input = vec![0, 1, 2];
+        let input = [0, 1, 2];
         let _: Frame = from_bytes(&input[..]).unwrap();
     }
 
@@ -755,7 +755,7 @@ mod tests {
     fn test_syntax_err() {
         #[derive(Deserialize)]
         struct Frame(u8, Vec<u8>);
-        let input = vec![9, 0, 0];
+        let input = [9, 0, 0];
         let _: Frame = from_bytes(&input[..]).unwrap();
     }
 

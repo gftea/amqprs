@@ -96,7 +96,7 @@ mod tests {
         callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
         channel::BasicPublishArguments,
         connection::{Connection, OpenConnectionArguments},
-        BasicProperties, DELIVERY_MODE_TRANSIENT,
+        BasicProperties,
     };
 
     #[tokio::test]

@@ -970,7 +970,6 @@ mod tests {
             consumer::DefaultConsumer,
         },
         frame::BasicProperties,
-        DELIVERY_MODE_TRANSIENT,
     };
     use tokio::time;
 
