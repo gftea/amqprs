@@ -9,3 +9,7 @@ resolver = "2"
 # debug = false
 # lto = true
 # codegen-units = 1
+
+
+[workspace.dependencies]
+serde_bytes_ng = { version = "0.1.1" }

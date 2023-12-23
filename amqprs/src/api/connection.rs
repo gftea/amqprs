@@ -607,13 +607,11 @@ impl Connection {
             FieldValue::S("0.1".try_into().unwrap()),
         );
         let mut client_properties_capabilities = FieldTable::new();
-        client_properties_capabilities.insert(
-            "consumer_cancel_notify".try_into().unwrap(), 
-            true.into()
-        );
+        client_properties_capabilities
+            .insert("consumer_cancel_notify".try_into().unwrap(), true.into());
         client_properties.insert(
             "capabilities".try_into().unwrap(),
-            FieldValue::F(client_properties_capabilities)
+            FieldValue::F(client_properties_capabilities),
         );
 
         // S: `Start` C: `StartOk`
@@ -1301,9 +1299,9 @@ mod tests {
             let conn1 = Connection::open(&args).await.unwrap();
             let conn2 = conn1.clone();
             tokio::spawn(async move {
-                assert_eq!(true, conn2.is_open());
+                assert!(conn2.is_open());
             });
-            assert_eq!(true, conn1.is_open());
+            assert!(conn1.is_open());
         }
         // wait for finished, otherwise runtime exit before all tasks are done
         time::sleep(time::Duration::from_millis(100)).await;
@@ -1348,7 +1346,7 @@ mod tests {
             jh.push(thread::spawn(|| generate_connection_name("testdomain")));
         }
         for h in jh {
-            assert_eq!(true, res.insert(h.join().unwrap()));
+            assert!(res.insert(h.join().unwrap()));
         }
     }
 

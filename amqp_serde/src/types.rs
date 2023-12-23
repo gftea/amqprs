@@ -169,7 +169,7 @@ impl fmt::Display for DecimalValue {
 /// AMQP byte array type.
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
-pub struct ByteArray(LongUint, Vec<u8>);
+pub struct ByteArray(LongUint, #[serde(with = "serde_bytes_ng")] Vec<u8>);
 impl TryFrom<Vec<u8>> for ByteArray {
     type Error = TryFromIntError;
 
@@ -491,72 +491,6 @@ impl AsRef<HashMap<FieldName, FieldValue>> for FieldTable {
         &self.1
     }
 }
-
-/////////////////////////////////////////////////////////////////////////////
-// #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-// pub struct FieldTable(HashMap<FieldName, FieldValue>);
-// impl Default for FieldTable {
-//     fn default() -> Self {
-//         Self(HashMap::new())
-//     }
-// }
-
-// impl Deref for FieldTable {
-//     type Target = HashMap<FieldName, FieldValue>;
-
-//     fn deref(&self) -> &Self::Target {
-//         &self.0
-//     }
-// }
-
-// impl FieldTable {
-//     pub fn new() -> Self {
-//         Self(HashMap::new())
-//     }
-
-//     pub fn insert<V>(&mut self, k: String, v: V)
-//     where
-//         V: Any,
-//     {
-//         let k: FieldName = k.try_into().unwrap();
-//         let v = &v as &dyn Any;
-
-//         if v.is::<bool>() {
-//             let v = v.downcast_ref::<bool>().unwrap();
-//             let old = self.0.insert(k, FieldValue::t(v.clone()));
-//         } else if v.is::<i8>() {
-//             let v = v.downcast_ref::<i8>().unwrap();
-//             let old = self.0.insert(k, FieldValue::b(v.clone()));
-//         } else if v.is::<u8>() {
-//             let v = v.downcast_ref::<u8>().unwrap();
-//             let old = self.0.insert(k, FieldValue::B(v.clone()));
-//         } else if v.is::<i16>() {
-//             let v = v.downcast_ref::<bool>().unwrap();
-//             let old = self.0.insert(k, FieldValue::t(v.clone()));
-//         } else if v.is::<u16>() {
-//         } else if v.is::<i32>() {
-//         } else if v.is::<u32>() {
-//         } else if v.is::<i64>() {
-//         } else if v.is::<f32>() {
-//         } else if v.is::<f64>() {
-//         } else if v.is::<DecimalValue>() {
-//         } else if v.is::<String>() {
-//             // RabbitMQ does not have "short string" type in field value,
-//             let v = v.downcast_ref::<String>().unwrap();
-//             let old = self
-//                 .0
-//                 .insert(k, FieldValue::S(v.clone().try_into().unwrap()));
-//         } else if v.is::<FieldArray>() {
-//         } else if v.is::<u64>() { // RabbitMQ do not have "Unsigned 64-bit" field value, so `u64` can be uniquely mapped to TimeStamp
-//         } else if v.is::<Self>() {
-//         } else if v.is::<()>() {
-//         } else if v.is::<ByteArray>() {
-//         } else {
-//             panic!("unsupported value type {:?} ", v);
-//         }
-
-//     }
-// }
 
 /////////////////////////////////////////////////////////////////////////////
 // AMQP domains

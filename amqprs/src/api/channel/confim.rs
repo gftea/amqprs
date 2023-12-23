@@ -64,7 +64,7 @@ mod tests {
         channel::BasicPublishArguments,
         connection::{Connection, OpenConnectionArguments},
         test_utils::setup_logging,
-        BasicProperties, DELIVERY_MODE_TRANSIENT,
+        BasicProperties,
     };
 
     use super::ConfirmSelectArguments;

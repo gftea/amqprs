@@ -13,7 +13,7 @@ on:
       - 'prepare_release.sh'
       - 'regression_test.sh'
   workflow_dispatch:
-    branches: ["main"]
+    
   pull_request:
     branches: ["main"]
     paths-ignore:

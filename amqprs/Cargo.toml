@@ -42,6 +42,7 @@ amqp_serde = { path = "../amqp_serde", version = "0.4" }
 async-trait = "0.1"
 tracing = { version = "0.1", optional = true }
 uriparse = { version = "0.6", optional = true }
+serde_bytes_ng = { workspace = true }
 
 # SSL/TLS dependencies
 tokio-rustls = { version = "0.23", optional = true }
