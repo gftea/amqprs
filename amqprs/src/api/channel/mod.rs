@@ -455,13 +455,15 @@ mod tests {
             let ch1 = conn.open_channel(Some(1)).await.unwrap();
             let ch2 = ch1.clone();
             let h = tokio::spawn(async move {
+                time::sleep(time::Duration::from_millis(10)).await;
                 assert!(ch1.is_open());
             });
             h.await.unwrap();
+            time::sleep(time::Duration::from_millis(10)).await;
             assert!(ch2.is_open());
         }
+        time::sleep(time::Duration::from_millis(50)).await;
         conn.close().await.unwrap();
-        time::sleep(time::Duration::from_millis(100)).await;
     }
 }
 
