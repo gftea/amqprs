@@ -475,8 +475,9 @@ impl TryFrom<&str> for OpenConnectionArguments {
             .unwrap_or("guest");
 
         // Apply authority
+        let host = pu_authority.host().to_string();
         let mut args = OpenConnectionArguments::new(
-            pu_authority.host().to_string().as_str(),
+            host.as_str(),
             pu_authority.port().unwrap_or(default_port),
             pu_authority_username,
             pu_authority_password,
@@ -518,6 +519,13 @@ impl TryFrom<&str> for OpenConnectionArguments {
             .map(|v| v.parse::<u16>().unwrap_or(DEFAULT_HEARTBEAT))
             .unwrap_or(DEFAULT_HEARTBEAT);
         args.heartbeat(heartbeat);
+
+        if scheme == AMQPS_SCHEME {
+            args.tls_adaptor(
+                TlsAdaptor::without_client_auth(None, host.to_string())
+                    .map_err(|e| Error::UriError(format!("Error creating TLS adaptor: {e}")))?,
+            );
+        }
 
         Ok(args)
     }
