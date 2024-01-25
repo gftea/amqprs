@@ -523,7 +523,7 @@ impl TryFrom<&str> for OpenConnectionArguments {
         if scheme == AMQPS_SCHEME {
             args.tls_adaptor(
                 TlsAdaptor::without_client_auth(None, host.to_string())
-                    .map_err(|e| Error::UriError(format!("Error creating TLS adaptor: {e}")))?,
+                    .map_err(|e| Error::UriError(format!("Error creating TLS adaptor: {}", e)))?,
             );
         }
 
