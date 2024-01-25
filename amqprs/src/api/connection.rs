@@ -1502,6 +1502,8 @@ mod tests {
         assert_eq!(args.port, 5671);
         assert_eq!(args.virtual_host, "/");
         assert_eq!(args.heartbeat, 10);
+        let tls_adaptor = args.tls_adaptor.unwrap();
+        assert_eq!(tls_adaptor.domain, "localhost");
     }
 
     #[cfg(all(feature = "urispec", feature = "tls"))]
