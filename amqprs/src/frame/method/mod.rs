@@ -11,7 +11,6 @@ mod exchange;
 mod queue;
 mod tx;
 
-pub use access::*;
 pub use basic::*;
 pub use channel::*;
 pub use confirm::*;
