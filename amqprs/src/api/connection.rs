@@ -1484,6 +1484,15 @@ mod tests {
         assert_eq!(args.heartbeat, 30);
     }
 
+    #[cfg(all(feature = "urispec", not(feature = "tls")))]
+    #[test]
+    fn test_urispec_amqps_without_tls() {
+        match OpenConnectionArguments::try_from("amqps://user:bitnami@localhost?heartbeat=10") {
+            Ok(_) => panic!("Unexpected ok"),
+            Err(e) => assert!(matches!(e, crate::api::Error::UriError(_))),
+        }
+    }
+
     #[cfg(all(feature = "urispec", feature = "tls"))]
     #[test]
     fn test_urispec_amqps() {
