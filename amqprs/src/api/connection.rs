@@ -521,10 +521,14 @@ impl TryFrom<&str> for OpenConnectionArguments {
         args.heartbeat(heartbeat);
 
         if scheme == AMQPS_SCHEME {
+            #[cfg(feature = "tls")]
             args.tls_adaptor(
                 TlsAdaptor::without_client_auth(None, host.to_string())
-                    .map_err(|e| Error::UriError(format!("Error creating TLS adaptor: {}", e)))?,
+                    .map_err(|e| Error::UriError(format!("error creating TLS adaptor: {}", e)))?,
             );
+
+            #[cfg(not(feature = "tls"))]
+            return Err(Error::UriError("can't create amqps url without the `tls` feature enabled".to_string()));
         }
 
         Ok(args)
