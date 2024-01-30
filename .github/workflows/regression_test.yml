@@ -84,6 +84,9 @@ jobs:
           - -F urispec
           - --all-features --release
     steps:
+      - name: Check rust version
+        run: rustc -V; cargo -V; rustup -V
+
       - uses: actions/checkout@v3
       - name: Start RabbitMQ server
         run: ./start_rabbitmq.sh
