@@ -31,7 +31,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
+      - name: Check rust version
+        run: rustc -V; cargo -V; rustup -V
 
       - name: cargo build (debug, all-features)
         run: cargo build --all-features --verbose
@@ -48,7 +51,7 @@ jobs:
           - stable
           - 1.56
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -63,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Start RabbitMQ server
         run: ./start_rabbitmq.sh
@@ -87,7 +90,7 @@ jobs:
       - name: Check rust version
         run: rustc -V; cargo -V; rustup -V
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Start RabbitMQ server
         run: ./start_rabbitmq.sh
 
