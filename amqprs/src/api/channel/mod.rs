@@ -121,9 +121,9 @@ pub(crate) enum DispatcherManagementCommand {
 ///
 /// # Concurrency
 ///
-/// `Channel` is not cloneable because of sharing its instances between
-/// tasks/threads should be avoided. Applications should be using a `Channel`
-/// per task/thread.
+/// It is not recommended to share same `Channel` object between tasks/threads, because it allows
+/// interleaving the AMQP protocol messages in same channel in concurrent setup.
+/// Applications should be aware of the this limitation in AMQP protocol itself.
 ///
 /// See detailed explanation in [`Java Client`], it applies to the library also.
 ///
@@ -482,3 +482,5 @@ pub use basic::*;
 pub use confim::*;
 pub use exchange::*;
 pub use queue::*;
+#[allow(unused_imports)] // clippy false positive
+pub use tx::*;

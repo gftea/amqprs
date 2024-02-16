@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Start RabbitMQ server
         run: ./start_rabbitmq.sh
@@ -33,7 +33,7 @@ jobs:
   #   runs-on: macos-11
 
   #   steps:
-  #     - uses: actions/checkout@v3
+  #     - uses: actions/checkout@v4
   #     - uses: docker-practice/actions-setup-docker@master
 
   #     - name: Start RabbitMQ server
