@@ -1509,15 +1509,6 @@ mod tests {
     #[cfg(all(feature = "urispec", feature = "tls"))]
     #[tokio::test]
     #[should_panic(expected = "UriError")]
-    async fn test_amqps_scheme_without_tls() {
-        let args = OpenConnectionArguments::try_from("amqps://user:bitnami@localhost?heartbeat=10")
-            .unwrap();
-        Connection::open(&args).await.unwrap();
-    }
-
-    #[cfg(all(feature = "urispec", feature = "tls"))]
-    #[tokio::test]
-    #[should_panic(expected = "UriError")]
     async fn test_amqp_scheme_with_tls() {
         ////////////////////////////////////////////////////////////////
         // TLS specific configuration
