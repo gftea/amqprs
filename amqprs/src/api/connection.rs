@@ -475,8 +475,9 @@ impl TryFrom<&str> for OpenConnectionArguments {
             .unwrap_or("guest");
 
         // Apply authority
+        let host = pu_authority.host().to_string();
         let mut args = OpenConnectionArguments::new(
-            pu_authority.host().to_string().as_str(),
+            host.as_str(),
             pu_authority.port().unwrap_or(default_port),
             pu_authority_username,
             pu_authority_password,
@@ -518,6 +519,17 @@ impl TryFrom<&str> for OpenConnectionArguments {
             .map(|v| v.parse::<u16>().unwrap_or(DEFAULT_HEARTBEAT))
             .unwrap_or(DEFAULT_HEARTBEAT);
         args.heartbeat(heartbeat);
+
+        if scheme == AMQPS_SCHEME {
+            #[cfg(feature = "tls")]
+            args.tls_adaptor(
+                TlsAdaptor::without_client_auth(None, host.to_string())
+                    .map_err(|e| Error::UriError(format!("error creating TLS adaptor: {}", e)))?,
+            );
+
+            #[cfg(not(feature = "tls"))]
+            return Err(Error::UriError("can't create amqps url without the `tls` feature enabled".to_string()));
+        }
 
         Ok(args)
     }
@@ -1472,6 +1484,15 @@ mod tests {
         assert_eq!(args.heartbeat, 30);
     }
 
+    #[cfg(all(feature = "urispec", not(feature = "tls")))]
+    #[test]
+    fn test_urispec_amqps_without_tls() {
+        match OpenConnectionArguments::try_from("amqps://user:bitnami@localhost?heartbeat=10") {
+            Ok(_) => panic!("Unexpected ok"),
+            Err(e) => assert!(matches!(e, crate::api::Error::UriError(_))),
+        }
+    }
+
     #[cfg(all(feature = "urispec", feature = "tls"))]
     #[test]
     fn test_urispec_amqps() {
@@ -1481,15 +1502,8 @@ mod tests {
         assert_eq!(args.port, 5671);
         assert_eq!(args.virtual_host, "/");
         assert_eq!(args.heartbeat, 10);
-    }
-
-    #[cfg(all(feature = "urispec", feature = "tls"))]
-    #[tokio::test]
-    #[should_panic(expected = "UriError")]
-    async fn test_amqps_scheme_without_tls() {
-        let args = OpenConnectionArguments::try_from("amqps://user:bitnami@localhost?heartbeat=10")
-            .unwrap();
-        Connection::open(&args).await.unwrap();
+        let tls_adaptor = args.tls_adaptor.unwrap();
+        assert_eq!(tls_adaptor.domain, "localhost");
     }
 
     #[cfg(all(feature = "urispec", feature = "tls"))]
