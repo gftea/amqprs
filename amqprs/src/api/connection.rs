@@ -1507,6 +1507,18 @@ mod tests {
     }
 
     #[cfg(all(feature = "urispec", feature = "tls"))]
+    #[test]
+    fn test_urispec_amqps_simple() {
+        let args = OpenConnectionArguments::try_from("amqps://localhost")
+            .unwrap();
+        assert_eq!(args.host, "localhost");
+        assert_eq!(args.port, 5671);
+        assert_eq!(args.virtual_host, "/");
+        let tls_adaptor = args.tls_adaptor.unwrap();
+        assert_eq!(tls_adaptor.domain, "localhost");
+    }
+
+    #[cfg(all(feature = "urispec", feature = "tls"))]
     #[tokio::test]
     #[should_panic(expected = "UriError")]
     async fn test_amqp_scheme_with_tls() {
