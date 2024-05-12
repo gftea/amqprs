@@ -492,6 +492,17 @@ impl TryFrom<&str> for OpenConnectionArguments {
             args.virtual_host(&pu_path[1..]);
         }
 
+        if scheme == AMQPS_SCHEME {
+            #[cfg(feature = "tls")]
+            args.tls_adaptor(
+                TlsAdaptor::without_client_auth(None, host.to_string())
+                    .map_err(|e| Error::UriError(format!("error creating TLS adaptor: {}", e)))?,
+            );
+
+            #[cfg(not(feature = "tls"))]
+            return Err(Error::UriError("can't create amqps url without the `tls` feature enabled".to_string()));
+        }
+
         // Check & apply query
         let pu_q = pu.query().map(|v| v.as_str()).ok_or(|| "").unwrap_or("");
 
@@ -519,17 +530,6 @@ impl TryFrom<&str> for OpenConnectionArguments {
             .map(|v| v.parse::<u16>().unwrap_or(DEFAULT_HEARTBEAT))
             .unwrap_or(DEFAULT_HEARTBEAT);
         args.heartbeat(heartbeat);
-
-        if scheme == AMQPS_SCHEME {
-            #[cfg(feature = "tls")]
-            args.tls_adaptor(
-                TlsAdaptor::without_client_auth(None, host.to_string())
-                    .map_err(|e| Error::UriError(format!("error creating TLS adaptor: {}", e)))?,
-            );
-
-            #[cfg(not(feature = "tls"))]
-            return Err(Error::UriError("can't create amqps url without the `tls` feature enabled".to_string()));
-        }
 
         Ok(args)
     }
@@ -1502,6 +1502,18 @@ mod tests {
         assert_eq!(args.port, 5671);
         assert_eq!(args.virtual_host, "/");
         assert_eq!(args.heartbeat, 10);
+        let tls_adaptor = args.tls_adaptor.unwrap();
+        assert_eq!(tls_adaptor.domain, "localhost");
+    }
+
+    #[cfg(all(feature = "urispec", feature = "tls"))]
+    #[test]
+    fn test_urispec_amqps_simple() {
+        let args = OpenConnectionArguments::try_from("amqps://localhost")
+            .unwrap();
+        assert_eq!(args.host, "localhost");
+        assert_eq!(args.port, 5671);
+        assert_eq!(args.virtual_host, "/");
         let tls_adaptor = args.tls_adaptor.unwrap();
         assert_eq!(tls_adaptor.domain, "localhost");
     }
