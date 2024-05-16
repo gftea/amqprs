@@ -1,3 +1,4 @@
+#![allow(clippy::assigning_clones)] // Need to support `1.56.0` but `clone_into` is stable since `1.63.0`
 //! Implementation of AMQP_0-9-1's Connection class compatible with RabbitMQ.
 //!
 //! It provides [APIs][`Connection`] to manage an AMQP `Connection`.
