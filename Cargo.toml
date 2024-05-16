@@ -1,7 +1,7 @@
 [workspace]
 
 members = ["amqprs", "amqp_serde", "examples", "benchmarks"]
-
+rust-version = "1.56"
 resolver = "2"
 
 # [profile.bench]

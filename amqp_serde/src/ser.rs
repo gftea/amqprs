@@ -135,9 +135,9 @@ where
         self.serialize_unit()
     }
 
-    fn serialize_some<T: ?Sized>(self, value: &T) -> Result<Self::Ok>
+    fn serialize_some<T>(self, value: &T) -> Result<Self::Ok>
     where
-        T: serde::Serialize,
+        T: serde::Serialize + ?Sized,
     {
         value.serialize(self)
     }
@@ -161,15 +161,15 @@ where
     }
 
     // serialize only contained value
-    fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, value: &T) -> Result<Self::Ok>
+    fn serialize_newtype_struct<T>(self, _name: &'static str, value: &T) -> Result<Self::Ok>
     where
-        T: serde::Serialize,
+        T: serde::Serialize + ?Sized,
     {
         value.serialize(self)
     }
 
     // serialize variant name and contained value
-    fn serialize_newtype_variant<T: ?Sized>(
+    fn serialize_newtype_variant<T>(
         self,
         _name: &'static str,
         _variant_index: u32,
@@ -177,7 +177,7 @@ where
         value: &T,
     ) -> Result<Self::Ok>
     where
-        T: serde::Serialize,
+        T: serde::Serialize + ?Sized,
     {
         variant.serialize(&mut *self)?;
         value.serialize(&mut *self)
@@ -252,9 +252,9 @@ where
 
     type Error = Error;
 
-    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<()>
+    fn serialize_element<T>(&mut self, value: &T) -> Result<()>
     where
-        T: Serialize,
+        T: Serialize + ?Sized,
     {
         value.serialize(&mut **self)
     }
