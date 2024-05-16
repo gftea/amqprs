@@ -44,6 +44,7 @@ jobs:
 
   codecov:
     runs-on: ubuntu-latest
+    environment: ci
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
