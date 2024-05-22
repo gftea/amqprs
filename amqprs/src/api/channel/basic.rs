@@ -414,7 +414,7 @@ impl Channel {
         Ok(())
     }
 
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack)
+    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.consume)
     ///
     /// Returns the consumer tag on success.
     ///
