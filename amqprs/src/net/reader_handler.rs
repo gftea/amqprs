@@ -254,6 +254,7 @@ impl ReaderHandler {
                 res = self.stream.read_frame() => {
                     // any frame can be considered as heartbeat
                     expiration = time::Instant::now() + time::Duration::from_secs(max_interval);
+                    heartbeat_miss = 0;
                     #[cfg(feature="traces")]
                     trace!("server heartbeat deadline is updated to {:?}", expiration);
 
