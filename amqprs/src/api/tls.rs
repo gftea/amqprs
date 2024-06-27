@@ -118,8 +118,25 @@ impl TlsAdaptor {
 
     fn build_client_private_keys(client_private_key: &Path) -> std::io::Result<Vec<PrivateKey>> {
         let mut pem = BufReader::new(File::open(client_private_key)?);
-        let keys = rustls_pemfile::pkcs8_private_keys(&mut pem)?;
+        let keys = Self::read_private_keys_from_pem(&mut pem)?;
         let keys = keys.into_iter().map(PrivateKey);
         Ok(keys.collect())
+    }
+
+    /// Parses PEM encoded private keys.
+    ///
+    /// The input should PEM encoded private key in RSA, SEC1 Elliptic Curve or PKCS#8 format.
+    fn read_private_keys_from_pem(rd: &mut dyn std::io::BufRead) -> Result<Vec<Vec<u8>>, std::io::Error> {
+        let mut keys = Vec::new();
+
+        loop {
+            match rustls_pemfile::read_one(rd)? {
+                None => return Ok(keys),
+                Some(rustls_pemfile::Item::RSAKey(key)) => keys.push(key), //PKCS1
+                Some(rustls_pemfile::Item::PKCS8Key(key)) => keys.push(key),
+                Some(rustls_pemfile::Item::ECKey(key)) => keys.push(key), //SEC1
+                _ => {}
+            };
+        }
     }
 }
