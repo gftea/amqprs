@@ -2,7 +2,7 @@
 name = "amqprs"
 version = "1.6.1"
 edition = "2021"
-rust-version = "1.56"
+rust-version = "1.60"
 license = "MIT"
 readme = "README.md"
 description = "AMQP 0-9-1 client implementation for RabbitMQ"
@@ -23,7 +23,7 @@ all-features = true
 default = []
 compliance_assert = []
 traces = ["tracing"]
-tls = ["tokio-rustls", "rustls-pemfile", "webpki-roots"]
+tls = ["tokio-rustls", "rustls-pemfile", "webpki-roots", "rustls-pki-types"]
 urispec = ["uriparse"]
 
 [dependencies]
@@ -45,9 +45,10 @@ uriparse = { version = "0.6", optional = true }
 serde_bytes_ng = { workspace = true }
 
 # SSL/TLS dependencies
-tokio-rustls = { version = "0.23", optional = true }
+tokio-rustls = { version = "0.26", optional = true }
 rustls-pemfile = { version = "1", optional = true }
 webpki-roots = { version = "0.22", optional = true }
+rustls-pki-types = {version = "1.7.0", optional = true}
 
 [dev-dependencies]
 tracing = { version = "0.1" }
