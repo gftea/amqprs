@@ -6,10 +6,16 @@
 //! [`OpenConnectionArguments`]: ../connection/struct.OpenConnectionArguments.html
 //! [`Connection::open`]: ../connection/struct.Connection.html#method.open
 
-use std::{fs::File, io::BufReader, path::Path, sync::Arc};
+use rustls_pki_types::{CertificateDer, PrivateKeyDer};
+use std::{
+    fs::File,
+    io::BufReader,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tokio_rustls::{
-    rustls::{Certificate, ClientConfig, OwnedTrustAnchor, PrivateKey, RootCertStore},
-    webpki, TlsConnector,
+    rustls::{ClientConfig, RootCertStore},
+    TlsConnector,
 };
 
 /// The TLS adaptor used to enable TLS network stream.
@@ -45,7 +51,6 @@ impl TlsAdaptor {
         let root_cert_store = Self::build_root_store(root_ca_cert)?;
 
         let config = ClientConfig::builder()
-            .with_safe_defaults()
             .with_root_certificates(root_cert_store)
             .with_no_client_auth();
         let connector = TlsConnector::from(Arc::new(config));
@@ -64,17 +69,16 @@ impl TlsAdaptor {
     /// Panics if private key is invalid.
     pub fn with_client_auth(
         root_ca_cert: Option<&Path>,
-        client_cert: &Path,
-        client_private_key: &Path,
+        client_cert: PathBuf,
+        client_private_key: PathBuf,
         domain: String,
     ) -> std::io::Result<Self> {
         let root_cert_store = Self::build_root_store(root_ca_cert)?;
-        let client_certs = Self::build_client_certificates(client_cert)?;
-        let client_keys = Self::build_client_private_keys(client_private_key)?;
+        let client_certs: Vec<CertificateDer> = Self::build_client_certificates(client_cert)?;
+        let client_keys: Vec<PrivateKeyDer> = Self::build_client_private_keys(client_private_key)?;
         let config = ClientConfig::builder()
-            .with_safe_defaults()
             .with_root_certificates(root_cert_store)
-            .with_single_cert(client_certs, client_keys.into_iter().next().unwrap())
+            .with_client_auth_cert(client_certs, client_keys.into_iter().next().unwrap())
             .unwrap();
         let connector = TlsConnector::from(Arc::new(config));
 
@@ -85,44 +89,63 @@ impl TlsAdaptor {
         let mut root_store = RootCertStore::empty();
         if let Some(root_ca_cert) = root_ca_cert {
             let mut pem = BufReader::new(File::open(root_ca_cert)?);
+
             let certs = rustls_pemfile::certs(&mut pem)?;
-            let trust_anchors = certs.iter().map(|cert| {
-                let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
-                OwnedTrustAnchor::from_subject_spki_name_constraints(
-                    ta.subject,
-                    ta.spki,
-                    ta.name_constraints,
-                )
+
+            let trust_anchors = certs.into_iter().map(|cert| {
+                //                let c = webpki::Cert::from(cert);
+                let der = rustls_pki_types::CertificateDer::from(cert);
+                let anchor = webpki::anchor_from_trusted_cert(&der).unwrap().to_owned();
+
+                rustls_pki_types::TrustAnchor {
+                    subject: anchor.subject.into(),
+                    subject_public_key_info: anchor.subject_public_key_info.into(),
+                    name_constraints: anchor.name_constraints.map(|f| f.into()),
+                }
             });
-            root_store.add_server_trust_anchors(trust_anchors);
+
+            // NOTE: The old rustls add_server_trust_anchors function did this
+            // https://github.com/rustls/rustls/blob/d1345fc39ad597e27e6355341d2b2b40c501625b/rustls/src/anchors.rs#L117-L118
+            root_store.roots.extend(trust_anchors);
         } else {
-            root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(
-                |ta| {
-                    OwnedTrustAnchor::from_subject_spki_name_constraints(
-                        ta.subject,
-                        ta.spki,
-                        ta.name_constraints,
-                    )
-                },
-            ));
+            root_store
+                .roots
+                .extend(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+                    rustls_pki_types::TrustAnchor {
+                        subject: ta.subject.into(),
+                        subject_public_key_info: ta.spki.into(),
+                        name_constraints: ta.name_constraints.map(|f| f.into()),
+                    }
+                }));
         }
         Ok(root_store)
     }
 
-    fn build_client_certificates(client_cert: &Path) -> std::io::Result<Vec<Certificate>> {
-        let mut pem = BufReader::new(File::open(client_cert)?);
-        let certs = rustls_pemfile::certs(&mut pem)?;
-        let certs = certs.into_iter().map(Certificate);
+    fn build_client_certificates(
+        client_cert: PathBuf,
+    ) -> std::io::Result<Vec<CertificateDer<'static>>> {
+        let file = File::open(client_cert)?;
+        let mut pem = BufReader::new(file);
+        let raw_certs = rustls_pemfile::certs(&mut pem)?;
+        let certs = raw_certs.into_iter().map(CertificateDer::from);
         Ok(certs.collect())
     }
 
-    fn build_client_private_keys(client_private_key: &Path) -> std::io::Result<Vec<PrivateKey>> {
+    fn build_client_private_keys(
+        client_private_key: PathBuf,
+    ) -> std::io::Result<Vec<PrivateKeyDer<'static>>> {
         let mut pem = BufReader::new(File::open(client_private_key)?);
         let keys = Self::read_private_keys_from_pem(&mut pem)?;
-        let keys = keys.into_iter().map(PrivateKey);
-        Ok(keys.collect())
-    }
+        let keys = keys
+            .into_iter()
+            .map(|c| {
+                PrivateKeyDer::try_from(c)
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
+        Ok(keys)
+    }
     /// Parses PEM encoded private keys.
     ///
     /// The input should PEM encoded private key in RSA, SEC1 Elliptic Curve or PKCS#8 format.

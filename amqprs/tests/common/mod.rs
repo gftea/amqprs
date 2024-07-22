@@ -30,8 +30,8 @@ pub fn build_conn_args() -> OpenConnectionArguments {
         .tls_adaptor(
             amqprs::tls::TlsAdaptor::with_client_auth(
                 Some(root_ca_cert.as_path()),
-                client_cert.as_path(),
-                client_private_key.as_path(),
+                client_cert.to_path_buf(),
+                client_private_key.to_path_buf(),
                 domain.to_owned(),
             )
             .unwrap(),

@@ -501,7 +501,9 @@ impl TryFrom<&str> for OpenConnectionArguments {
             );
 
             #[cfg(not(feature = "tls"))]
-            return Err(Error::UriError("can't create amqps url without the `tls` feature enabled".to_string()));
+            return Err(Error::UriError(
+                "can't create amqps url without the `tls` feature enabled".to_string(),
+            ));
         }
 
         // Check & apply query
@@ -558,7 +560,7 @@ impl Connection {
                 }
                 SplitConnection::open_tls(
                     &format!("{}:{}", args.host, args.port),
-                    &tls_adaptor.domain,
+                    tls_adaptor.domain.clone(),
                     &tls_adaptor.connector,
                 )
                 .await?
@@ -1510,8 +1512,7 @@ mod tests {
     #[cfg(all(feature = "urispec", feature = "tls"))]
     #[test]
     fn test_urispec_amqps_simple() {
-        let args = OpenConnectionArguments::try_from("amqps://localhost")
-            .unwrap();
+        let args = OpenConnectionArguments::try_from("amqps://localhost").unwrap();
         assert_eq!(args.host, "localhost");
         assert_eq!(args.port, 5671);
         assert_eq!(args.virtual_host, "/");
@@ -1535,8 +1536,8 @@ mod tests {
         let domain = "AMQPRS_TEST";
         let tls_adaptor = crate::tls::TlsAdaptor::with_client_auth(
             Some(root_ca_cert.as_path()),
-            client_cert.as_path(),
-            client_private_key.as_path(),
+            client_cert.to_path_buf(),
+            client_private_key.to_path_buf(),
             domain.to_owned(),
         )
         .unwrap();
