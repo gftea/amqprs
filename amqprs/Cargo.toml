@@ -23,7 +23,13 @@ all-features = true
 default = []
 compliance_assert = []
 traces = ["tracing"]
-tls = ["tokio-rustls", "rustls-pemfile", "webpki-roots", "rustls-pki-types"]
+tls = [
+    "tokio-rustls",
+    "rustls-pemfile",
+    "webpki-roots",
+    "rustls-pki-types",
+    "rustls-webpki",
+]
 urispec = ["uriparse"]
 
 [dependencies]
@@ -47,8 +53,9 @@ serde_bytes_ng = { workspace = true }
 # SSL/TLS dependencies
 tokio-rustls = { version = "0.26", optional = true }
 rustls-pemfile = { version = "1", optional = true }
+rustls-webpki = { version = "0.102.5", optional = true }
 webpki-roots = { version = "0.22", optional = true }
-rustls-pki-types = {version = "1.7.0", optional = true}
+rustls-pki-types = { version = "1.7.0", optional = true }
 
 [dev-dependencies]
 tracing = { version = "0.1" }

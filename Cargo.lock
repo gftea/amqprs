@@ -68,6 +68,7 @@ dependencies = [
  "bytes",
  "rustls-pemfile",
  "rustls-pki-types",
+ "rustls-webpki",
  "serde",
  "serde_bytes_ng",
  "tokio",
