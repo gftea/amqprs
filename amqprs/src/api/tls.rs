@@ -69,13 +69,15 @@ impl TlsAdaptor {
     /// Panics if private key is invalid.
     pub fn with_client_auth(
         root_ca_cert: Option<&Path>,
-        client_cert: PathBuf,
-        client_private_key: PathBuf,
+        client_cert: &Path,
+        client_private_key: &Path,
         domain: String,
     ) -> std::io::Result<Self> {
         let root_cert_store = Self::build_root_store(root_ca_cert)?;
-        let client_certs: Vec<CertificateDer> = Self::build_client_certificates(client_cert)?;
-        let client_keys: Vec<PrivateKeyDer> = Self::build_client_private_keys(client_private_key)?;
+        let client_certs: Vec<CertificateDer> =
+            Self::build_client_certificates(client_cert.to_path_buf())?; // Clone the Path
+        let client_keys: Vec<PrivateKeyDer> =
+            Self::build_client_private_keys(client_private_key.to_path_buf())?; // Clone the Path
         let config = ClientConfig::builder()
             .with_root_certificates(root_cert_store)
             .with_client_auth_cert(client_certs, client_keys.into_iter().next().unwrap())
@@ -98,9 +100,9 @@ impl TlsAdaptor {
                 let anchor = webpki::anchor_from_trusted_cert(&der).unwrap().to_owned();
 
                 rustls_pki_types::TrustAnchor {
-                    subject: anchor.subject.into(),
-                    subject_public_key_info: anchor.subject_public_key_info.into(),
-                    name_constraints: anchor.name_constraints.map(|f| f.into()),
+                    subject: anchor.subject,
+                    subject_public_key_info: anchor.subject_public_key_info,
+                    name_constraints: anchor.name_constraints,
                 }
             });
 
@@ -121,19 +123,20 @@ impl TlsAdaptor {
         Ok(root_store)
     }
 
-    fn build_client_certificates(
+    fn build_client_certificates<'a>(
         client_cert: PathBuf,
-    ) -> std::io::Result<Vec<CertificateDer<'static>>> {
+    ) -> std::io::Result<Vec<CertificateDer<'a>>> {
         let file = File::open(client_cert)?;
         let mut pem = BufReader::new(file);
         let raw_certs = rustls_pemfile::certs(&mut pem)?;
-        let certs = raw_certs.into_iter().map(CertificateDer::from);
-        Ok(certs.collect())
+
+        let certs: Vec<CertificateDer> = raw_certs.into_iter().map(CertificateDer::from).collect();
+        Ok(certs)
     }
 
-    fn build_client_private_keys(
+    fn build_client_private_keys<'a>(
         client_private_key: PathBuf,
-    ) -> std::io::Result<Vec<PrivateKeyDer<'static>>> {
+    ) -> std::io::Result<Vec<PrivateKeyDer<'a>>> {
         let mut pem = BufReader::new(File::open(client_private_key)?);
         let keys = Self::read_private_keys_from_pem(&mut pem)?;
         let keys = keys
@@ -142,7 +145,7 @@ impl TlsAdaptor {
                 PrivateKeyDer::try_from(c)
                     .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<std::io::Result<Vec<PrivateKeyDer>>>()?;
 
         Ok(keys)
     }

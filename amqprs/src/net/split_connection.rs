@@ -17,7 +17,7 @@ use tokio::{
     net::TcpStream,
 };
 #[cfg(feature = "tls")]
-use tokio_rustls::{client::TlsStream, rustls, TlsConnector};
+use tokio_rustls::{client::TlsStream, TlsConnector};
 #[cfg(feature = "traces")]
 use tracing::trace;
 
