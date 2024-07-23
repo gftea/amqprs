@@ -74,10 +74,8 @@ impl TlsAdaptor {
         domain: String,
     ) -> std::io::Result<Self> {
         let root_cert_store = Self::build_root_store(root_ca_cert)?;
-        let client_certs: Vec<CertificateDer> =
-            Self::build_client_certificates(client_cert.to_path_buf())?; // Clone the Path
-        let client_keys: Vec<PrivateKeyDer> =
-            Self::build_client_private_keys(client_private_key.to_path_buf())?; // Clone the Path
+        let client_certs: Vec<CertificateDer> = Self::build_client_certificates(client_cert)?;
+        let client_keys: Vec<PrivateKeyDer> = Self::build_client_private_keys(client_private_key)?;
         let config = ClientConfig::builder()
             .with_root_certificates(root_cert_store)
             .with_client_auth_cert(client_certs, client_keys.into_iter().next().unwrap())
@@ -124,7 +122,7 @@ impl TlsAdaptor {
     }
 
     fn build_client_certificates<'a>(
-        client_cert: PathBuf,
+        client_cert: &Path,
     ) -> std::io::Result<Vec<CertificateDer<'a>>> {
         let file = File::open(client_cert)?;
         let mut pem = BufReader::new(file);
@@ -135,7 +133,7 @@ impl TlsAdaptor {
     }
 
     fn build_client_private_keys<'a>(
-        client_private_key: PathBuf,
+        client_private_key: &Path,
     ) -> std::io::Result<Vec<PrivateKeyDer<'a>>> {
         let mut pem = BufReader::new(File::open(client_private_key)?);
         let keys = Self::read_private_keys_from_pem(&mut pem)?;
