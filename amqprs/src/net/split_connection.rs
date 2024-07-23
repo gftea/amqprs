@@ -131,8 +131,8 @@ impl SplitConnection {
     }
 
     #[cfg(feature = "tls")]
-    pub async fn open_tls(addr: &str, domain: String, connector: &TlsConnector) -> Result<Self> {
-        let domain = rustls_pki_types::ServerName::try_from(domain)
+    pub async fn open_tls(addr: &str, domain: &str, connector: &TlsConnector) -> Result<Self> {
+        let domain = rustls_pki_types::ServerName::try_from(domain.to_owned())
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid dnsname"))?;
 
         let stream = connector

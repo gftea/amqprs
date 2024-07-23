@@ -560,7 +560,7 @@ impl Connection {
                 }
                 SplitConnection::open_tls(
                     &format!("{}:{}", args.host, args.port),
-                    tls_adaptor.domain.clone(),
+                    tls_adaptor.domain.as_str(),
                     &tls_adaptor.connector,
                 )
                 .await?
