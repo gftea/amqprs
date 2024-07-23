@@ -9,6 +9,7 @@ use amqprs::{
 };
 use tokio::time;
 
+use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
@@ -67,10 +68,13 @@ async fn main() {
     // start consumer with given name
     let args = BasicConsumeArguments::new(&queue_name, "example_basic_pub_sub");
 
+    info!("before consuming");
     channel
         .basic_consume(DefaultConsumer::new(args.no_ack), args)
         .await
         .unwrap();
+
+    info!("after consuming");
 
     //////////////////////////////////////////////////////////////////////////////
     // publish message
@@ -87,15 +91,23 @@ async fn main() {
     // create arguments for basic_publish
     let args = BasicPublishArguments::new(exchange_name, routing_key);
 
+    info!("before publishing");
     channel
         .basic_publish(BasicProperties::default(), content, args)
         .await
         .unwrap();
+    info!("after publishing");
 
     // keep the `channel` and `connection` object from dropping before pub/sub is done.
     // channel/connection will be closed when drop.
+    info!("before sleeping");
     time::sleep(time::Duration::from_secs(1)).await;
+    info!("after sleeping");
     // explicitly close
+
+    info!(is_channel_open = channel.is_connection_open());
     channel.close().await.unwrap();
+    info!("closed channel");
     connection.close().await.unwrap();
+    info!("shutting down");
 }

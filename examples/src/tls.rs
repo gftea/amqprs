@@ -37,8 +37,8 @@ async fn main() {
         .tls_adaptor(
             TlsAdaptor::with_client_auth(
                 Some(root_ca_cert.as_path()),
-                client_cert.to_path_buf(),
-                client_private_key.to_path_buf(),
+                client_cert.as_path(),
+                client_private_key.as_path(),
                 domain.to_owned(),
             )
             .unwrap(),

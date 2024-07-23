@@ -1536,8 +1536,8 @@ mod tests {
         let domain = "AMQPRS_TEST";
         let tls_adaptor = crate::tls::TlsAdaptor::with_client_auth(
             Some(root_ca_cert.as_path()),
-            client_cert.to_path_buf(),
-            client_private_key.to_path_buf(),
+            client_cert.as_path(),
+            client_private_key.as_path(),
             domain.to_owned(),
         )
         .unwrap();
