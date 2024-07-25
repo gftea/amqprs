@@ -93,7 +93,6 @@ impl TlsAdaptor {
             let certs = rustls_pemfile::certs(&mut pem)?;
 
             let trust_anchors = certs.into_iter().map(|cert| {
-                //                let c = webpki::Cert::from(cert);
                 let der = rustls_pki_types::CertificateDer::from(cert);
                 let anchor = webpki::anchor_from_trusted_cert(&der).unwrap().to_owned();
 
@@ -104,8 +103,6 @@ impl TlsAdaptor {
                 }
             });
 
-            // NOTE: The old rustls add_server_trust_anchors function did this
-            // https://github.com/rustls/rustls/blob/d1345fc39ad597e27e6355341d2b2b40c501625b/rustls/src/anchors.rs#L117-L118
             root_store.roots.extend(trust_anchors);
         } else {
             root_store
