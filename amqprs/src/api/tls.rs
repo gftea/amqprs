@@ -102,11 +102,11 @@ impl TlsAdaptor {
         } else {
             root_store
                 .roots
-                .extend(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+                .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
                     rustls_pki_types::TrustAnchor {
-                        subject: ta.subject.into(),
-                        subject_public_key_info: ta.spki.into(),
-                        name_constraints: ta.name_constraints.map(|f| f.into()),
+                        subject: ta.subject.clone(),
+                        subject_public_key_info: ta.subject_public_key_info.clone(),
+                        name_constraints: ta.name_constraints.clone(),
                     }
                 }));
         }
