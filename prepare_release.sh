@@ -20,11 +20,11 @@ if ! [[ $version =~ $semver_regex ]]; then
 fi
 
 # dry run publish check
-cargo publish -p amqprs --all-features --dry-run
+cargo publish -p amqprs --all-features --dry-run --allow-dirty
 check_result
 
 # check contents to be packaged into crate
-cargo package --list
+cargo package --list --allow-dirty
 check_result
 
 # check size of crate
