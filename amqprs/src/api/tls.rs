@@ -7,12 +7,7 @@
 //! [`Connection::open`]: ../connection/struct.Connection.html#method.open
 
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
-use std::{
-    fs::File,
-    io::BufReader,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{fs::File, io::BufReader, path::Path, sync::Arc};
 use tokio_rustls::{
     rustls::{ClientConfig, RootCertStore},
     TlsConnector,
@@ -111,11 +106,11 @@ impl TlsAdaptor {
         } else {
             root_store
                 .roots
-                .extend(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+                .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
                     rustls_pki_types::TrustAnchor {
-                        subject: ta.subject.into(),
-                        subject_public_key_info: ta.spki.into(),
-                        name_constraints: ta.name_constraints.map(|f| f.into()),
+                        subject: ta.subject.clone(),
+                        subject_public_key_info: ta.subject_public_key_info.clone(),
+                        name_constraints: ta.name_constraints.clone(),
                     }
                 }));
         }
