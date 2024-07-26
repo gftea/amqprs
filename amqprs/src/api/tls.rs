@@ -155,9 +155,15 @@ impl TlsAdaptor {
         loop {
             match rustls_pemfile::read_one(rd)? {
                 None => return Ok(keys),
-                Some(rustls_pemfile::Item::RSAKey(key)) => keys.push(key), //PKCS1
-                Some(rustls_pemfile::Item::PKCS8Key(key)) => keys.push(key),
-                Some(rustls_pemfile::Item::ECKey(key)) => keys.push(key), //SEC1
+                Some(rustls_pemfile::Item::Pkcs1Key(key)) => {
+                    keys.push(key.secret_pkcs1_der().to_vec())
+                } //PKCS1/RSA
+                Some(rustls_pemfile::Item::Pkcs8Key(key)) => {
+                    keys.push(key.secret_pkcs8_der().to_vec())
+                } //PKCS8
+                Some(rustls_pemfile::Item::Sec1Key(key)) => {
+                    keys.push(key.secret_sec1_der().to_vec())
+                } //SEC1/EC
                 _ => {}
             };
         }
