@@ -85,18 +85,22 @@ impl TlsAdaptor {
         if let Some(root_ca_cert) = root_ca_cert {
             let mut pem = BufReader::new(File::open(root_ca_cert)?);
 
-            let certs = rustls_pemfile::certs(&mut pem)?;
+            let certs = rustls_pemfile::certs(&mut pem);
 
-            let trust_anchors = certs.into_iter().map(|cert| {
-                let der = rustls_pki_types::CertificateDer::from(cert);
-                let anchor = webpki::anchor_from_trusted_cert(&der).unwrap().to_owned();
+            let trust_anchors = certs
+                .into_iter()
+                .map(|cert| {
+                    cert.map(|cert| {
+                        let anchor = webpki::anchor_from_trusted_cert(&cert).unwrap().to_owned();
 
-                rustls_pki_types::TrustAnchor {
-                    subject: anchor.subject,
-                    subject_public_key_info: anchor.subject_public_key_info,
-                    name_constraints: anchor.name_constraints,
-                }
-            });
+                        rustls_pki_types::TrustAnchor {
+                            subject: anchor.subject,
+                            subject_public_key_info: anchor.subject_public_key_info,
+                            name_constraints: anchor.name_constraints,
+                        }
+                    })
+                })
+                .collect::<std::io::Result<Vec<rustls_pki_types::TrustAnchor>>>()?;
 
             root_store.roots.extend(trust_anchors);
         } else {
@@ -118,9 +122,12 @@ impl TlsAdaptor {
     ) -> std::io::Result<Vec<CertificateDer<'a>>> {
         let file = File::open(client_cert)?;
         let mut pem = BufReader::new(file);
-        let raw_certs = rustls_pemfile::certs(&mut pem)?;
+        let raw_certs = rustls_pemfile::certs(&mut pem);
 
-        let certs: Vec<CertificateDer> = raw_certs.into_iter().map(CertificateDer::from).collect();
+        let certs: Vec<CertificateDer> = raw_certs
+            .into_iter()
+            .map(|cert| cert.map(CertificateDer::from))
+            .collect::<std::io::Result<Vec<CertificateDer>>>()?;
         Ok(certs)
     }
 
@@ -150,9 +157,15 @@ impl TlsAdaptor {
         loop {
             match rustls_pemfile::read_one(rd)? {
                 None => return Ok(keys),
-                Some(rustls_pemfile::Item::RSAKey(key)) => keys.push(key), //PKCS1
-                Some(rustls_pemfile::Item::PKCS8Key(key)) => keys.push(key),
-                Some(rustls_pemfile::Item::ECKey(key)) => keys.push(key), //SEC1
+                Some(rustls_pemfile::Item::Pkcs1Key(key)) => {
+                    keys.push(key.secret_pkcs1_der().to_vec())
+                } //PKCS1/RSA
+                Some(rustls_pemfile::Item::Pkcs8Key(key)) => {
+                    keys.push(key.secret_pkcs8_der().to_vec())
+                } //PKCS8
+                Some(rustls_pemfile::Item::Sec1Key(key)) => {
+                    keys.push(key.secret_sec1_der().to_vec())
+                } //SEC1/EC
                 _ => {}
             };
         }
