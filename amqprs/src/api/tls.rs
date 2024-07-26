@@ -7,12 +7,7 @@
 //! [`Connection::open`]: ../connection/struct.Connection.html#method.open
 
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
-use std::{
-    fs::File,
-    io::BufReader,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{fs::File, io::BufReader, path::Path, sync::Arc};
 use tokio_rustls::{
     rustls::{ClientConfig, RootCertStore},
     TlsConnector,
