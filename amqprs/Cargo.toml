@@ -2,7 +2,7 @@
 name = "amqprs"
 version = "1.6.3"
 edition = "2021"
-rust-version = "1.60"
+rust-version = "1.63"
 license = "MIT"
 readme = "README.md"
 description = "AMQP 0-9-1 client implementation for RabbitMQ"
