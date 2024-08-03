@@ -44,8 +44,8 @@ sudo chmod 400 rabbitmq_conf/server/*
 sudo chmod 444 rabbitmq_conf/client/*
 
 # start rabbitmq server
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 
 # # verify tls connection
 # echo "---------- Start rabbitmq now, then come back ... ---------------"

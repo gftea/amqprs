@@ -4,7 +4,7 @@ use super::Frame;
 
 #[derive(Debug, Serialize)]
 pub struct ContentBody {
-    #[serde(with = "serde_bytes_ng")]
+    #[serde(with = "serde_bytes")]
     pub(crate) inner: Vec<u8>,
 }
 

@@ -2,7 +2,7 @@
 name = "amqp_serde"
 version = "0.4.1"
 edition = "2021"
-rust-version = "1.56"
+rust-version = "1.64"
 license = "MIT"
 description = "Serde implementation for AMQP 0-9-1 types"
 repository = "https://github.com/gftea/amqprs"
@@ -14,6 +14,6 @@ documentation = "https://docs.rs/amqp_serde/latest/amqp_serde/"
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 bytes = { version = "1.0" }
-serde_bytes_ng = { workspace = true }
+serde_bytes = { workspace = true }
 
 [dev-dependencies]

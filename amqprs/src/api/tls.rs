@@ -6,10 +6,11 @@
 //! [`OpenConnectionArguments`]: ../connection/struct.OpenConnectionArguments.html
 //! [`Connection::open`]: ../connection/struct.Connection.html#method.open
 
+use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use std::{fs::File, io::BufReader, path::Path, sync::Arc};
 use tokio_rustls::{
-    rustls::{Certificate, ClientConfig, OwnedTrustAnchor, PrivateKey, RootCertStore},
-    webpki, TlsConnector,
+    rustls::{ClientConfig, RootCertStore},
+    TlsConnector,
 };
 
 /// The TLS adaptor used to enable TLS network stream.
@@ -45,7 +46,6 @@ impl TlsAdaptor {
         let root_cert_store = Self::build_root_store(root_ca_cert)?;
 
         let config = ClientConfig::builder()
-            .with_safe_defaults()
             .with_root_certificates(root_cert_store)
             .with_no_client_auth();
         let connector = TlsConnector::from(Arc::new(config));
@@ -69,12 +69,11 @@ impl TlsAdaptor {
         domain: String,
     ) -> std::io::Result<Self> {
         let root_cert_store = Self::build_root_store(root_ca_cert)?;
-        let client_certs = Self::build_client_certificates(client_cert)?;
-        let client_keys = Self::build_client_private_keys(client_private_key)?;
+        let client_certs: Vec<CertificateDer> = Self::build_client_certificates(client_cert)?;
+        let client_keys: Vec<PrivateKeyDer> = Self::build_client_private_keys(client_private_key)?;
         let config = ClientConfig::builder()
-            .with_safe_defaults()
             .with_root_certificates(root_cert_store)
-            .with_single_cert(client_certs, client_keys.into_iter().next().unwrap())
+            .with_client_auth_cert(client_certs, client_keys.into_iter().next().unwrap())
             .unwrap();
         let connector = TlsConnector::from(Arc::new(config));
 
@@ -85,44 +84,68 @@ impl TlsAdaptor {
         let mut root_store = RootCertStore::empty();
         if let Some(root_ca_cert) = root_ca_cert {
             let mut pem = BufReader::new(File::open(root_ca_cert)?);
-            let certs = rustls_pemfile::certs(&mut pem)?;
-            let trust_anchors = certs.iter().map(|cert| {
-                let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
-                OwnedTrustAnchor::from_subject_spki_name_constraints(
-                    ta.subject,
-                    ta.spki,
-                    ta.name_constraints,
-                )
-            });
-            root_store.add_server_trust_anchors(trust_anchors);
+
+            let certs = rustls_pemfile::certs(&mut pem);
+
+            let trust_anchors = certs
+                .into_iter()
+                .map(|cert| {
+                    cert.map(|cert| {
+                        let anchor = webpki::anchor_from_trusted_cert(&cert).unwrap().to_owned();
+
+                        rustls_pki_types::TrustAnchor {
+                            subject: anchor.subject,
+                            subject_public_key_info: anchor.subject_public_key_info,
+                            name_constraints: anchor.name_constraints,
+                        }
+                    })
+                })
+                .collect::<std::io::Result<Vec<rustls_pki_types::TrustAnchor>>>()?;
+
+            root_store.roots.extend(trust_anchors);
         } else {
-            root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(
-                |ta| {
-                    OwnedTrustAnchor::from_subject_spki_name_constraints(
-                        ta.subject,
-                        ta.spki,
-                        ta.name_constraints,
-                    )
-                },
-            ));
+            root_store
+                .roots
+                .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
+                    rustls_pki_types::TrustAnchor {
+                        subject: ta.subject.clone(),
+                        subject_public_key_info: ta.subject_public_key_info.clone(),
+                        name_constraints: ta.name_constraints.clone(),
+                    }
+                }));
         }
         Ok(root_store)
     }
 
-    fn build_client_certificates(client_cert: &Path) -> std::io::Result<Vec<Certificate>> {
-        let mut pem = BufReader::new(File::open(client_cert)?);
-        let certs = rustls_pemfile::certs(&mut pem)?;
-        let certs = certs.into_iter().map(Certificate);
-        Ok(certs.collect())
+    fn build_client_certificates<'a>(
+        client_cert: &Path,
+    ) -> std::io::Result<Vec<CertificateDer<'a>>> {
+        let file = File::open(client_cert)?;
+        let mut pem = BufReader::new(file);
+        let raw_certs = rustls_pemfile::certs(&mut pem);
+
+        let certs: Vec<CertificateDer> = raw_certs
+            .into_iter()
+            .map(|cert| cert.map(CertificateDer::from))
+            .collect::<std::io::Result<Vec<CertificateDer>>>()?;
+        Ok(certs)
     }
 
-    fn build_client_private_keys(client_private_key: &Path) -> std::io::Result<Vec<PrivateKey>> {
+    fn build_client_private_keys<'a>(
+        client_private_key: &Path,
+    ) -> std::io::Result<Vec<PrivateKeyDer<'a>>> {
         let mut pem = BufReader::new(File::open(client_private_key)?);
         let keys = Self::read_private_keys_from_pem(&mut pem)?;
-        let keys = keys.into_iter().map(PrivateKey);
-        Ok(keys.collect())
-    }
+        let keys = keys
+            .into_iter()
+            .map(|c| {
+                PrivateKeyDer::try_from(c)
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+            })
+            .collect::<std::io::Result<Vec<PrivateKeyDer>>>()?;
 
+        Ok(keys)
+    }
     /// Parses PEM encoded private keys.
     ///
     /// The input should PEM encoded private key in RSA, SEC1 Elliptic Curve or PKCS#8 format.
@@ -134,9 +157,15 @@ impl TlsAdaptor {
         loop {
             match rustls_pemfile::read_one(rd)? {
                 None => return Ok(keys),
-                Some(rustls_pemfile::Item::RSAKey(key)) => keys.push(key), //PKCS1
-                Some(rustls_pemfile::Item::PKCS8Key(key)) => keys.push(key),
-                Some(rustls_pemfile::Item::ECKey(key)) => keys.push(key), //SEC1
+                Some(rustls_pemfile::Item::Pkcs1Key(key)) => {
+                    keys.push(key.secret_pkcs1_der().to_vec())
+                } //PKCS1/RSA
+                Some(rustls_pemfile::Item::Pkcs8Key(key)) => {
+                    keys.push(key.secret_pkcs8_der().to_vec())
+                } //PKCS8
+                Some(rustls_pemfile::Item::Sec1Key(key)) => {
+                    keys.push(key.secret_sec1_der().to_vec())
+                } //SEC1/EC
                 _ => {}
             };
         }

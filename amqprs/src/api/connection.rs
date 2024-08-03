@@ -1,4 +1,3 @@
-#![allow(clippy::assigning_clones)] // Need to support `1.56.0` but `clone_into` is stable since `1.63.0`
 //! Implementation of AMQP_0-9-1's Connection class compatible with RabbitMQ.
 //!
 //! It provides [APIs][`Connection`] to manage an AMQP `Connection`.
@@ -501,7 +500,9 @@ impl TryFrom<&str> for OpenConnectionArguments {
             );
 
             #[cfg(not(feature = "tls"))]
-            return Err(Error::UriError("can't create amqps url without the `tls` feature enabled".to_string()));
+            return Err(Error::UriError(
+                "can't create amqps url without the `tls` feature enabled".to_string(),
+            ));
         }
 
         // Check & apply query
@@ -1510,8 +1511,7 @@ mod tests {
     #[cfg(all(feature = "urispec", feature = "tls"))]
     #[test]
     fn test_urispec_amqps_simple() {
-        let args = OpenConnectionArguments::try_from("amqps://localhost")
-            .unwrap();
+        let args = OpenConnectionArguments::try_from("amqps://localhost").unwrap();
         assert_eq!(args.host, "localhost");
         assert_eq!(args.port, 5671);
         assert_eq!(args.virtual_host, "/");

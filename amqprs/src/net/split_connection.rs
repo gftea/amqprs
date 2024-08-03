@@ -17,7 +17,7 @@ use tokio::{
     net::TcpStream,
 };
 #[cfg(feature = "tls")]
-use tokio_rustls::{client::TlsStream, rustls, TlsConnector};
+use tokio_rustls::{client::TlsStream, TlsConnector};
 #[cfg(feature = "traces")]
 use tracing::trace;
 
@@ -132,7 +132,7 @@ impl SplitConnection {
 
     #[cfg(feature = "tls")]
     pub async fn open_tls(addr: &str, domain: &str, connector: &TlsConnector) -> Result<Self> {
-        let domain = rustls::ServerName::try_from(domain)
+        let domain = rustls_pki_types::ServerName::try_from(domain.to_owned())
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid dnsname"))?;
 
         let stream = connector
