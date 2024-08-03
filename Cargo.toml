@@ -1,7 +1,7 @@
 [workspace]
 
 members = ["amqprs", "amqp_serde", "examples", "benchmarks"]
-rust-version = "1.63"
+rust-version = "1.64"
 resolver = "2"
 
 # [profile.bench]
@@ -12,4 +12,4 @@ resolver = "2"
 
 
 [workspace.dependencies]
-serde_bytes_ng = { version = "0.1.2" }
+serde_bytes = { version = "0.11" }

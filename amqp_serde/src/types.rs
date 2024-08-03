@@ -169,7 +169,7 @@ impl fmt::Display for DecimalValue {
 /// AMQP byte array type.
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
-pub struct ByteArray(LongUint, #[serde(with = "serde_bytes_ng")] Vec<u8>);
+pub struct ByteArray(LongUint, #[serde(with = "serde_bytes")] Vec<u8>);
 impl TryFrom<Vec<u8>> for ByteArray {
     type Error = TryFromIntError;
 

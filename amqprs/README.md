@@ -4,6 +4,10 @@
 [![crates.io](https://img.shields.io/crates/v/amqprs.svg)](https://crates.io/crates/amqprs)
 [![Discord](https://img.shields.io/discord/1065607081513717900)](https://discord.gg/g7Z9TeCu28)
 
+# MSRV
+
+- Version >= `v1.7.0`, the msrv is `1.64`
+- Version < `v1.7.0`: the msrv is `1.56`
 
 # What is "amqprs"
 

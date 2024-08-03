@@ -56,7 +56,7 @@ version = "0.4.1"
 dependencies = [
  "bytes",
  "serde",
- "serde_bytes_ng",
+ "serde_bytes",
 ]
 
 [[package]]
@@ -70,7 +70,7 @@ dependencies = [
  "rustls-pki-types",
  "rustls-webpki",
  "serde",
- "serde_bytes_ng",
+ "serde_bytes",
  "tokio",
  "tokio-rustls",
  "tracing",
@@ -1538,10 +1538,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_bytes_ng"
-version = "0.1.2"
+name = "serde_bytes"
+version = "0.11.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdb0ebce8684e2253f964e8b6ce51f0ccc6666bbb448fb4a6788088bda6544b6"
+checksum = "387cc504cb06bb40a96c8e04e951fe01854cf6bc921053c954e4a606d9675c6a"
 dependencies = [
  "serde",
 ]

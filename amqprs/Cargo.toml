@@ -2,7 +2,7 @@
 name = "amqprs"
 version = "1.6.3"
 edition = "2021"
-rust-version = "1.63"
+rust-version = "1.64"
 license = "MIT"
 readme = "README.md"
 description = "AMQP 0-9-1 client implementation for RabbitMQ"
@@ -48,7 +48,7 @@ amqp_serde = { path = "../amqp_serde", version = "0.4.1" }
 async-trait = "0.1"
 tracing = { version = "0.1", optional = true }
 uriparse = { version = "0.6", optional = true }
-serde_bytes_ng = { workspace = true }
+serde_bytes = { workspace = true }
 
 # SSL/TLS dependencies
 tokio-rustls = { version = "0.26", optional = true }
