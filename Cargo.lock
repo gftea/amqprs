@@ -61,7 +61,7 @@ dependencies = [
 
 [[package]]
 name = "amqprs"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "amqp_serde",
  "async-trait",
