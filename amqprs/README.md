@@ -6,8 +6,8 @@
 
 # MSRV
 
-- Version >= `v1.7.0`, the msrv is `1.64`
-- Version < `v1.7.0`: the msrv is `1.56`
+- Since `v2.0.0`, it has breaking changes due to rustls upgrade, and the msrv is `1.64`.
+- Version < `v2.0.0`: the msrv is `1.56`
 
 # What is "amqprs"
 
