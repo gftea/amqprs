@@ -1306,8 +1306,8 @@ fn generate_connection_name(domain: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{generate_connection_name, Connection, OpenConnectionArguments};
-    use crate::security::SecurityCredentials;
     use crate::test_utils::setup_logging;
+    use crate::{connection::AMQPS_SCHEME, security::SecurityCredentials};
     use std::{collections::HashSet, thread};
     use tokio::time;
 
@@ -1327,6 +1327,42 @@ mod tests {
         }
         // wait for finished, otherwise runtime exit before all tasks are done
         time::sleep(time::Duration::from_millis(100)).await;
+    }
+
+    #[test]
+    fn test_connection_getters() {
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
+        assert_eq!(args.get_host(), "localhost");
+        assert_eq!(args.get_port(), 5672);
+        assert_eq!(args.get_virtual_host(), "/");
+        assert!(args.get_connection_name().is_none());
+        assert!(args.get_credentials() == &SecurityCredentials::new_plain("user", "bitnami"));
+        assert_eq!(args.get_heartbeat(), 60);
+        assert!(args.get_scheme().is_none());
+        #[cfg(feature = "tls")]
+        assert!(args.get_tls_adaptor().is_none());
+    }
+
+    #[test]
+    fn test_custom_connection_getters() {
+        let mut default_args = OpenConnectionArguments {
+            ..Default::default()
+        };
+        let args = default_args
+            .host("localhost")
+            .port(1234)
+            .virtual_host("/vhost")
+            .connection_name("test")
+            .credentials(SecurityCredentials::new_plain("user", "bitnami"))
+            .heartbeat(30)
+            .scheme("amqps");
+        assert_eq!(args.get_host(), "localhost");
+        assert_eq!(args.get_port(), 1234);
+        assert_eq!(args.get_virtual_host(), "/vhost");
+        assert!(args.get_connection_name() == Some("test"));
+        assert!(args.get_credentials() == &SecurityCredentials::new_plain("user", "bitnami"));
+        assert_eq!(args.get_heartbeat(), 30);
+        assert!(args.get_scheme() == Some(AMQPS_SCHEME));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
