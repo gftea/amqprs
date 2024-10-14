@@ -349,6 +349,11 @@ impl OpenConnectionArguments {
         self
     }
 
+    /// Get the host of the server.
+    pub fn get_host(&self) -> &str {
+        &self.host
+    }
+
     /// Set the port of the server.
     ///
     /// # Default
@@ -357,6 +362,11 @@ impl OpenConnectionArguments {
     pub fn port(&mut self, port: u16) -> &mut Self {
         self.port = port;
         self
+    }
+
+    /// Get the port of the server.
+    pub fn get_port(&self) -> u16 {
+        self.port
     }
 
     /// Set the virtual host. See [RabbitMQ vhosts](https://www.rabbitmq.com/vhosts.html).
@@ -371,6 +381,11 @@ impl OpenConnectionArguments {
         self
     }
 
+    /// Get the virtual host of the server.
+    pub fn get_virtual_host(&self) -> &str {
+        &self.virtual_host
+    }
+
     /// Set the connection name.
     ///
     /// # Default
@@ -379,6 +394,11 @@ impl OpenConnectionArguments {
     pub fn connection_name(&mut self, connection_name: &str) -> &mut Self {
         self.connection_name = Some(connection_name.to_owned());
         self
+    }
+
+    /// Get the connection name.
+    pub fn get_connection_name(&self) -> Option<&str> {
+        self.connection_name.as_deref()
     }
 
     /// Set the user credentials. See [RabbitMQ access control](https://www.rabbitmq.com/access-control.html#mechanisms).
@@ -390,6 +410,12 @@ impl OpenConnectionArguments {
         self.credentials = credentials;
         self
     }
+
+    /// Get the credentials.
+    pub fn get_credentials(&self) -> &SecurityCredentials {
+        &self.credentials
+    }
+
     /// Set the heartbeat timeout in seconds. See [RabbitMQ heartbeats](https://www.rabbitmq.com/heartbeats.html).
     ///
     /// # Default
@@ -398,6 +424,22 @@ impl OpenConnectionArguments {
     pub fn heartbeat(&mut self, heartbeat: u16) -> &mut Self {
         self.heartbeat = heartbeat;
         self
+    }
+
+    /// Get the heartbeat.
+    pub fn get_heartbeat(&self) -> u16 {
+        self.heartbeat
+    }
+
+    /// Set the URI scheme.
+    pub fn scheme(&mut self, scheme: &str) -> &mut Self {
+        self.scheme = Some(scheme.to_owned());
+        self
+    }
+
+    /// Get the connection scheme.
+    pub fn get_scheme(&self) -> Option<&str> {
+        self.scheme.as_deref()
     }
 
     /// Set SSL/TLS adaptor. Set to enable SSL/TLS connection.
@@ -409,6 +451,12 @@ impl OpenConnectionArguments {
     pub fn tls_adaptor(&mut self, tls_adaptor: TlsAdaptor) -> &mut Self {
         self.tls_adaptor = Some(tls_adaptor);
         self
+    }
+
+    /// Get the TLS adaptor.
+    #[cfg(feature = "tls")]
+    pub fn get_tls_adaptor(&self) -> Option<&TlsAdaptor> {
+        self.tls_adaptor.as_ref()
     }
 
     /// Finish chaining and returns a new argument according to chained configurations.
@@ -1258,8 +1306,8 @@ fn generate_connection_name(domain: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{generate_connection_name, Connection, OpenConnectionArguments};
-    use crate::security::SecurityCredentials;
     use crate::test_utils::setup_logging;
+    use crate::{connection::AMQPS_SCHEME, security::SecurityCredentials};
     use std::{collections::HashSet, thread};
     use tokio::time;
 
@@ -1279,6 +1327,42 @@ mod tests {
         }
         // wait for finished, otherwise runtime exit before all tasks are done
         time::sleep(time::Duration::from_millis(100)).await;
+    }
+
+    #[test]
+    fn test_connection_getters() {
+        let args = OpenConnectionArguments::new("localhost", 5672, "user", "bitnami");
+        assert_eq!(args.get_host(), "localhost");
+        assert_eq!(args.get_port(), 5672);
+        assert_eq!(args.get_virtual_host(), "/");
+        assert!(args.get_connection_name().is_none());
+        assert!(args.get_credentials() == &SecurityCredentials::new_plain("user", "bitnami"));
+        assert_eq!(args.get_heartbeat(), 60);
+        assert!(args.get_scheme().is_none());
+        #[cfg(feature = "tls")]
+        assert!(args.get_tls_adaptor().is_none());
+    }
+
+    #[test]
+    fn test_custom_connection_getters() {
+        let mut default_args = OpenConnectionArguments {
+            ..Default::default()
+        };
+        let args = default_args
+            .host("localhost")
+            .port(1234)
+            .virtual_host("/vhost")
+            .connection_name("test")
+            .credentials(SecurityCredentials::new_plain("user", "bitnami"))
+            .heartbeat(30)
+            .scheme("amqps");
+        assert_eq!(args.get_host(), "localhost");
+        assert_eq!(args.get_port(), 1234);
+        assert_eq!(args.get_virtual_host(), "/vhost");
+        assert!(args.get_connection_name() == Some("test"));
+        assert!(args.get_credentials() == &SecurityCredentials::new_plain("user", "bitnami"));
+        assert_eq!(args.get_heartbeat(), 30);
+        assert!(args.get_scheme() == Some(AMQPS_SCHEME));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
