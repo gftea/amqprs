@@ -11,7 +11,7 @@ use amqp_serde::{
 use bytes::BytesMut;
 
 /// Credentials used to open a connection.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct SecurityCredentials {
     username: String,
     password: String,
@@ -19,7 +19,7 @@ pub struct SecurityCredentials {
 }
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 enum AuthenticationMechanism {
     PLAIN,
