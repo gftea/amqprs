@@ -261,7 +261,7 @@ impl ReaderHandler {
                     match res {
                         Ok((channel_id, frame)) => {
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
-                                // notifiy network failure
+                                // notify network failure
                                 is_network_failure = true;
                                 #[cfg(feature="traces")]
                                 error!("socket will be closed due to error of handling frame, cause: {}", err);
@@ -275,7 +275,7 @@ impl ReaderHandler {
                             }
                         },
                         Err(err) => {
-                            // notifiy network failure
+                            // notify network failure
                             is_network_failure = true;
                             #[cfg(feature="traces")]
                             error!("socket will be closed due to failure of reading frame, cause: {}", err);
@@ -294,6 +294,8 @@ impl ReaderHandler {
                         error!("missing heartbeat from server for {}", self.amqp_connection);
                         heartbeat_miss += 1;
                         if heartbeat_miss >= MAX_HEARTBEAT_MISS {
+                            #[cfg(feature="traces")]
+                            error!("heartbeat was missed `{heartbeat_miss}` times in a row, closing connection");
                             // Shutdown connection due to heartbeat timeout
                             is_network_failure = true;
                             break;
