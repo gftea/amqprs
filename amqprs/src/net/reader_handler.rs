@@ -291,7 +291,7 @@ impl ReaderHandler {
 
                         // should call self.io_failure_notify.notify_one();?
                         #[cfg(feature="traces")]
-                        warn!("missing heartbeat from server for {}", self.amqp_connection);
+                        warn!("missing heartbeat from server for {}: {heartbeat_miss}/{MAX_HEARTBEAT_MISS}", self.amqp_connection);
                         heartbeat_miss += 1;
                         if heartbeat_miss >= MAX_HEARTBEAT_MISS {
                             #[cfg(feature="traces")]
