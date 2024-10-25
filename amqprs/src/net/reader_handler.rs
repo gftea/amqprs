@@ -21,7 +21,7 @@ use super::{
 
 /////////////////////////////////////////////////////////////////////////////
 
-const MAX_HEARTBEAT_MISS: u64 = 3;
+const MAX_HEARTBEAT_MISS: u64 = 2;
 
 pub(crate) struct ReaderHandler {
     stream: BufIoReader,
