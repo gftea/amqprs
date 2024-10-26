@@ -21,6 +21,7 @@ use super::{
 
 /////////////////////////////////////////////////////////////////////////////
 
+/// After two missed heartbeats, the peer is considered to be unreachable according to [spec](https://www.rabbitmq.com/docs/heartbeats#heartbeats-interval)
 const MAX_HEARTBEAT_MISS: u64 = 2;
 
 pub(crate) struct ReaderHandler {
