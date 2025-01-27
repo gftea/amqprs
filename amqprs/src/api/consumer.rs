@@ -54,7 +54,6 @@ pub trait AsyncConsumer {
     ///    to start consuming message in a blocking context.
     ///
     /// [`Channel::basic_consume_blocking`]: ../channel/struct.Channel.html#method.basic_consume_blocking
-
     async fn consume(
         &mut self, // use `&mut self` to make trait object to be `Sync`
         channel: &Channel,

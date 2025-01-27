@@ -296,7 +296,6 @@ impl Default for BasicNackArguments {
 }
 impl BasicNackArguments {
     /// Create new arguments with defaults.
-
     pub fn new(delivery_tag: u64, multiple: bool, requeue: bool) -> Self {
         Self {
             delivery_tag,

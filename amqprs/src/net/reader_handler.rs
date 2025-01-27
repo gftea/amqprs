@@ -21,7 +21,8 @@ use super::{
 
 /////////////////////////////////////////////////////////////////////////////
 
-const MAX_HEARTBEAT_MISS: u64 = 3;
+/// After two missed heartbeats, the peer is considered to be unreachable according to [spec](https://www.rabbitmq.com/docs/heartbeats#heartbeats-interval)
+const MAX_HEARTBEAT_MISS: u64 = 2;
 
 pub(crate) struct ReaderHandler {
     stream: BufIoReader,
@@ -261,7 +262,7 @@ impl ReaderHandler {
                     match res {
                         Ok((channel_id, frame)) => {
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
-                                // notifiy network failure
+                                // notify network failure
                                 is_network_failure = true;
                                 #[cfg(feature="traces")]
                                 error!("socket will be closed due to error of handling frame, cause: {}", err);
@@ -275,7 +276,7 @@ impl ReaderHandler {
                             }
                         },
                         Err(err) => {
-                            // notifiy network failure
+                            // notify network failure
                             is_network_failure = true;
                             #[cfg(feature="traces")]
                             error!("socket will be closed due to failure of reading frame, cause: {}", err);
@@ -291,9 +292,11 @@ impl ReaderHandler {
 
                         // should call self.io_failure_notify.notify_one();?
                         #[cfg(feature="traces")]
-                        error!("missing heartbeat from server for {}", self.amqp_connection);
+                        warn!("missing heartbeat from server for {}: {heartbeat_miss}/{MAX_HEARTBEAT_MISS}", self.amqp_connection);
                         heartbeat_miss += 1;
                         if heartbeat_miss >= MAX_HEARTBEAT_MISS {
+                            #[cfg(feature="traces")]
+                            error!("heartbeat was missed `{heartbeat_miss}` times in a row, closing connection");
                             // Shutdown connection due to heartbeat timeout
                             is_network_failure = true;
                             break;
