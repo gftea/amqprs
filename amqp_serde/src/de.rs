@@ -164,7 +164,7 @@ impl<'de> Deserializer<'de> {
     }
 }
 
-impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
+impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
     type Error = Error;
 
     // Look at the input data to decide what Serde data model type to
@@ -472,7 +472,7 @@ impl<'a, 'de> DataSequence<'a, 'de> {
 
 // `SeqAccess` is provided to the `Visitor` to give it the ability to iterate
 // through elements of the sequence.
-impl<'de, 'a> SeqAccess<'de> for DataSequence<'a, 'de> {
+impl<'de> SeqAccess<'de> for DataSequence<'_, 'de> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
@@ -498,7 +498,7 @@ impl<'de, 'a> SeqAccess<'de> for DataSequence<'a, 'de> {
 
 // `MapAccess` is provided to the `Visitor` to give it the ability to iterate
 // through entries of the map.
-impl<'de, 'a> MapAccess<'de> for DataSequence<'a, 'de> {
+impl<'de> MapAccess<'de> for DataSequence<'_, 'de> {
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
@@ -543,7 +543,7 @@ impl<'a, 'de> Enum<'a, 'de> {
 //
 // Note that all enum deserialization methods in Serde refer exclusively to the
 // "externally tagged" enum representation.
-impl<'de, 'a> EnumAccess<'de> for Enum<'a, 'de> {
+impl<'de> EnumAccess<'de> for Enum<'_, 'de> {
     type Error = Error;
     type Variant = Self;
 
@@ -569,7 +569,7 @@ impl<'de, 'a> EnumAccess<'de> for Enum<'a, 'de> {
 
 // `VariantAccess` is provided to the `Visitor` to give it the ability to see
 // the content of the single variant that it decided to deserialize.
-impl<'de, 'a> VariantAccess<'de> for Enum<'a, 'de> {
+impl<'de> VariantAccess<'de> for Enum<'_, 'de> {
     type Error = Error;
 
     fn unit_variant(self) -> Result<()> {
