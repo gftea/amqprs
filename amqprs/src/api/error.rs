@@ -30,6 +30,8 @@ pub enum Error {
     /// Error in sending or receiving messages via internal communication channel.
     /// Usually due to incorrect usage by user.
     InternalChannelError(String),
+    /// Error during updating the secret
+    UpdateSecretError(String),
 }
 
 #[cfg(feature = "urispec")]
@@ -71,6 +73,7 @@ impl fmt::Display for Error {
             Error::InternalChannelError(msg) => {
                 write!(f, "AMQP internal communication error: {}", msg)
             }
+            Error::UpdateSecretError(msg) => write!(f, "AMQP update secret error: {}", msg),
         }
     }
 }

@@ -219,5 +219,11 @@ pub struct UpdateSecret {
     pub(crate) reason: ShortStr,
 }
 
+impl UpdateSecret {
+    pub fn new(new_secret: LongStr, reason: ShortStr) -> Self {
+        Self { new_secret, reason }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct UpdateSecretOk;
