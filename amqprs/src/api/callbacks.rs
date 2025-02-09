@@ -54,6 +54,9 @@ pub trait ConnectionCallback {
 
     /// Callback to handle connection `unblocked` indication from server
     async fn unblocked(&mut self, connection: &Connection);
+
+    /// Callback to handle secret updated indication from server
+    async fn secret_updated(&mut self, connection: &Connection);
 }
 
 /// Default type that implements `ConnectionCallback`.
@@ -84,6 +87,14 @@ impl ConnectionCallback for DefaultConnectionCallback {
         #[cfg(feature = "traces")]
         info!(
             "handle unblocked notification for connection {}",
+            connection
+        );
+    }
+
+    async fn secret_updated(&mut self, connection: &Connection) {
+        #[cfg(feature = "traces")]
+        info!(
+            "handle secret updated notification for connection {}",
             connection
         );
     }
