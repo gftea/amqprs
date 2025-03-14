@@ -25,7 +25,7 @@ use crate::api::compliance_asserts::{assert_exchange_name, assert_queue_name};
 ///     .finish();
 /// ```
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.declare).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#queue.declare).
 ///
 /// [`queue_declare`]: struct.Channel.html#method.queue_declare
 #[derive(Debug, Clone, Default)]
@@ -149,7 +149,7 @@ impl QueueDeclareArguments {
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`queue_bind`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.bind).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#queue.bind).
 ///
 /// [`queue_bind`]: struct.Channel.html#method.queue_bind
 #[derive(Debug, Clone, Default)]
@@ -218,7 +218,7 @@ impl QueueBindArguments {
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`queue_purge`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.purge).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#queue.purge).
 ///
 /// [`queue_purge`]: struct.Channel.html#method.queue_purge
 #[derive(Debug, Clone, Default)]
@@ -244,7 +244,7 @@ impl QueuePurgeArguments {
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`queue_delete`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.delete).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#queue.delete).
 ///
 /// [`queue_delete`]: struct.Channel.html#method.queue_delete
 #[derive(Debug, Clone, Default)]
@@ -299,7 +299,7 @@ impl QueueDeleteArguments {
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`queue_unbind`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.unbind).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#queue.unbind).
 ///
 /// [`queue_unbind`]: struct.Channel.html#method.queue_unbind
 #[derive(Debug, Clone, Default)]
@@ -361,7 +361,7 @@ impl QueueUnbindArguments {
 /////////////////////////////////////////////////////////////////////////////
 /// APIs for AMQP queue class.
 impl Channel {
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.declare)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#queue.declare)
     ///
     /// If succeed, returns [`Ok`] with a optional tuple.
     ///
@@ -404,7 +404,7 @@ impl Channel {
         }
     }
 
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.bind)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#queue.bind)
     ///
     /// # Errors
     ///
@@ -438,7 +438,7 @@ impl Channel {
         Ok(())
     }
 
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.purge)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#queue.purge)
     ///
     /// If succeed, returns [`Ok`] with a optional `message count`.
     ///
@@ -469,7 +469,7 @@ impl Channel {
             Ok(Some(purge_ok.message_count))
         }
     }
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.delete)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#queue.delete)
     ///
     /// If succeed, returns [`Ok`] with a optional `message count`.
     ///
@@ -505,7 +505,7 @@ impl Channel {
             Ok(Some(delete_ok.message_count))
         }
     }
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.unbind)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#queue.unbind)
     ///
     /// # Errors
     ///

@@ -112,7 +112,7 @@ pub struct ConsumeOk {
 
 /// Used by channel [`cancel`] callback.
 ///
-/// AMQP method frame [cancel](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.cancel).
+/// AMQP method frame [cancel](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.cancel).
 ///
 /// [`cancel`]: callbacks/trait.ChannelCallback.html#tymethod.cancel
 // TX + RX
@@ -187,7 +187,7 @@ impl Publish {
 
 /// Used by channel [`publish_return`] callback.
 ///
-/// AMQP method frame [return](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.return).
+/// AMQP method frame [return](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.return).
 ///
 /// [`publish_return`]: callbacks/trait.ChannelCallback.html#tymethod.publish_return
 // RX
@@ -228,7 +228,7 @@ impl Return {
 }
 /// Used by consumer [`consume`] callback.
 ///
-/// AMQP method frame [deliver](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.deliver).
+/// AMQP method frame [deliver](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.deliver).
 ///
 /// [`consume`]: consumer/trait.AsyncConsumer.html#tymethod.consume
 // RX
@@ -288,7 +288,7 @@ impl Get {
 }
 /// Part of [`GetMessage`]
 ///
-/// AMQP method frame [get-ok](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.get-ok).
+/// AMQP method frame [get-ok](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.get-ok).
 ///
 /// [`GetMessage`]: channel/type.GetMessage.html
 #[derive(Debug, Serialize, Deserialize)]
@@ -336,7 +336,7 @@ pub struct GetEmpty {
 
 /// Used by channel [`publish_ack`] callback.
 ///
-/// AMQP method frame [ack](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack).
+/// AMQP method frame [ack](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.ack).
 ///
 /// [`publish_ack`]: callbacks/trait.ChannelCallback.html#tymethod.publish_ack
 // TX + RX
@@ -410,7 +410,7 @@ pub struct RecoverOk;
 
 /// Used by channel [`publish_nack`] callback.
 ///
-/// AMQP method frame [nack](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.nack).
+/// AMQP method frame [nack](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.nack).
 ///
 /// [`publish_nack`]: callbacks/trait.ChannelCallback.html#tymethod.publish_nack
 // TX + RX

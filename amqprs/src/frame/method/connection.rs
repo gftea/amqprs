@@ -124,7 +124,7 @@ pub struct OpenOk {
 }
 /// Used by connection's [`close`] callback.
 ///
-/// AMQP method frame [close](https://www.rabbitmq.com/amqp-0-9-1-reference.html#connection.close).
+/// AMQP method frame [close](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#connection.close).
 ///
 /// [`close`]: callbacks/trait.ConnectionCallback.html#tymethod.close
 // TX + RX
