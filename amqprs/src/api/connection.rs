@@ -284,7 +284,7 @@ struct SharedConnectionInner {
 pub struct OpenConnectionArguments {
     /// The server host. Default: "localhost".
     host: String,
-    /// The server port. Default: 5672 by [AMQP 0-9-1 spec](https://www.rabbitmq.com/amqp-0-9-1-reference.html).
+    /// The server port. Default: 5672 by [AMQP 0-9-1 spec](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md).
     port: u16,
     /// Default: "/". See [RabbitMQ vhosts](https://www.rabbitmq.com/vhosts.html).
     virtual_host: String,
@@ -359,7 +359,7 @@ impl OpenConnectionArguments {
     ///
     /// # Default
     ///
-    /// 5672 by [AMQP 0-9-1 spec](https://www.rabbitmq.com/amqp-0-9-1-reference.html).
+    /// 5672 by [AMQP 0-9-1 spec](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md).
     pub fn port(&mut self, port: u16) -> &mut Self {
         self.port = port;
         self

@@ -24,7 +24,7 @@ pub struct OpenChannelOk {
 
 /// Used by channel [`close`] callback.
 ///
-/// AMQP method frame [close](https://www.rabbitmq.com/amqp-0-9-1-reference.html#channel.close).
+/// AMQP method frame [close](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#channel.close).
 ///
 /// [`close`]: callbacks/trait.ChannelCallback.html#tymethod.close
 // TX + RX

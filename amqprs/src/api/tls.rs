@@ -126,7 +126,6 @@ impl TlsAdaptor {
 
         let certs: Vec<CertificateDer> = raw_certs
             .into_iter()
-            .map(|cert| cert.map(CertificateDer::from))
             .collect::<std::io::Result<Vec<CertificateDer>>>()?;
         Ok(certs)
     }

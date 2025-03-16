@@ -25,7 +25,7 @@ use super::{Channel, DeregisterContentConsumer, RegisterGetContentResponder};
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`basic_qos`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.qos).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.qos).
 ///
 /// [`basic_qos`]: struct.Channel.html#method.basic_qos
 #[derive(Debug, Clone, Default)]
@@ -77,7 +77,7 @@ impl BasicQosArguments {
 ///     .finish();
 /// ```
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.consume).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.consume).
 ///
 /// [`basic_consume`]: struct.Channel.html#method.basic_consume
 #[derive(Debug, Clone, Default)]
@@ -166,7 +166,7 @@ impl BasicConsumeArguments {
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`basic_cancel`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.cancel).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.cancel).
 ///
 /// [`basic_cancel`]: struct.Channel.html#method.basic_cancel
 #[derive(Debug, Clone, Default)]
@@ -201,7 +201,7 @@ impl BasicCancelArguments {
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`basic_get`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.get).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.get).
 ///
 /// [`basic_get`]: struct.Channel.html#method.basic_get
 #[derive(Debug, Clone, Default)]
@@ -250,7 +250,7 @@ pub type GetMessage = (GetOk, BasicProperties, Vec<u8>);
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`basic_ack`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.ack).
 ///
 /// [`basic_ack`]: struct.Channel.html#method.basic_ack
 #[derive(Debug, Clone, Default)]
@@ -273,7 +273,7 @@ impl BasicAckArguments {
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`basic_nack`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.nack).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.nack).
 ///
 /// [`basic_nack`]: struct.Channel.html#method.basic_nack
 #[derive(Debug, Clone)]
@@ -307,7 +307,7 @@ impl BasicNackArguments {
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`basic_reject`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.reject).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.reject).
 ///
 /// [`basic_reject`]: struct.Channel.html#method.basic_reject
 #[derive(Debug, Clone)]
@@ -338,7 +338,7 @@ impl BasicRejectArguments {
 ////////////////////////////////////////////////////////////////////////////////
 /// Arguments for [`basic_publish`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.publish).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.publish).
 ///
 /// [`basic_publish`]: struct.Channel.html#method.basic_publish
 #[derive(Debug, Clone, Default)]
@@ -394,7 +394,7 @@ impl BasicPublishArguments {
 ////////////////////////////////////////////////////////////////////////////////
 /// APIs for AMQP basic class.
 impl Channel {
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.qos)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.qos)
     ///
     /// # Errors
     ///
@@ -413,7 +413,7 @@ impl Channel {
         Ok(())
     }
 
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.consume)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.consume)
     ///
     /// Returns the consumer tag on success.
     ///
@@ -716,7 +716,7 @@ impl Channel {
         Ok(())
     }
 
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.ack)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.ack)
     ///
     /// # Errors
     ///
@@ -749,7 +749,7 @@ impl Channel {
         Ok(())
     }
 
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.nack)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.nack)
     ///
     /// # Errors
     ///
@@ -786,7 +786,7 @@ impl Channel {
         Ok(())
     }
 
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.reject)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.reject)
     ///
     /// # Errors
     ///
@@ -813,7 +813,7 @@ impl Channel {
         Ok(())
     }
 
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.cancel)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.cancel)
     ///
     /// Returns consumer tag if succeed.
     ///
@@ -855,7 +855,7 @@ impl Channel {
         Ok(consumer_tag2)
     }
 
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.get)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.get)
     ///
     /// Either returns a tuple [`GetMessage`] or [`None`] if no message available.
     ///
@@ -899,7 +899,7 @@ impl Channel {
         Ok(Some((get_ok, basic_properties, content)))
     }
 
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.recover)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.recover)
     ///
     /// # Errors
     ///
@@ -919,7 +919,7 @@ impl Channel {
         Ok(())
     }
 
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.publish)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.publish)
     ///
     /// # Errors
     ///

@@ -7,7 +7,7 @@ use super::{Channel, Result};
 
 /// Arguments for [`confirm_select`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#confirm.select).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#confirm.select).
 ///
 /// [`confirm_select`]: struct.Channel.html#method.confirm_select
 #[derive(Debug, Clone, Default)]
@@ -25,7 +25,7 @@ impl ConfirmSelectArguments {
 
 /// APIs for AMQP confirm class.
 impl Channel {
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#confirm.select).
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#confirm.select).
     ///
     /// # Errors
     ///

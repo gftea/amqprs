@@ -113,7 +113,7 @@ impl Display for ExchangeType {
 ///     .durable(true)
 ///     .finish();
 /// ```
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.declare).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#exchange.declare).
 ///
 /// [`exchange_declare`]: struct.Channel.html#method.exchange_declare
 #[derive(Debug, Clone)]
@@ -218,7 +218,7 @@ impl ExchangeDeclareArguments {
 
 /// Arguments for [`exchange_delete`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.delete).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#exchange.delete).
 ///
 /// [`exchange_delete`]: struct.Channel.html#method.exchange_delete
 #[derive(Debug, Clone, Default)]
@@ -266,7 +266,7 @@ impl ExchangeDeleteArguments {
 
 /// Arguments for [`exchange_bind`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.bind).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#exchange.bind).
 ///
 /// [`exchange_bind`]: struct.Channel.html#method.exchange_bind
 #[derive(Debug, Clone, Default)]
@@ -332,7 +332,7 @@ impl ExchangeBindArguments {
 
 /// Arguments for [`exchange_unbind`]
 ///
-/// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.unbind).
+/// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#exchange.unbind).
 ///
 /// [`exchange_unbind`]: struct.Channel.html#method.exchange_unbind
 #[derive(Debug, Clone, Default)]
@@ -398,7 +398,7 @@ impl ExchangeUnbindArguments {
 /////////////////////////////////////////////////////////////////////////////
 /// APIs for AMQP exchange class
 impl Channel {
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.declaure)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#exchange.declaure)
     ///
     /// # Errors
     ///
@@ -436,7 +436,7 @@ impl Channel {
             Ok(())
         }
     }
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.delete)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#exchange.delete)
     ///
     /// # Errors
     ///
@@ -464,7 +464,7 @@ impl Channel {
             Ok(())
         }
     }
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.bind)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#exchange.bind)
     ///
     /// # Errors
     ///
@@ -497,7 +497,7 @@ impl Channel {
             Ok(())
         }
     }
-    /// See [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.unbind)
+    /// See [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#exchange.unbind)
     ///
     /// # Errors
     ///
