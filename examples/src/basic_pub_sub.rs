@@ -1,3 +1,4 @@
+use amqp_serde::types::FieldTable;
 use amqprs::{
     callbacks::{DefaultChannelCallback, DefaultConnectionCallback},
     channel::{
@@ -8,7 +9,6 @@ use amqprs::{
     BasicProperties,
 };
 use tokio::time;
-use amqp_serde::types::FieldTable;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
@@ -105,11 +105,8 @@ async fn main() {
         .with_user_id("user")
         .with_headers(headers)
         .finish();
-        
-    channel
-        .basic_publish(props, content, args)
-        .await
-        .unwrap();
+
+    channel.basic_publish(props, content, args).await.unwrap();
 
     // keep the `channel` and `connection` object from dropping before pub/sub is done.
     // channel/connection will be closed when drop.
