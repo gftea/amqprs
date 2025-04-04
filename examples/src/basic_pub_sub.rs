@@ -8,7 +8,7 @@ use amqprs::{
     BasicProperties,
 };
 use tokio::time;
-
+use amqp_serde::types::FieldTable;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
@@ -86,9 +86,28 @@ async fn main() {
 
     // create arguments for basic_publish
     let args = BasicPublishArguments::new(exchange_name, routing_key);
+    let mut headers = FieldTable::new();
+    headers.insert("key".try_into().unwrap(), "value".try_into().unwrap());
 
+    let props = BasicProperties::default()
+        .with_app_id("app_id")
+        .with_cluster_id("cluster_id")
+        .with_content_encoding("content_encoding")
+        .with_content_type("content_type")
+        .with_correlation_id("correlation_id")
+        .with_expiration("100000")
+        .with_message_id("message_id")
+        .with_message_type("message_type")
+        .with_persistence(true)
+        .with_priority(1)
+        .with_reply_to("reply_to")
+        .with_timestamp(1743000001)
+        .with_user_id("user")
+        .with_headers(headers)
+        .finish();
+        
     channel
-        .basic_publish(BasicProperties::default(), content, args)
+        .basic_publish(props, content, args)
         .await
         .unwrap();
 
