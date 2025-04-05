@@ -108,11 +108,20 @@ async fn main() {
 
     channel.basic_publish(props, content, args).await.unwrap();
 
+    // Check connection should still open and no network i/o failure after publish
+    match time::timeout(time::Duration::from_secs(1), connection.listen_network_io_failure()).await {
+        Ok(is_failure) => {
+            panic!("Unexpected network I/O failure: {is_failure}, connection is_open status: {}", connection.is_open());
+        }
+        Err(_) => {
+            tracing::debug!("Network I/O OK after publish");
+            assert!(connection.is_open(), "Connection should be still open");
+        }
+    }
     // keep the `channel` and `connection` object from dropping before pub/sub is done.
     // channel/connection will be closed when drop.
     time::sleep(time::Duration::from_secs(1)).await;
     // explicitly close
-
     channel.close().await.unwrap();
     connection.close().await.unwrap();
 }
