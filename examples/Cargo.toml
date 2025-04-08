@@ -16,6 +16,7 @@ tokio = { version = "1" }
 async-trait = { version = "0.1" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rustls = { version = "0.23" }
 # features for example target 
 [features]
 example-tls = ["amqprs/tls", "amqprs/traces"]

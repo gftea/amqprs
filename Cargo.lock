@@ -867,6 +867,7 @@ dependencies = [
  "amqp_serde",
  "amqprs",
  "async-trait",
+ "rustls",
  "tokio",
  "tracing",
  "tracing-subscriber",
