@@ -494,6 +494,7 @@ impl<'de> Deserialize<'de> for BasicProperties {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
+            "flags",
             "content_type",
             "content_encoding",
             "headers",
@@ -542,76 +543,76 @@ impl<'de> Deserialize<'de> for BasicProperties {
                     app_id: None,
                     cluster_id: None,
                 };
-                if (flags[0] & 1 << 7) != 0 {
+                if (flags[0] & (1 << 7)) != 0 {
                     basic_properties.content_type = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
                 }
-                if (flags[0] & 1 << 6) != 0 {
+                if (flags[0] & (1 << 6)) != 0 {
                     basic_properties.content_encoding = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
                 }
-                if (flags[0] & 1 << 5) != 0 {
+                if (flags[0] & (1 << 5)) != 0 {
                     basic_properties.headers = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(3, &self))?;
                 }
-                if (flags[0] & 1 << 4) != 0 {
+                if (flags[0] & (1 << 4)) != 0 {
                     basic_properties.delivery_mode = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(4, &self))?;
                 }
-                if (flags[0] & 1 << 3) != 0 {
+                if (flags[0] & (1 << 3)) != 0 {
                     basic_properties.priority = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(5, &self))?;
                 }
-                if (flags[0] & 1 << 2) != 0 {
+                if (flags[0] & (1 << 2)) != 0 {
                     basic_properties.correlation_id = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(6, &self))?;
                 }
-                if (flags[0] & 1 << 1) != 0 {
+                if (flags[0] & (1 << 1)) != 0 {
                     basic_properties.reply_to = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(7, &self))?;
                 }
-                if (flags[0] & 1 << 0) != 0 {
+                if (flags[0] & (1 << 0)) != 0 {
                     basic_properties.expiration = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(8, &self))?;
                 }
                 // 2nd byte of flags
-                if (flags[1] & 1 << 7) != 0 {
+                if (flags[1] & (1 << 7)) != 0 {
                     basic_properties.message_id = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(9, &self))?;
                 }
-                if (flags[1] & 1 << 6) != 0 {
+                if (flags[1] & (1 << 6)) != 0 {
                     basic_properties.timestamp = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(10, &self))?;
                 }
-                if (flags[1] & 1 << 5) != 0 {
+                if (flags[1] & (1 << 5)) != 0 {
                     basic_properties.message_type = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(11, &self))?;
                 }
-                if (flags[1] & 1 << 4) != 0 {
+                if (flags[1] & (1 << 4)) != 0 {
                     basic_properties.user_id = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(12, &self))?;
                 }
-                if (flags[1] & 1 << 3) != 0 {
+                if (flags[1] & (1 << 3)) != 0 {
                     basic_properties.app_id = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(13, &self))?;
                 }
-                if (flags[1] & 1 << 2) != 0 {
+                if (flags[1] & (1 << 2)) != 0 {
                     basic_properties.cluster_id = seq
                         .next_element()?
-                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        .ok_or_else(|| serde::de::Error::invalid_length(14, &self))?;
                 }
 
                 Ok(basic_properties)

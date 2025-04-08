@@ -285,7 +285,7 @@ impl Channel {
     /// Asks the server to pause or restart the flow of content data.
     ///
     /// Ask to start the flow if input `active` = `true`, otherwise to pause.
-    /// Also see [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#channel.flow).
+    /// Also see [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#channel.flow).
     ///
     /// Returns `true` means the server will start/continue the flow, otherwise it will not.
     ///

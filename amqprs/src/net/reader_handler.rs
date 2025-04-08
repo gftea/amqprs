@@ -190,6 +190,20 @@ impl ReaderHandler {
                 }
                 Ok(())
             }
+            Frame::UpdateSecretOk(method_header, update_secret_ok) => {
+                let responder = self
+                    .channel_manager
+                    .remove_responder(&channel_id, method_header)
+                    .expect("responder must be registered");
+                responder
+                    .send(update_secret_ok.into_frame())
+                    .map_err(|err_frame| {
+                        Error::SyncChannel(format!(
+                            "failed to forward {} to connection {}",
+                            err_frame, self.amqp_connection
+                        ))
+                    })
+            }
             // dispatch other frames to channel dispatcher
             _ => {
                 let dispatcher = self.channel_manager.get_dispatcher(&channel_id);

@@ -21,7 +21,7 @@ impl Channel {
     /// This method sets the channel to use standard transactions. The client must use this
     /// method at least once on a channel before using the [`tx_commit`] or [`tx_rollback`] methods.
     ///
-    /// Also see [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#tx.select).
+    /// Also see [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#tx.select).
     /// # Errors
     ///
     /// Returns error if any failure in communication with server.
@@ -45,7 +45,7 @@ impl Channel {
     /// This method commits all message publications and acknowledgments performed in
     /// the current transaction.  A new transaction starts immediately after a commit.
     ///
-    /// Also see [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#tx.commit).
+    /// Also see [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#tx.commit).
     /// # Errors
     ///
     /// Returns error if any failure in communication with server.
@@ -68,7 +68,7 @@ impl Channel {
     /// Note that unacked messages will not be automatically redelivered by rollback;
     /// if that is required an explicit recover call should be issued.
     ///
-    /// Also see [AMQP_0-9-1 Reference](https://www.rabbitmq.com/amqp-0-9-1-reference.html#tx.rollback).
+    /// Also see [AMQP_0-9-1 Reference](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#tx.rollback).
     ///
     /// # Errors
     ///

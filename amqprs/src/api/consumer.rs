@@ -24,14 +24,14 @@ use tracing::info;
 pub trait AsyncConsumer {
     /// Consume a delivery from Server.
     ///
-    /// Every delivery combines a [Deliver](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.deliver) frame,
+    /// Every delivery combines a [Deliver](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.deliver) frame,
     /// message propertities, and content body.
     ///
     /// # Inputs
     ///
     /// `channel`: consumer's channel reference, typically used for acknowledge the delivery.
     ///
-    /// `deliver`: see [basic.deliver](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.deliver)
+    /// `deliver`: see [basic.deliver](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#basic.deliver)
     /// or [delivery metadata](https://www.rabbitmq.com/consumers.html#message-properties)
     ///
     /// `basic_properties`: see [message properties](https://www.rabbitmq.com/consumers.html#message-properties).

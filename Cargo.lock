@@ -87,7 +87,7 @@ dependencies = [
 
 [[package]]
 name = "amqp_serde"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "bytes",
  "serde",
@@ -96,7 +96,7 @@ dependencies = [
 
 [[package]]
 name = "amqprs"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "amqp_serde",
  "async-trait",
@@ -875,6 +875,7 @@ dependencies = [
 name = "examples"
 version = "0.0.0"
 dependencies = [
+ "amqp_serde",
  "amqprs",
  "async-trait",
  "tokio",

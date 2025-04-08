@@ -23,6 +23,7 @@ impl ConnectionCallback for ExampleConnectionCallback {
 
     async fn blocked(&mut self, connection: &Connection, reason: String) {}
     async fn unblocked(&mut self, connection: &Connection) {}
+    async fn secret_updated(&mut self, connection: &Connection) {}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

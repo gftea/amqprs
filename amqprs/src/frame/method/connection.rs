@@ -124,7 +124,7 @@ pub struct OpenOk {
 }
 /// Used by connection's [`close`] callback.
 ///
-/// AMQP method frame [close](https://www.rabbitmq.com/amqp-0-9-1-reference.html#connection.close).
+/// AMQP method frame [close](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md#connection.close).
 ///
 /// [`close`]: callbacks/trait.ConnectionCallback.html#tymethod.close
 // TX + RX
@@ -217,6 +217,12 @@ pub struct Unblocked;
 pub struct UpdateSecret {
     pub(crate) new_secret: LongStr,
     pub(crate) reason: ShortStr,
+}
+
+impl UpdateSecret {
+    pub fn new(new_secret: LongStr, reason: ShortStr) -> Self {
+        Self { new_secret, reason }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]

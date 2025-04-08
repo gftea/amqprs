@@ -50,7 +50,8 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use crate::{
     frame::{
         Blocked, Close, CloseOk, Frame, MethodHeader, Open, OpenChannel, OpenChannelOk,
-        ProtocolHeader, StartOk, TuneOk, Unblocked, DEFAULT_CONN_CHANNEL, FRAME_MIN_SIZE,
+        ProtocolHeader, StartOk, TuneOk, Unblocked, UpdateSecret, UpdateSecretOk,
+        DEFAULT_CONN_CHANNEL, FRAME_MIN_SIZE,
     },
     net::{
         ChannelResource, ConnManagementCommand, IncomingMessage, OutgoingMessage, ReaderHandler,
@@ -283,7 +284,7 @@ struct SharedConnectionInner {
 pub struct OpenConnectionArguments {
     /// The server host. Default: "localhost".
     host: String,
-    /// The server port. Default: 5672 by [AMQP 0-9-1 spec](https://www.rabbitmq.com/amqp-0-9-1-reference.html).
+    /// The server port. Default: 5672 by [AMQP 0-9-1 spec](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md).
     port: u16,
     /// Default: "/". See [RabbitMQ vhosts](https://www.rabbitmq.com/vhosts.html).
     virtual_host: String,
@@ -358,7 +359,7 @@ impl OpenConnectionArguments {
     ///
     /// # Default
     ///
-    /// 5672 by [AMQP 0-9-1 spec](https://www.rabbitmq.com/amqp-0-9-1-reference.html).
+    /// 5672 by [AMQP 0-9-1 spec](https://github.com/rabbitmq/amqp-0.9.1-spec/blob/main/docs/amqp-0-9-1-reference.md).
     pub fn port(&mut self, port: u16) -> &mut Self {
         self.port = port;
         self
@@ -1243,6 +1244,32 @@ impl Connection {
     pub async fn listen_network_io_failure(&self) -> bool {
         let mut shutdown_listener = self.shared.shutdown_subscriber.subscribe();
         (shutdown_listener.recv().await).unwrap_or(false)
+    }
+
+    /// Update the secret used by some authentication module such as OAuth2.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if fails to send indication to server.
+    pub async fn update_secret(&self, new_secret: &str, reason: &str) -> Result<()> {
+        let responder_rx = self
+            .register_responder(DEFAULT_CONN_CHANNEL, UpdateSecretOk::header())
+            .await?;
+
+        let update_secret = UpdateSecret::new(
+            new_secret.to_owned().try_into().unwrap(),
+            reason.to_owned().try_into().unwrap(),
+        );
+
+        synchronous_request!(
+            self.shared.outgoing_tx,
+            (DEFAULT_CONN_CHANNEL, update_secret.into_frame()),
+            responder_rx,
+            Frame::UpdateSecretOk,
+            Error::UpdateSecretError
+        )?;
+
+        Ok(())
     }
 }
 

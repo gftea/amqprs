@@ -9,6 +9,8 @@
 - Since `v2.0.0`, it has breaking changes due to rustls upgrade, and the msrv is `1.64`.
 - Version < `v2.0.0`: the msrv is `1.56`
 
+## NOTE! Please upgrade to v2 version, because no bug fix or enhancement will be applied to v1 version!
+
 # What is "amqprs"
 
 Yet another RabbitMQ client implementation in rust with different design goals.
