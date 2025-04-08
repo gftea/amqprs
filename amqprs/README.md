@@ -6,7 +6,7 @@
 
 # MSRV
 
-- Since `v2.0.0`, it has breaking changes due to rustls upgrade, and the msrv is `1.64`.
+- Since `v2.0.0`, it has breaking changes due to rustls upgrade, and the msrv is `1.66`.
 - Version < `v2.0.0`: the msrv is `1.56`
 
 ## NOTE! Please upgrade to v2 version, because no bug fix or enhancement will be applied to v1 version!
