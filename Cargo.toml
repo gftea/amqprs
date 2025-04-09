@@ -16,3 +16,4 @@ rust-version = "1.71"
 
 [workspace.dependencies]
 serde_bytes = { version = "0.11" }
+rustls = { version = "0.23" }

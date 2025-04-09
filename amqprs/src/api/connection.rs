@@ -1609,6 +1609,7 @@ mod tests {
     #[cfg(all(feature = "urispec", feature = "tls"))]
     #[test]
     fn test_urispec_amqps() {
+        
         let args = OpenConnectionArguments::try_from("amqps://user:bitnami@localhost?heartbeat=10")
             .unwrap();
         assert_eq!(args.host, "localhost");
