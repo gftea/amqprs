@@ -32,7 +32,7 @@ async fn main() {
     let root_ca_cert = current_dir.join("ca_certificate.pem");
     let client_cert = current_dir.join("client_AMQPRS_TEST_certificate.pem");
     let client_private_key = current_dir.join("client_AMQPRS_TEST_key.pem");
-    //
+    // Install default crypto provider for TLS.
     rustls::crypto::aws_lc_rs::default_provider()
         .install_default()
         .unwrap();

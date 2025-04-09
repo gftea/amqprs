@@ -101,6 +101,7 @@ dependencies = [
  "amqp_serde",
  "async-trait",
  "bytes",
+ "rustls",
  "rustls-pemfile",
  "rustls-pki-types",
  "rustls-webpki 0.102.8",
