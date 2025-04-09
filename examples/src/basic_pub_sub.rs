@@ -109,9 +109,17 @@ async fn main() {
     channel.basic_publish(props, content, args).await.unwrap();
 
     // Check connection should still open and no network i/o failure after publish
-    match time::timeout(time::Duration::from_secs(1), connection.listen_network_io_failure()).await {
+    match time::timeout(
+        time::Duration::from_secs(1),
+        connection.listen_network_io_failure(),
+    )
+    .await
+    {
         Ok(is_failure) => {
-            panic!("Unexpected network I/O failure: {is_failure}, connection is_open status: {}", connection.is_open());
+            panic!(
+                "Unexpected network I/O failure: {is_failure}, connection is_open status: {}",
+                connection.is_open()
+            );
         }
         Err(_) => {
             tracing::debug!("Network I/O OK after publish");

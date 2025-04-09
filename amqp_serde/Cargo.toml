@@ -2,7 +2,7 @@
 name = "amqp_serde"
 version = "0.4.2"
 edition = "2021"
-rust-version = "1.64"
+rust-version = { workspace = true }
 license = "MIT"
 description = "Serde implementation for AMQP 0-9-1 types"
 repository = "https://github.com/gftea/amqprs"

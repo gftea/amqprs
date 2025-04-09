@@ -6,7 +6,7 @@
 
 # MSRV
 
-- Since `v2.0.0`, it has breaking changes due to rustls upgrade, and the msrv is `1.64`.
+- Since `v2.0.0`, it has breaking changes due to rustls upgrade, and the msrv is `1.71`.
 - Version < `v2.0.0`: the msrv is `1.56`
 
 ## NOTE! Please upgrade to v2 version, because no bug fix or enhancement will be applied to v1 version!
@@ -123,8 +123,8 @@ connection.close().await.unwrap();
 
 - "traces": enable `tracing` in the library.
 - "compliance_assert": enable compliance assertion according to AMQP spec.
-    If enabled, library always check user inputs and `panic` if any non-compliance.
-    If disabled, then it relies on server to reject.
+  If enabled, library always check user inputs and `panic` if any non-compliance.
+  If disabled, then it relies on server to reject.
 - "tls": enable SSL/TLS.
 - "urispec": enable support of [RabbitMQ URI Specification](https://www.rabbitmq.com/uri-spec.html)
 

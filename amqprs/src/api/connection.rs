@@ -1609,6 +1609,8 @@ mod tests {
     #[cfg(all(feature = "urispec", feature = "tls"))]
     #[test]
     fn test_urispec_amqps() {
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
         let args = OpenConnectionArguments::try_from("amqps://user:bitnami@localhost?heartbeat=10")
             .unwrap();
         assert_eq!(args.host, "localhost");
@@ -1622,6 +1624,8 @@ mod tests {
     #[cfg(all(feature = "urispec", feature = "tls"))]
     #[test]
     fn test_urispec_amqps_simple() {
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
         let args = OpenConnectionArguments::try_from("amqps://localhost").unwrap();
         assert_eq!(args.host, "localhost");
         assert_eq!(args.port, 5671);
@@ -1634,6 +1638,8 @@ mod tests {
     #[tokio::test]
     #[should_panic(expected = "UriError")]
     async fn test_amqp_scheme_with_tls() {
+        let _ = rustls::crypto::aws_lc_rs::default_provider()
+            .install_default();
         ////////////////////////////////////////////////////////////////
         // TLS specific configuration
         let current_dir = std::env::current_dir().unwrap();
