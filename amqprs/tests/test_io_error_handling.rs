@@ -10,7 +10,7 @@ use tracing::info;
 
 mod common;
 
-#[ignore]
+#[ignore = "Need to test manually by triggering io failure"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_net_io_err_handling() {
     common::setup_logging();

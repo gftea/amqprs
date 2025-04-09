@@ -35,7 +35,7 @@ async fn main() {
     // Install default crypto provider for TLS.
     rustls::crypto::aws_lc_rs::default_provider()
         .install_default()
-        .unwrap();
+        .expect("Must install crypto provider for tls.");
 
     let args = OpenConnectionArguments::new("localhost", 5671, "user", "bitnami")
         .tls_adaptor(

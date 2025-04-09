@@ -17,7 +17,7 @@ pub fn build_conn_args() -> OpenConnectionArguments {
 }
 #[cfg(feature = "tls")]
 pub fn build_conn_args() -> OpenConnectionArguments {
-    rustls::crypto::aws_lc_rs::default_provider().install_default();
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     // TLS specific configuration
     let current_dir = std::env::current_dir().unwrap();
