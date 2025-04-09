@@ -1,8 +1,11 @@
 [workspace]
 
 members = ["amqprs", "amqp_serde", "examples", "benchmarks"]
-rust-version = "1.64"
+
 resolver = "2"
+
+[workspace.package]
+rust-version = "1.71"
 
 # [profile.bench]
 # opt-level = 3

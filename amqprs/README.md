@@ -123,8 +123,8 @@ connection.close().await.unwrap();
 
 - "traces": enable `tracing` in the library.
 - "compliance_assert": enable compliance assertion according to AMQP spec.
-    If enabled, library always check user inputs and `panic` if any non-compliance.
-    If disabled, then it relies on server to reject.
+  If enabled, library always check user inputs and `panic` if any non-compliance.
+  If disabled, then it relies on server to reject.
 - "tls": enable SSL/TLS.
 - "urispec": enable support of [RabbitMQ URI Specification](https://www.rabbitmq.com/uri-spec.html)
 

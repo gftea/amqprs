@@ -26,15 +26,17 @@ async fn main() {
     // TLS specific configuration
     let current_dir = std::env::current_dir().unwrap();
     let current_dir = current_dir.join("rabbitmq_conf/client/");
-    
+
     // domain should match the certificate/key files
     let domain = "AMQPRS_TEST";
     let root_ca_cert = current_dir.join("ca_certificate.pem");
     let client_cert = current_dir.join("client_AMQPRS_TEST_certificate.pem");
     let client_private_key = current_dir.join("client_AMQPRS_TEST_key.pem");
-    // 
-    rustls::crypto::aws_lc_rs::default_provider().install_default().unwrap();
-    
+    //
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .unwrap();
+
     let args = OpenConnectionArguments::new("localhost", 5671, "user", "bitnami")
         .tls_adaptor(
             TlsAdaptor::with_client_auth(
