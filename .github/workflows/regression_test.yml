@@ -52,7 +52,7 @@ jobs:
       matrix:
         rust:
           - stable
-          - '1.66'
+          - '1.70'
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
