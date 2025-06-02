@@ -12,7 +12,7 @@ pub const FRAME_HEARTBEAT: Octect = 8;
 
 pub const FRAME_END: Octect = 206;
 
-pub const FRAME_MIN_SIZE: LongUint = 4096;
+pub const FRAME_MIN_SIZE: LongUint = 8192;
 
 /// all reply code are unsigned 16bit integer
 pub const REPLY_SUCCESS: ShortUint = 200; //This reply code is reserved for future use
