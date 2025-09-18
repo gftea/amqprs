@@ -39,6 +39,7 @@ pub(crate) struct BufIoWriter {
 }
 
 /// Unify Splitable IO stream types
+#[allow(clippy::large_enum_variant)]
 enum SplitIoStream {
     TcpStream(TcpStream),
     #[cfg(feature = "tls")]
