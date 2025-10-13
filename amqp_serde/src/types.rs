@@ -310,26 +310,29 @@ impl From<bool> for FieldValue {
         FieldValue::t(v)
     }
 }
-impl TryInto<bool> for FieldValue {
+
+impl TryFrom<FieldValue> for bool {
     type Error = crate::Error;
 
-    fn try_into(self) -> Result<bool, Self::Error> {
-        match self {
+    fn try_from(value: FieldValue) -> Result<Self, Self::Error> {
+        match value {
             FieldValue::t(v) => Ok(v),
             _ => Err(crate::Error::Message("not a bool".to_string())),
         }
     }
 }
+
 impl From<FieldTable> for FieldValue {
     fn from(v: FieldTable) -> Self {
         FieldValue::F(v)
     }
 }
-impl TryInto<FieldTable> for FieldValue {
+
+impl TryFrom<FieldValue> for FieldTable {
     type Error = crate::Error;
 
-    fn try_into(self) -> Result<FieldTable, Self::Error> {
-        match self {
+    fn try_from(value: FieldValue) -> Result<Self, Self::Error> {
+        match value {
             FieldValue::F(v) => Ok(v),
             _ => Err(crate::Error::Message("not a FieldTable".to_string())),
         }
@@ -342,44 +345,44 @@ impl From<LongStr> for FieldValue {
     }
 }
 
-impl TryInto<LongStr> for FieldValue {
+impl TryFrom<FieldValue> for LongStr {
     type Error = crate::Error;
 
-    fn try_into(self) -> Result<LongStr, Self::Error> {
-        match self {
+    fn try_from(value: FieldValue) -> Result<Self, Self::Error> {
+        match value {
             FieldValue::S(v) => Ok(v),
             _ => Err(crate::Error::Message("not a LongStr".to_string())),
         }
     }
 }
 
-impl<'a> TryInto<&'a LongStr> for &'a FieldValue {
+impl<'a> TryFrom<&'a FieldValue> for &'a LongStr {
     type Error = crate::Error;
 
-    fn try_into(self) -> Result<&'a LongStr, Self::Error> {
-        match self {
+    fn try_from(value: &'a FieldValue) -> Result<Self, Self::Error> {
+        match value {
             FieldValue::S(v) => Ok(v),
             _ => Err(crate::Error::Message("not a LongStr".to_string())),
         }
     }
 }
 
-impl<'a> TryInto<&'a String> for &'a FieldValue {
+impl<'a> TryFrom<&'a FieldValue> for &'a String {
     type Error = crate::Error;
 
-    fn try_into(self) -> Result<&'a String, Self::Error> {
-        match self {
+    fn try_from(value: &'a FieldValue) -> Result<Self, Self::Error> {
+        match value {
             FieldValue::S(v) => Ok(v.as_ref()),
             _ => Err(crate::Error::Message("not a LongStr".to_string())),
         }
     }
 }
 
-impl<'a> TryInto<&'a str> for &'a FieldValue {
+impl<'a> TryFrom<&'a FieldValue> for &'a str {
     type Error = crate::Error;
 
-    fn try_into(self) -> Result<&'a str, Self::Error> {
-        match self {
+    fn try_from(value: &'a FieldValue) -> Result<Self, Self::Error> {
+        match value {
             FieldValue::S(v) => Ok(v.as_ref()),
             _ => Err(crate::Error::Message("not a LongStr".to_string())),
         }
@@ -394,11 +397,11 @@ impl From<String> for FieldValue {
     }
 }
 
-impl TryInto<String> for FieldValue {
+impl TryFrom<FieldValue> for String {
     type Error = crate::Error;
 
-    fn try_into(self) -> Result<String, Self::Error> {
-        match self {
+    fn try_from(value: FieldValue) -> Result<Self, Self::Error> {
+        match value {
             FieldValue::S(v) => Ok(v.into()),
             _ => Err(crate::Error::Message("not a LongStr".to_string())),
         }
