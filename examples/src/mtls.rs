@@ -33,6 +33,10 @@ async fn main() {
     let client_private_key = current_dir.join("client_AMQPRS_TEST_key.pem");
     // domain should match the certificate/key files
     let domain = "AMQPRS_TEST";
+    // Install default crypto provider for TLS.
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .expect("Must install crypto provider for tls.");
 
     let args = OpenConnectionArguments::new("localhost", 5671, "", "")
         .tls_adaptor(

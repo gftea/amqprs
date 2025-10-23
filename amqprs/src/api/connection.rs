@@ -1638,8 +1638,7 @@ mod tests {
     #[tokio::test]
     #[should_panic(expected = "UriError")]
     async fn test_amqp_scheme_with_tls() {
-        let _ = rustls::crypto::aws_lc_rs::default_provider()
-            .install_default();
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
         ////////////////////////////////////////////////////////////////
         // TLS specific configuration
         let current_dir = std::env::current_dir().unwrap();
