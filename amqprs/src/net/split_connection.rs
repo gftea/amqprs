@@ -112,6 +112,7 @@ impl AsyncWrite for SplitIoStream {
 impl SplitConnection {
     pub async fn open(addr: &str) -> Result<Self> {
         let stream = TcpStream::connect(addr).await?;
+        stream.set_nodelay(true)?;
 
         let stream: SplitIoStream = stream.into();
         let (reader, writer) = tokio::io::split(stream);
@@ -136,9 +137,9 @@ impl SplitConnection {
         let domain = rustls_pki_types::ServerName::try_from(domain.to_owned())
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid dnsname"))?;
 
-        let stream = connector
-            .connect(domain, TcpStream::connect(addr).await?)
-            .await?;
+        let tcp_stream = TcpStream::connect(addr).await?;
+        tcp_stream.set_nodelay(true)?;
+        let stream = connector.connect(domain, tcp_stream).await?;
         let stream: SplitIoStream = stream.into();
         let (reader, writer) = tokio::io::split(stream);
 
