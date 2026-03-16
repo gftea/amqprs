@@ -106,28 +106,14 @@ impl TlsAdaptor {
 
             let trust_anchors = certs
                 .iter()
-                .map(|cert| {
-                    let anchor = webpki::anchor_from_trusted_cert(cert).unwrap().to_owned();
-
-                    rustls_pki_types::TrustAnchor {
-                        subject: anchor.subject,
-                        subject_public_key_info: anchor.subject_public_key_info,
-                        name_constraints: anchor.name_constraints,
-                    }
-                })
-                .collect::<Vec<rustls_pki_types::TrustAnchor>>();
+                .map(|cert| webpki::anchor_from_trusted_cert(cert).unwrap().to_owned())
+                .collect::<Vec<_>>();
 
             root_store.roots.extend(trust_anchors);
         } else {
             root_store
                 .roots
-                .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
-                    rustls_pki_types::TrustAnchor {
-                        subject: ta.subject.clone(),
-                        subject_public_key_info: ta.subject_public_key_info.clone(),
-                        name_constraints: ta.name_constraints.clone(),
-                    }
-                }));
+                .extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
         }
         Ok(root_store)
     }
@@ -139,8 +125,7 @@ mod tests {
     use super::*;
 
     fn read_key(pem: &[u8]) {
-        let result = PrivateKeyDer::from_pem_slice(pem);
-        assert!(result.is_ok());
+        PrivateKeyDer::from_pem_slice(pem).expect("should parse private key");
     }
 
     #[test]
@@ -240,38 +225,42 @@ e+VeXslTPB7gThTnpXpeO0PtYln+yBKLv6G+GA==
     }
 
     #[test]
-    fn without_client_auth_uses_webpki_roots() {
-        let result = TlsAdaptor::without_client_auth(None, "localhost".to_string());
-        let adaptor = result.unwrap_or_else(|e| panic!("should build with webpki roots: {e}"));
-        assert_eq!(adaptor.domain, "localhost");
+    fn build_root_store_with_webpki_roots() {
+        let store = TlsAdaptor::build_root_store(None)
+            .unwrap_or_else(|e| panic!("should build with webpki roots: {e}"));
+        assert!(!store.roots.is_empty());
     }
 
     #[test]
-    fn without_client_auth_missing_ca_file() {
-        match TlsAdaptor::without_client_auth(
-            Some(Path::new("/nonexistent.pem")),
-            "localhost".into(),
-        ) {
-            Err(e) => assert_eq!(e.kind(), std::io::ErrorKind::NotFound),
-            Ok(_) => panic!("expected error for missing CA file"),
-        }
+    fn build_root_store_missing_ca_file() {
+        let Err(e) = TlsAdaptor::build_root_store(Some(Path::new("/nonexistent.pem"))) else {
+            panic!("expected error for missing CA file");
+        };
+        assert_eq!(e.kind(), std::io::ErrorKind::NotFound);
     }
 
     #[test]
-    fn with_client_auth_missing_cert_file() {
-        match TlsAdaptor::with_client_auth(
-            None,
-            Path::new("/nonexistent_cert.pem"),
-            Path::new("/nonexistent_key.pem"),
-            "localhost".into(),
-        ) {
-            Err(e) => assert_eq!(e.kind(), std::io::ErrorKind::NotFound),
-            Ok(_) => panic!("expected error for missing cert file"),
-        }
+    fn missing_cert_file_preserves_not_found() {
+        let Err(e) = CertificateDer::pem_file_iter(Path::new("/nonexistent.pem"))
+            .map_err(pem_error_to_io)
+        else {
+            panic!("expected error for missing cert file");
+        };
+        assert_eq!(e.kind(), std::io::ErrorKind::NotFound);
     }
 
     #[test]
-    fn read_invalid_key() {
+    fn missing_key_file_preserves_not_found() {
+        let Err(e) =
+            PrivateKeyDer::from_pem_file(Path::new("/nonexistent.pem")).map_err(pem_error_to_io)
+        else {
+            panic!("expected error for missing key file");
+        };
+        assert_eq!(e.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn certificate_pem_rejected_as_private_key() {
         let pem = br#"-----BEGIN CERTIFICATE-----
 MIIDXTCCAkWgAwIBAgIJALflmDNShp+sMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
 BAYTAlVTMQswCQYDVQQIDAJDQTESMBAGA1UEBwwJUGFsbyBBbHRvMQ4wDAYDVQQK
