@@ -6,12 +6,22 @@
 //! [`OpenConnectionArguments`]: ../connection/struct.OpenConnectionArguments.html
 //! [`Connection::open`]: ../connection/struct.Connection.html#method.open
 
-use rustls_pki_types::{CertificateDer, PrivateKeyDer};
-use std::{fs::File, io::BufReader, path::Path, sync::Arc};
+use rustls_pki_types::{
+    pem::{self, PemObject},
+    CertificateDer, PrivateKeyDer,
+};
+use std::{path::Path, sync::Arc};
 use tokio_rustls::{
     rustls::{ClientConfig, RootCertStore},
     TlsConnector,
 };
+
+fn pem_error_to_io(e: pem::Error) -> std::io::Error {
+    match e {
+        pem::Error::Io(io_err) => io_err,
+        other => std::io::Error::new(std::io::ErrorKind::InvalidData, other),
+    }
+}
 
 /// The TLS adaptor used to enable TLS network stream.
 ///
@@ -69,11 +79,16 @@ impl TlsAdaptor {
         domain: String,
     ) -> std::io::Result<Self> {
         let root_cert_store = Self::build_root_store(root_ca_cert)?;
-        let client_certs: Vec<CertificateDer> = Self::build_client_certificates(client_cert)?;
-        let client_keys: Vec<PrivateKeyDer> = Self::build_client_private_keys(client_private_key)?;
+        let client_certs: Vec<CertificateDer> =
+            CertificateDer::pem_file_iter(client_cert)
+                .map_err(pem_error_to_io)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(pem_error_to_io)?;
+        let client_key: PrivateKeyDer = PrivateKeyDer::from_pem_file(client_private_key)
+            .map_err(pem_error_to_io)?;
         let config = ClientConfig::builder()
             .with_root_certificates(root_cert_store)
-            .with_client_auth_cert(client_certs, client_keys.into_iter().next().unwrap())
+            .with_client_auth_cert(client_certs, client_key)
             .unwrap();
         let connector = TlsConnector::from(Arc::new(config));
 
@@ -83,24 +98,24 @@ impl TlsAdaptor {
     fn build_root_store(root_ca_cert: Option<&Path>) -> std::io::Result<RootCertStore> {
         let mut root_store = RootCertStore::empty();
         if let Some(root_ca_cert) = root_ca_cert {
-            let mut pem = BufReader::new(File::open(root_ca_cert)?);
-
-            let certs = rustls_pemfile::certs(&mut pem);
+            let certs: Vec<CertificateDer> =
+                CertificateDer::pem_file_iter(root_ca_cert)
+                    .map_err(pem_error_to_io)?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(pem_error_to_io)?;
 
             let trust_anchors = certs
-                .into_iter()
+                .iter()
                 .map(|cert| {
-                    cert.map(|cert| {
-                        let anchor = webpki::anchor_from_trusted_cert(&cert).unwrap().to_owned();
+                    let anchor = webpki::anchor_from_trusted_cert(cert).unwrap().to_owned();
 
-                        rustls_pki_types::TrustAnchor {
-                            subject: anchor.subject,
-                            subject_public_key_info: anchor.subject_public_key_info,
-                            name_constraints: anchor.name_constraints,
-                        }
-                    })
+                    rustls_pki_types::TrustAnchor {
+                        subject: anchor.subject,
+                        subject_public_key_info: anchor.subject_public_key_info,
+                        name_constraints: anchor.name_constraints,
+                    }
                 })
-                .collect::<std::io::Result<Vec<rustls_pki_types::TrustAnchor>>>()?;
+                .collect::<Vec<rustls_pki_types::TrustAnchor>>();
 
             root_store.roots.extend(trust_anchors);
         } else {
@@ -116,93 +131,22 @@ impl TlsAdaptor {
         }
         Ok(root_store)
     }
-
-    fn build_client_certificates<'a>(
-        client_cert: &Path,
-    ) -> std::io::Result<Vec<CertificateDer<'a>>> {
-        let file = File::open(client_cert)?;
-        let mut pem = BufReader::new(file);
-        let raw_certs = rustls_pemfile::certs(&mut pem);
-
-        let certs: Vec<CertificateDer> = raw_certs
-            .into_iter()
-            .collect::<std::io::Result<Vec<CertificateDer>>>()?;
-        Ok(certs)
-    }
-
-    fn build_client_private_keys<'a>(
-        client_private_key: &Path,
-    ) -> std::io::Result<Vec<PrivateKeyDer<'a>>> {
-        let mut pem = BufReader::new(File::open(client_private_key)?);
-        let keys = Self::read_private_keys_from_pem(&mut pem)?;
-        let keys = keys
-            .into_iter()
-            .map(|c| {
-                PrivateKeyDer::try_from(c)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-            })
-            .collect::<std::io::Result<Vec<PrivateKeyDer>>>()?;
-
-        Ok(keys)
-    }
-    /// Parses PEM encoded private keys.
-    ///
-    /// The input should PEM encoded private key in RSA, SEC1 Elliptic Curve or PKCS#8 format.
-    fn read_private_keys_from_pem(
-        rd: &mut dyn std::io::BufRead,
-    ) -> Result<Vec<Vec<u8>>, std::io::Error> {
-        let mut keys = Vec::new();
-
-        loop {
-            match rustls_pemfile::read_one(rd)? {
-                None => return Ok(keys),
-                Some(rustls_pemfile::Item::Pkcs1Key(key)) => {
-                    keys.push(key.secret_pkcs1_der().to_vec())
-                } //PKCS1/RSA
-                Some(rustls_pemfile::Item::Pkcs8Key(key)) => {
-                    keys.push(key.secret_pkcs8_der().to_vec())
-                } //PKCS8
-                Some(rustls_pemfile::Item::Sec1Key(key)) => {
-                    keys.push(key.secret_sec1_der().to_vec())
-                } //SEC1/EC
-                _ => {}
-            };
-        }
-    }
 }
 
 /// Unit tests
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io;
 
-    fn read_key(pem: &str) {
-        // Create a Cursor from the string slice
-        let cursor = io::Cursor::new(pem);
-
-        // Create a BufReader from the Cursor
-        let mut reader = io::BufReader::new(cursor);
-
-        // Read private key from str-slice
-        let result = TlsAdaptor::read_private_keys_from_pem(&mut reader);
-
-        // Ensure success
+    fn read_key(pem: &[u8]) {
+        let result = PrivateKeyDer::from_pem_slice(pem);
         assert!(result.is_ok());
-
-        // There should be one key
-        let result = result.unwrap();
-        assert!(result.len() == 1);
-
-        // The key must not be empty!
-        let key = result.first().unwrap();
-        assert!(key.len() > 0);
     }
 
     #[test]
     fn read_rsa_key() {
         // RSA private key in PEM format
-        let pem = r#"-----BEGIN RSA PRIVATE KEY-----
+        let pem = br#"-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAq6r5AxFXp8U15ktFL51U4DQelVXtZnD5klyl63MLTZ2Zx6o2
 vK1l1cJz7EyEeZ0evQ9OZ+FyNKnD3C2xtmVzg7e4jBh0U9U/fTHGDs7t6Yc2FV9j
 UxxvRa3yD4FpMhPC7nxDJ/mcBDHwJl0hZT8GHfOybEpWx+RAomK7QFihJ+W6AiEk
@@ -230,14 +174,13 @@ M/sWZf1EdFyhhKNW2xCU3eTxMP0f3X5BfGP8xn1gRf2a1EOJxIsPvS9zxIkxnLhJ
 kZVVcL5RFkNRODXzR1Tn2Txe3HUkx1a+4vLzBRG4xQp2E+grK8PvOxA=
 -----END RSA PRIVATE KEY-----"#;
 
-        // Read
         read_key(pem);
     }
 
     #[test]
     fn read_pkcs8_key() {
         // PKCS8 private key in PEM format
-        let pem = r#"-----BEGIN PRIVATE KEY-----
+        let pem = br#"-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDDWZyfvGeVRWnz
 Ttl0nE7J4M52Y1EvZAjx4F1d7XlPZB2wq2kX3jcGiV9UbkmD7DZ+cVf2V1ZPbmbm
 mChXvC9R65YhF5Q6XpzGEQWkXEwM4vhEcWmB3ObXQXGEmZ1y/fmPR2lRIX0Xhn7u
@@ -266,26 +209,24 @@ sChG+K2gxP7KlRX3a+fsDW44VNCa9d8bbajLxF5pUOxt6NhpAWG1cMlW8pjhpr50
 xuTt1S1eXyoycQMQbn0UBkgOFg==
 -----END PRIVATE KEY-----"#;
 
-        // Read
         read_key(pem);
     }
 
     #[test]
     fn read_ec_key() {
-        // PKCS8 private key in PEM format
-        let pem = r#"-----BEGIN EC PRIVATE KEY-----
+        // EC private key in PEM format
+        let pem = br#"-----BEGIN EC PRIVATE KEY-----
 MHcCAQEEIP8t6gTOOqVp6yZklyWV6R2AVT3E7R8Tk1xzJxw8aU/qoAoGCCqGSM49
 AwEHoUQDQgAEJXvHve3eHzqEUPHibPeRLVBlqA2cN1tR7dj3IdKj17lxxfKmT+LP
 e+VeXslTPB7gThTnpXpeO0PtYln+yBKLv6G+GA==
 -----END EC PRIVATE KEY-----"#;
 
-        // Read
         read_key(pem);
     }
 
     #[test]
     fn read_invalid_key() {
-        let pem = r#"-----BEGIN CERTIFICATE-----
+        let pem = br#"-----BEGIN CERTIFICATE-----
 MIIDXTCCAkWgAwIBAgIJALflmDNShp+sMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
 BAYTAlVTMQswCQYDVQQIDAJDQTESMBAGA1UEBwwJUGFsbyBBbHRvMQ4wDAYDVQQK
 DAVNeUNvMB4XDTIxMDEwMTAwMDAwMFoXDTIyMDEwMTAwMDAwMFowRTELMAkGA1UE
@@ -306,20 +247,8 @@ AOTNLBRxU+1mW4Kx+V7n48aU6fVwZ2Pxk9Qn5UOr6c1RzRl5hlvcB+X/G8cUS06d
 rfQThyKXoXkboRGIzmbUfn7Ba1zRRu3OX0D5FY2iTboS
 -----END CERTIFICATE-----"#;
 
-        // Create a Cursor from the string slice
-        let cursor = io::Cursor::new(pem);
-
-        // Create a BufReader from the Cursor
-        let mut reader = io::BufReader::new(cursor);
-
-        // Read private key from str-slice
-        let result = TlsAdaptor::read_private_keys_from_pem(&mut reader);
-
-        // Ensure success
-        assert!(result.is_ok());
-
-        // There shouldn't be any key
-        let result = result.unwrap();
-        assert!(result.len() == 0);
+        // A certificate PEM is not a private key, so this should fail
+        let result = PrivateKeyDer::from_pem_slice(pem);
+        assert!(result.is_err());
     }
 }
