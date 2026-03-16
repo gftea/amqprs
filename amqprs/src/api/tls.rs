@@ -225,6 +225,52 @@ e+VeXslTPB7gThTnpXpeO0PtYln+yBKLv6G+GA==
     }
 
     #[test]
+    fn pem_error_io_preserves_error_kind() {
+        let err = pem_error_to_io(pem::Error::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "file not found",
+        )));
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn pem_error_non_io_maps_to_invalid_data() {
+        let err = pem_error_to_io(pem::Error::NoItemsFound);
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn without_client_auth_uses_webpki_roots() {
+        let result = TlsAdaptor::without_client_auth(None, "localhost".to_string());
+        let adaptor = result.unwrap_or_else(|e| panic!("should build with webpki roots: {e}"));
+        assert_eq!(adaptor.domain, "localhost");
+    }
+
+    #[test]
+    fn without_client_auth_missing_ca_file() {
+        match TlsAdaptor::without_client_auth(
+            Some(Path::new("/nonexistent.pem")),
+            "localhost".into(),
+        ) {
+            Err(e) => assert_eq!(e.kind(), std::io::ErrorKind::NotFound),
+            Ok(_) => panic!("expected error for missing CA file"),
+        }
+    }
+
+    #[test]
+    fn with_client_auth_missing_cert_file() {
+        match TlsAdaptor::with_client_auth(
+            None,
+            Path::new("/nonexistent_cert.pem"),
+            Path::new("/nonexistent_key.pem"),
+            "localhost".into(),
+        ) {
+            Err(e) => assert_eq!(e.kind(), std::io::ErrorKind::NotFound),
+            Ok(_) => panic!("expected error for missing cert file"),
+        }
+    }
+
+    #[test]
     fn read_invalid_key() {
         let pem = br#"-----BEGIN CERTIFICATE-----
 MIIDXTCCAkWgAwIBAgIJALflmDNShp+sMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
