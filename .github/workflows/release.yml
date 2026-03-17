@@ -1,0 +1,41 @@
+name: release
+run-name: "Publish to crates.io"
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check rust version
+        run: rustc -V; cargo -V; rustup -V
+
+      - name: Start RabbitMQ server
+        run: ./start_rabbitmq.sh
+
+      - name: cargo clippy (all-features)
+        run: cargo clippy --all-features -- -Dwarnings
+
+      - name: cargo test (all-features)
+        run: cargo test --all-features
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish to crates.io
+        run: cargo publish -p amqprs --all-features
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
