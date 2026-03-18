@@ -1,13 +1,9 @@
 name: release
-run-name: "Release v${{ inputs.version }}"
+run-name: "Release ${{ github.event.release.tag_name }}"
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version (e.g. 2.1.6)'
-        required: true
-        type: string
+  release:
+    types: [created]
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,20 +11,29 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
-      - name: Validate version format
+      - name: Extract and validate version
         run: |
-          if ! echo "${{ inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "Error: version must be in semver format (e.g. 2.1.6)"
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Error: tag must be in format v<semver> (e.g. v2.1.6)"
             exit 1
           fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Release version: $VERSION"
 
       - name: Update version in Cargo.toml
         run: |
-          sed -i '0,/^version = ".*"/s//version = "${{ inputs.version }}"/' amqprs/Cargo.toml
+          sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" amqprs/Cargo.toml
           echo "Updated amqprs/Cargo.toml:"
           head -3 amqprs/Cargo.toml
 
@@ -47,20 +52,24 @@ jobs:
       - name: cargo test (all-features)
         run: cargo test --all-features
 
-      - name: Commit version bump
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add amqprs/Cargo.toml Cargo.lock
-          git commit -m "Bump amqprs version to ${{ inputs.version }}"
-          git tag "v${{ inputs.version }}"
-
-      - name: Push commit and tag
-        run: |
-          git push origin HEAD:main
-          git push origin "v${{ inputs.version }}"
-
       - name: Publish to crates.io
-        run: cargo publish -p amqprs --all-features
+        run: cargo publish -p amqprs --all-features --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Create PR for version bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="release/v$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add amqprs/Cargo.toml Cargo.lock
+          git commit -m "Bump amqprs version to $VERSION"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "Bump amqprs version to $VERSION" \
+            --body "Automated version bump after publishing v$VERSION to crates.io." \
+            --base main \
+            --head "$BRANCH"
