@@ -35,7 +35,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Publishing version: $VERSION"
+          sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" amqprs/Cargo.toml
+
       - name: Publish to crates.io
-        run: cargo publish -p amqprs --all-features
+        run: cargo publish -p amqprs --all-features --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
