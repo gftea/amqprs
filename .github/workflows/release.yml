@@ -1,20 +1,44 @@
 name: release
-run-name: "Publish to crates.io"
+run-name: "Release ${{ github.event.release.tag_name }}"
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [created]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
+  release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Extract and validate version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Error: tag must be in format v<semver> (e.g. v2.1.6)"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Release version: $VERSION"
+
+      - name: Update version in Cargo.toml
+        run: |
+          sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" amqprs/Cargo.toml
+          echo "Updated amqprs/Cargo.toml:"
+          head -3 amqprs/Cargo.toml
+
+      - name: Update Cargo.lock
+        run: cargo generate-lockfile
 
       - name: Check rust version
         run: rustc -V; cargo -V; rustup -V
@@ -28,14 +52,24 @@ jobs:
       - name: cargo test (all-features)
         run: cargo test --all-features
 
-  publish:
-    needs: test
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
       - name: Publish to crates.io
-        run: cargo publish -p amqprs --all-features
+        run: cargo publish -p amqprs --all-features --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Create PR for version bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="release/v$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add amqprs/Cargo.toml Cargo.lock
+          git commit -m "Bump amqprs version to $VERSION"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "Bump amqprs version to $VERSION" \
+            --body "Automated version bump after publishing v$VERSION to crates.io." \
+            --base main \
+            --head "$BRANCH"
