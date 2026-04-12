@@ -49,17 +49,17 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         rust:
           - stable
           - '1.71'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
+      - name: Install Rust toolchain ${{ matrix.rust }}
+        uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
       - name: cargo check (published crates, all-features)
         run: cargo check -p amqprs -p amqp_serde --all-features --locked
 
