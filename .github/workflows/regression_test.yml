@@ -60,10 +60,8 @@ jobs:
           profile: minimal
           toolchain: ${{ matrix.rust }}
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all-features
+      - name: cargo check (published crates, all-features)
+        run: cargo check -p amqprs -p amqp_serde --all-features --locked
 
   test_examples:
     runs-on: ubuntu-latest
