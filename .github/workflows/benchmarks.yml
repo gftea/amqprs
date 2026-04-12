@@ -1,7 +1,15 @@
 name: bench
 run-name: "Benchmarks"
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'amqprs/**'
+      - 'amqp_serde/**'
+      - 'benchmarks/**'
+      - '.github/workflows/benchmarks.yml'
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -10,6 +18,7 @@ jobs:
 
   ubuntu:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
