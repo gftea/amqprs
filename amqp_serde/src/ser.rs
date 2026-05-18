@@ -351,12 +351,8 @@ where
         if !self.is_len_known {
             let len: u32 = (self.ser.output.len() - self.start - 4) as u32;
 
-            let mut start = self.start;
-            for b in len.to_be_bytes() {
-                let p = self.ser.output.get_mut(start).unwrap();
-                *p = b;
-                start += 1;
-            }
+            self.ser.output[self.start..self.start + 4]
+                .copy_from_slice(&len.to_be_bytes());
         }
         Ok(())
     }
