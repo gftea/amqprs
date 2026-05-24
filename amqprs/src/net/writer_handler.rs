@@ -55,12 +55,12 @@ impl WriterHandler {
                         Some(v) => v,
                     };
                     if let Err(err) = self.stream.write_frame(channel_id, frame, self.amqp_connection.frame_max()).await {
-                        #[cfg(feature="tracing")]
+                        #[cfg(feature = "traces")]
                         error!("failed to send frame over connection {}, cause: {}", self.amqp_connection, err);
                         break;
                     }
                     expiration = time::Instant::now() + time::Duration::from_secs(interval);
-                    #[cfg(feature="tracing")]
+                    #[cfg(feature = "traces")]
                     trace!("connection {} heartbeat deadline is updated to {:?}", self.amqp_connection, expiration);
                 }
                 _ = time::sleep_until(expiration) => {
@@ -68,16 +68,16 @@ impl WriterHandler {
                         expiration = time::Instant::now() + time::Duration::from_secs(interval);
 
                         if let Err(err) = self.stream.write_frame(DEFAULT_CONN_CHANNEL, Frame::HeartBeat(HeartBeat), self.amqp_connection.frame_max()).await {
-                            #[cfg(feature="tracing")]
+                            #[cfg(feature = "traces")]
                             error!("failed to send heartbeat over connection {}, cause: {}", self.amqp_connection, err);
                             break;
                         }
-                        #[cfg(feature="tracing")]
+                        #[cfg(feature = "traces")]
                         debug!("sent heartbeat over connection {}", self.amqp_connection,);
                     }
                 }
                 _ = self.shutdown.recv() => {
-                    #[cfg(feature="tracing")]
+                    #[cfg(feature = "traces")]
                     info!("received shutdown notification for connection {}", self.amqp_connection);
                     // try to give last chance for last message.
                     yield_now().await;
