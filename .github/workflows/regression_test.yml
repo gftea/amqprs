@@ -99,3 +99,31 @@ jobs:
         with:
           command: test
           args: ${{ matrix.feat }}
+
+  fire_routine_on_failure:
+    needs: [builds, check_msrv, test_examples, test_features_combination]
+    if: ${{ failure() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST to Claude Code routine /fire
+        env:
+          ROUTINE_URL: ${{ secrets.CLAUDE_ROUTINE_URL }}
+          ROUTINE_TOKEN: ${{ secrets.CLAUDE_ROUTINE_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          jq -n \
+            --arg t "Daily Regression Test workflow failed.
+          repository: ${{ github.repository }}
+          run_id: $RUN_ID
+          url:    $RUN_URL
+          sha:    $HEAD_SHA" \
+            '{text: $t}' > body.json
+
+          curl -fsS -X POST "$ROUTINE_URL" \
+            -H "Authorization: Bearer $ROUTINE_TOKEN" \
+            -H "anthropic-beta: experimental-cc-routine-2026-04-01" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "Content-Type: application/json" \
+            --data @body.json
