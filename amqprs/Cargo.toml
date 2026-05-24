@@ -22,7 +22,7 @@ all-features = true
 [features]
 default = []
 compliance_assert = []
-traces = ["tracing"]
+traces = ["dep:tracing"]
 tls = [
     "tokio-rustls",
     "webpki-roots",
