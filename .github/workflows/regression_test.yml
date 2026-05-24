@@ -107,8 +107,8 @@ jobs:
     steps:
       - name: POST to Claude Code routine /fire
         env:
-          ROUTINE_URL: ${{ secrets.CLAUDE_ROUTINE_URL }}
-          ROUTINE_TOKEN: ${{ secrets.CLAUDE_ROUTINE_TOKEN }}
+          CLAUDE_ROUTINE_URL: ${{ secrets.CLAUDE_ROUTINE_URL }}
+          CLAUDE_ROUTINE_TOKEN: ${{ secrets.CLAUDE_ROUTINE_TOKEN }}
           RUN_ID: ${{ github.run_id }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           HEAD_SHA: ${{ github.sha }}
@@ -121,8 +121,8 @@ jobs:
           sha:    $HEAD_SHA" \
             '{text: $t}' > body.json
 
-          curl -fsS -X POST "$ROUTINE_URL" \
-            -H "Authorization: Bearer $ROUTINE_TOKEN" \
+          curl -fsS -X POST "$CLAUDE_ROUTINE_URL" \
+            -H "Authorization: Bearer $CLAUDE_ROUTINE_TOKEN" \
             -H "anthropic-beta: experimental-cc-routine-2026-04-01" \
             -H "anthropic-version: 2023-06-01" \
             -H "Content-Type: application/json" \
