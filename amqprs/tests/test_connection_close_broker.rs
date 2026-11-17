@@ -25,7 +25,7 @@ enum Mode {
     Disconnect,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct Counts {
     client_close: usize,
     client_close_ok: usize,
@@ -33,6 +33,43 @@ struct Counts {
     server_close_ok: usize,
     client_eof: bool,
     server_eof: bool,
+    server_reset_after_exchange: bool,
+}
+
+impl Counts {
+    fn exchange_complete(&self, mode: Mode) -> bool {
+        match mode {
+            Mode::Heartbeat => {
+                self.client_close == 1
+                    && self.client_close_ok == 0
+                    && self.server_close == 0
+                    && self.server_close_ok == 1
+            }
+            Mode::Server => {
+                self.client_close == 0
+                    && self.client_close_ok == 1
+                    && self.server_close == 1
+                    && self.server_close_ok == 0
+            }
+            Mode::Crossed => {
+                self.client_close == 1
+                    && self.client_close_ok == 1
+                    && self.server_close == 1
+                    && self.server_close_ok == 1
+            }
+            Mode::Disconnect => false,
+        }
+    }
+
+    fn transport_ended(&self) -> bool {
+        self.client_eof && (self.server_eof || self.server_reset_after_exchange)
+    }
+}
+
+enum FrameRead {
+    Frame(Vec<u8>),
+    Eof,
+    Reset,
 }
 
 struct Proxy {
@@ -46,11 +83,17 @@ impl Drop for Proxy {
     }
 }
 
-async fn frame(input: &mut (impl AsyncRead + Unpin)) -> Result<Option<Vec<u8>>, Failure> {
+async fn frame(input: &mut (impl AsyncRead + Unpin)) -> Result<FrameRead, Failure> {
     let mut header = [0; 7];
-    // EOF is normal only at a frame boundary, not in a partial frame.
-    if input.read(&mut header[..1]).await? == 0 {
-        return Ok(None);
+    // EOF/reset is classified only at a frame boundary. Any error after
+    // consuming part of a frame remains an error, regardless of close state.
+    match input.read(&mut header[..1]).await {
+        Ok(0) => return Ok(FrameRead::Eof),
+        Err(error) if error.kind() == std::io::ErrorKind::ConnectionReset => {
+            return Ok(FrameRead::Reset);
+        }
+        Err(error) => return Err(error.into()),
+        Ok(_) => {}
     }
     input.read_exact(&mut header[1..]).await?;
     let size = u32::from_be_bytes(header[3..7].try_into()?) as usize;
@@ -61,7 +104,7 @@ async fn frame(input: &mut (impl AsyncRead + Unpin)) -> Result<Option<Vec<u8>>, 
     bytes.resize(size + 8, 0);
     input.read_exact(&mut bytes[7..]).await?;
     assert_eq!(bytes[size + 7], 0xce);
-    Ok(Some(bytes))
+    Ok(FrameRead::Frame(bytes))
 }
 
 fn method(frame: &[u8], method: u8) -> bool {
@@ -69,6 +112,43 @@ fn method(frame: &[u8], method: u8) -> bool {
         && frame[0] == 1
         && frame[1..3] == [0, 0]
         && frame[7..11] == [0, 10, 0, method]
+}
+
+struct ResetAfterPrefix(&'static [u8]);
+
+impl AsyncRead for ResetAfterPrefix {
+    fn poll_read(
+        mut self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+        buffer: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        if self.0.is_empty() {
+            return std::task::Poll::Ready(Err(std::io::ErrorKind::ConnectionReset.into()));
+        }
+        let length = self.0.len().min(buffer.remaining());
+        buffer.put_slice(&self.0[..length]);
+        self.0 = &self.0[length..];
+        std::task::Poll::Ready(Ok(()))
+    }
+}
+
+#[tokio::test]
+async fn parser_refuses_reset_in_partial_header_or_body() {
+    for prefix in [&[1, 0][..], &[1, 0, 0, 0, 0, 0, 4, 0, 10][..]] {
+        assert!(frame(&mut ResetAfterPrefix(prefix)).await.is_err());
+    }
+}
+
+#[tokio::test]
+async fn parser_distinguishes_boundary_reset_from_eof() {
+    assert!(matches!(
+        frame(&mut ResetAfterPrefix(&[])).await.unwrap(),
+        FrameRead::Reset
+    ));
+    assert!(matches!(
+        frame(&mut tokio::io::empty()).await.unwrap(),
+        FrameRead::Eof
+    ));
 }
 
 async fn connect(mode: Mode) -> Result<(Connection, Proxy), Failure> {
@@ -89,13 +169,19 @@ async fn connect(mode: Mode) -> Result<(Connection, Proxy), Failure> {
         let (mut br, mut bw) = broker.into_split();
         let cw = Arc::new(Mutex::new(cw));
         let upstream_counts = proxy_counts.clone();
+        let diagnostics = proxy_counts.clone();
         let client_writer = cw.clone();
         let upstream_closing = client_closing.clone();
         let upstream = async move {
             let mut protocol = [0; 8];
             cr.read_exact(&mut protocol).await?;
             bw.write_all(&protocol).await?;
-            while let Some(bytes) = frame(&mut cr).await? {
+            loop {
+                let bytes = match frame(&mut cr).await? {
+                    FrameRead::Frame(bytes) => bytes,
+                    FrameRead::Eof => break,
+                    FrameRead::Reset => return Err("client reset before natural EOF".into()),
+                };
                 if method(&bytes, 50) {
                     upstream_counts.lock().await.client_close += 1;
                     if mode == Mode::Heartbeat {
@@ -112,17 +198,36 @@ async fn connect(mode: Mode) -> Result<(Connection, Proxy), Failure> {
                     upstream_closing.notify_one();
                     continue;
                 }
-                if method(&bytes, 51) {
+                let close_ok = method(&bytes, 51);
+                bw.write_all(&bytes).await?;
+                if close_ok {
                     upstream_counts.lock().await.client_close_ok += 1;
                 }
-                bw.write_all(&bytes).await?;
             }
             upstream_counts.lock().await.client_eof = true;
             bw.shutdown().await?;
             Ok::<_, Failure>(())
         };
         let downstream = async move {
-            while let Some(bytes) = frame(&mut br).await? {
+            loop {
+                let bytes = match frame(&mut br).await? {
+                    FrameRead::Frame(bytes) => bytes,
+                    FrameRead::Eof => {
+                        proxy_counts.lock().await.server_eof = true;
+                        break;
+                    }
+                    FrameRead::Reset => {
+                        let mut counts = proxy_counts.lock().await;
+                        // RabbitMQ can use SO_LINGER={true,0}. Linux then
+                        // reports reset after its completed AMQP exchange.
+                        // Never accept reset as a substitute for missing ACKs.
+                        if !counts.exchange_complete(mode) {
+                            return Err("broker reset before completing the close exchange".into());
+                        }
+                        counts.server_reset_after_exchange = true;
+                        break;
+                    }
+                };
                 if method(&bytes, 50) {
                     proxy_counts.lock().await.server_close += 1;
                     if mode == Mode::Crossed {
@@ -137,14 +242,16 @@ async fn connect(mode: Mode) -> Result<(Connection, Proxy), Failure> {
                 }
                 cw.lock().await.write_all(&bytes).await?;
             }
-            proxy_counts.lock().await.server_eof = true;
             cw.lock().await.shutdown().await?;
             Ok::<_, Failure>(())
         };
         if mode == Mode::Disconnect {
             tokio::select! { result = upstream => result, result = downstream => result }
         } else {
-            tokio::try_join!(upstream, downstream)?;
+            if let Err(error) = tokio::try_join!(upstream, downstream) {
+                eprintln!("proxy state before cleanup: {:?}", diagnostics.lock().await);
+                return Err(error);
+            }
             Ok(())
         }
     });
@@ -177,7 +284,7 @@ async fn real_broker_heartbeat_during_close_completes_handshake() -> Result<(), 
     let counts = proxy.counts.lock().await;
     assert_eq!(counts.client_close, 1);
     assert_eq!(counts.server_close_ok, 1);
-    assert!(counts.client_eof && counts.server_eof);
+    assert!(counts.transport_ended());
     Ok(())
 }
 
@@ -195,7 +302,7 @@ async fn real_broker_crossed_close_responds_to_both_requests() -> Result<(), Fai
     assert_eq!(counts.server_close, 1);
     assert_eq!(counts.client_close_ok, 1);
     assert_eq!(counts.server_close_ok, 1);
-    assert!(counts.client_eof && counts.server_eof);
+    assert!(counts.transport_ended());
     Ok(())
 }
 
@@ -230,6 +337,6 @@ async fn real_broker_server_close_is_acknowledged() -> Result<(), Failure> {
     assert_eq!(counts.server_close, 1);
     assert_eq!(counts.client_close_ok, 1);
     assert_eq!(counts.server_close_ok, 0);
-    assert!(counts.client_eof && counts.server_eof);
+    assert!(counts.transport_ended());
     Ok(())
 }
