@@ -275,6 +275,24 @@ impl ReaderHandler {
 
                     match res {
                         Ok((channel_id, frame)) => {
+                            let connection_method = channel_id == DEFAULT_CONN_CHANNEL
+                                && matches!(&frame, Frame::Close(..) | Frame::CloseOk(..));
+                            // Closing stops ordinary dispatch, not socket reads.
+                            // In particular, a new notification callback must not
+                            // prevent the close handshake from making progress.
+                            if !self.amqp_connection.is_open() && !connection_method {
+                                continue;
+                            }
+                            let connection_closed = channel_id == DEFAULT_CONN_CHANNEL
+                                && match &frame {
+                                    Frame::CloseOk(..) => true,
+                                    // Crossed Close requests still need the peer's
+                                    // CloseOk for our own registered handshake.
+                                    Frame::Close(..) => !self.channel_manager.has_responder(
+                                        &DEFAULT_CONN_CHANNEL, CloseOk::header(),
+                                    ),
+                                    _ => false,
+                                };
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
                                 // notify network failure
                                 is_network_failure = true;
@@ -283,7 +301,7 @@ impl ReaderHandler {
                                 break;
                             }
                             // normal close
-                            if !self.amqp_connection.is_open() {
+                            if connection_closed {
                                 #[cfg(feature="traces")]
                                 info!("connection {} is closed, shutting down socket I/O handlers", self.amqp_connection);
                                 break;

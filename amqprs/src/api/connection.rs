@@ -1187,6 +1187,9 @@ impl Connection {
     ///
     /// This method consume the connection, so even it may return error,
     /// connection will anyway be dropped.
+    /// Once polled far enough to start closing, the handshake continues even if
+    /// the caller drops this future. This does not impose a handshake timeout or
+    /// wait for every internal I/O task to terminate.
     ///
     /// # Errors
     ///
@@ -1198,7 +1201,14 @@ impl Connection {
         {
             #[cfg(feature = "traces")]
             info!("close connection {}", self);
-            self.close_handshake().await?;
+            // Own responder registration and the handshake independently of the
+            // caller. Cancellation between marking closed and sending Close
+            // must not leave the reader with an abandoned registration ACK.
+            tokio::spawn(async move { self.close_handshake().await })
+                .await
+                .map_err(|error| {
+                    Error::ConnectionCloseError(format!("close handshake task failed: {error}"))
+                })??;
         }
         Ok(())
     }

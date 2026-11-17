@@ -89,6 +89,16 @@ impl ChannelManager {
         self.resource.remove(channel_id)
     }
 
+    pub fn has_responder(
+        &self,
+        channel_id: &AmqpChannelId,
+        method_header: &'static MethodHeader,
+    ) -> bool {
+        self.resource
+            .get(channel_id)
+            .is_some_and(|resource| resource.responders.contains_key(method_header))
+    }
+
     pub fn get_dispatcher(
         &self,
         channel_id: &AmqpChannelId,
