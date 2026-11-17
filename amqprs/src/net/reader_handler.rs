@@ -233,6 +233,13 @@ impl ReaderHandler {
             tokio::select! {
                 biased;
 
+                // The writer owns the only outgoing receiver. Its loss is an
+                // I/O failure even if the peer keeps this read direction open.
+                _ = self.outgoing_tx.closed() => {
+                    is_network_failure = true;
+                    break;
+                }
+
                 command = self.conn_mgmt_rx.recv() => {
                     let command = match command {
                         None => {

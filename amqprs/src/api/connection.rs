@@ -1189,14 +1189,19 @@ impl Connection {
     ///
     /// This method consume the connection, so even it may return error,
     /// connection will anyway be dropped.
+    ///
     /// Once polled far enough to start closing, the handshake continues even if
     /// the caller drops this future, using the runtime that opened the connection.
     /// This does not impose a handshake timeout or wait for every internal I/O
     /// task to terminate.
+    /// Ordinary incoming methods are discarded once local close starts. A
+    /// callback already running must return before the reader can finish.
     ///
     /// # Errors
     ///
     /// Returns error if any failure in communication with server.
+    /// Also returns an error if the runtime that opened the connection has
+    /// already shut down and cannot run the close handshake.
     pub async fn close(self) -> Result<()> {
         if let Ok(true) =
             self.is_open
@@ -1345,6 +1350,9 @@ fn generate_connection_name(domain: &str) -> String {
 }
 
 /////////////////////////////////////////////////////////////////////////////
+#[cfg(test)]
+mod close_tests;
+
 #[cfg(test)]
 mod tests {
     use super::{generate_connection_name, Connection, OpenConnectionArguments};
