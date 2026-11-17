@@ -330,3 +330,53 @@ async fn cancelled_close_registration_survives_subsequent_network_failure() -> R
     );
     Ok(())
 }
+
+struct GatedClose(Arc<Notify>, Arc<Notify>);
+#[async_trait]
+impl ConnectionCallback for GatedClose {
+    async fn close(&mut self, _: &Connection, _: Close) -> Result<(), Error> {
+        self.0.notify_one();
+        self.1.notified().await;
+        Ok(())
+    }
+    async fn blocked(&mut self, _: &Connection, _: String) {}
+    async fn unblocked(&mut self, _: &Connection) {}
+    async fn secret_updated(&mut self, _: &Connection) {}
+}
+
+#[tokio::test]
+async fn server_close_winning_before_local_registration_returns_error_without_panic(
+) -> Result<(), Failure> {
+    let (connection, mut peer) = connection().await?;
+    let entered = Arc::new(Notify::new());
+    let release = Arc::new(Notify::new());
+    connection
+        .register_callback(GatedClose(entered.clone(), release.clone()))
+        .await?;
+    peer.send(50, &[0, 200, 0, 0, 0, 0, 0]).await?;
+    timeout(BUDGET, entered.notified()).await?;
+    let observer = connection.clone();
+    let close = Task(tokio::spawn(connection.close()));
+    closing(&observer).await?;
+    release.notify_one();
+    assert_eq!(peer.method().await?, 51);
+    assert!(
+        close.finish().await?.is_err(),
+        "remote closure won before local registration"
+    );
+    peer.eof().await
+}
+
+#[tokio::test]
+async fn concurrent_close_calls_send_one_close_request() -> Result<(), Failure> {
+    let (connection, mut peer) = connection().await?;
+    let second = connection.clone();
+    let close = Task(tokio::spawn(connection.close()));
+    assert_eq!(peer.method().await?, 50);
+    // Preserve the existing already-closing behavior: a second caller returns
+    // without joining the first handshake. It must not send a duplicate Close.
+    timeout(BUDGET, second.close()).await??;
+    peer.send(51, &[]).await?;
+    close.finish().await??;
+    peer.eof().await
+}
