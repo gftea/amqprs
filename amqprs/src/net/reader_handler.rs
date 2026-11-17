@@ -264,7 +264,8 @@ impl ReaderHandler {
                         },
                         ConnManagementCommand::RegisterResponder(cmd) => {
                             self.channel_manager.insert_responder(&cmd.channel_id, cmd.method_header, cmd.responder);
-                            cmd.acker.send(()).expect("ack to command RegisterResponder must succeed");
+                            // The API caller may cancel while registration is queued.
+                            let _ = cmd.acker.send(());
                         },
                         ConnManagementCommand::RegisterConnectionCallback(cmd) => {
                             self.callback.replace(cmd.callback);
