@@ -219,6 +219,37 @@ async fn cancelling_first_pending_close_poll_still_finishes_handshake() -> Resul
 }
 
 #[tokio::test]
+async fn cancelling_ungated_registration_does_not_panic_the_reader() -> Result<(), Failure> {
+    let (connection, mut peer) = connection().await?;
+    // No callback holds the reader. On this single-thread runtime the first
+    // poll and drop happen before it can acknowledge responder registration.
+    // The unmodified implementation then panics when sending that ACK.
+    poll_pending(connection.close()).await;
+    assert_eq!(peer.method().await?, 50);
+    peer.send(51, &[]).await?;
+    peer.eof().await
+}
+
+#[tokio::test]
+async fn close_caller_deadline_does_not_abandon_a_withheld_close_ok() -> Result<(), Failure> {
+    let (connection, mut peer) = connection().await?;
+    let mut close = Box::pin(connection.close());
+    // Keep the caller future after its first poll. This starts the owned
+    // handshake, but does not allow a CloseOk because the peer withholds it.
+    std::future::poll_fn(|cx| {
+        assert!(close.as_mut().poll(cx).is_pending());
+        Poll::Ready(())
+    })
+    .await;
+    assert_eq!(peer.method().await?, 50);
+    // The protocol barrier above, not this deadline, establishes ordering.
+    // The caller's expired deadline drops its future while the peer stays live.
+    assert!(timeout(Duration::ZERO, close).await.is_err());
+    peer.send(51, &[]).await?;
+    peer.eof().await
+}
+
+#[tokio::test]
 async fn cancelling_close_after_request_allows_peer_shutdown() -> Result<(), Failure> {
     let (connection, mut peer) = connection().await?;
     let close = Task(tokio::spawn(connection.close()));
