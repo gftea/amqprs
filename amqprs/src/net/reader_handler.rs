@@ -43,8 +43,8 @@ pub(crate) struct ReaderHandler {
 
     /// Notify WriterHandler to shutdown.
     /// If reader handler exit first, it will notify writer handler to shutdown.
-    /// If writer handler exit first, socket connection will be shutdown because the writer half drop,
-    /// so socket read will return, and reader handler can detect connection shutdown without separate signal.
+    /// The reader also watches closure of the writer's outgoing receiver. A writer
+    /// exit does not necessarily produce EOF on the reader's socket half.
     ///
     /// send `true` if due to network I/O failure
     /// send `false` if other reasons
