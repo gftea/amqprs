@@ -107,7 +107,7 @@ async fn cancelled_responder_registration_keeps_reader_running() {
     .await
     .unwrap();
     let (reader, writer) = client.unwrap().into_split();
-    let (peer, _) = peer.unwrap();
+    let (mut peer, _) = peer.unwrap();
     let (outgoing, receiver) = mpsc::channel(1);
     let (management, commands) = mpsc::channel(2);
     let (shutdown, _) = broadcast::channel(1);
@@ -119,6 +119,22 @@ async fn cancelled_responder_registration_keeps_reader_running() {
     );
     let handler = ReaderHandler::new(reader, connection, outgoing, commands, 128, shutdown);
     let mut task = tokio::spawn(handler.run_until_shutdown(60));
+
+    let (acker, registered) = oneshot::channel();
+    management
+        .send(ConnManagementCommand::RegisterChannelResource(
+            RegisterChannelResource {
+                channel_id: Some(DEFAULT_CONN_CHANNEL),
+                resource: ChannelResource::new(None),
+                acker,
+            },
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        timeout(budget, registered).await.unwrap().unwrap(),
+        Some(DEFAULT_CONN_CHANNEL)
+    );
 
     let (responder, response) = oneshot::channel();
     let (acker, acknowledged) = oneshot::channel();
@@ -137,7 +153,7 @@ async fn cancelled_responder_registration_keeps_reader_running() {
         .unwrap();
     // FIFO management ordering makes this acknowledgement prove that the
     // reader survived the abandoned registration, without a timing sleep.
-    let (responder, _response) = oneshot::channel();
+    let (responder, response) = oneshot::channel();
     let (acker, acknowledged) = oneshot::channel();
     management
         .send(ConnManagementCommand::RegisterResponder(
@@ -151,6 +167,19 @@ async fn cancelled_responder_registration_keeps_reader_running() {
         .await
         .unwrap();
     timeout(budget, acknowledged).await.unwrap().unwrap();
+    // Deliver UpdateSecretOk to the replacement responder. The abandoned
+    // entry must not intercept this response or terminate the reader.
+    timeout(
+        budget,
+        peer.write_all(&[1, 0, 0, 0, 0, 0, 4, 0, 10, 0, 71, 0xce]),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(matches!(
+        timeout(budget, response).await.unwrap().unwrap(),
+        Frame::UpdateSecretOk(..)
+    ));
     assert!(!task.is_finished());
     drop(receiver);
     timeout(budget, &mut task).await.unwrap().unwrap();

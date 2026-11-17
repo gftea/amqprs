@@ -1200,8 +1200,8 @@ impl Connection {
     /// # Errors
     ///
     /// Returns error if any failure in communication with server.
-    /// Also returns an error if the runtime that opened the connection has
-    /// already shut down and cannot run the close handshake.
+    /// If a handshake is still needed, also returns an error if the runtime
+    /// that opened the connection has shut down and cannot run it.
     pub async fn close(self) -> Result<()> {
         if let Ok(true) =
             self.is_open
