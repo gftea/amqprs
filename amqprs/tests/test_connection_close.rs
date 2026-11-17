@@ -233,19 +233,35 @@ async fn cancelling_ungated_registration_does_not_panic_the_reader() -> Result<(
 #[tokio::test]
 async fn close_caller_deadline_does_not_abandon_a_withheld_close_ok() -> Result<(), Failure> {
     let (connection, mut peer) = connection().await?;
-    let mut close = Box::pin(connection.close());
-    // Keep the caller future after its first poll. This starts the owned
-    // handshake, but does not allow a CloseOk because the peer withholds it.
+    let observer = connection.clone();
+    let shutdown = observer.listen_network_io_failure();
+    tokio::pin!(shutdown);
     std::future::poll_fn(|cx| {
-        assert!(close.as_mut().poll(cx).is_pending());
+        assert!(shutdown.as_mut().poll(cx).is_pending());
         Poll::Ready(())
     })
     .await;
+    let expire = Arc::new(Notify::new());
+    let caller_expire = expire.clone();
+    let caller = Task(tokio::spawn(async move {
+        let mut close = Box::pin(connection.close());
+        tokio::select! {
+            result = &mut close => panic!("close completed before peer reply: {result:?}"),
+            _ = caller_expire.notified() => {
+                assert!(timeout(Duration::ZERO, close).await.is_err());
+            },
+        }
+    }));
     assert_eq!(peer.method().await?, 50);
-    // The protocol barrier above, not this deadline, establishes ordering.
-    // The caller's expired deadline drops its future while the peer stays live.
-    assert!(timeout(Duration::ZERO, close).await.is_err());
+    // Keep polling close until its request is on the wire, then expire the
+    // caller while the peer deliberately withholds CloseOk.
+    expire.notify_one();
+    caller.finish().await?;
     peer.send(51, &[]).await?;
+    assert!(
+        !timeout(BUDGET, shutdown).await?,
+        "the retained responder must complete gracefully, not fail and close IO"
+    );
     peer.eof().await
 }
 
