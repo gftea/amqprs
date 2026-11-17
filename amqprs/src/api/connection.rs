@@ -212,6 +212,7 @@ pub struct Connection {
 
 #[derive(Debug)]
 struct SharedConnectionInner {
+    runtime: tokio::runtime::Handle,
     server_properties: ServerProperties,
     connection_name: String,
     channel_max: ShortUint,
@@ -707,6 +708,7 @@ impl Connection {
         let (conn_mgmt_tx, conn_mgmt_rx) = mpsc::channel(CONNECTION_MANAGEMENT_COMMAND_BUFFER_SIZE);
         let (shutdown_notifer, _) = broadcast::channel::<bool>(1);
         let shared = Arc::new(SharedConnectionInner {
+            runtime: tokio::runtime::Handle::current(),
             server_properties,
             connection_name,
             channel_max,
@@ -1188,8 +1190,9 @@ impl Connection {
     /// This method consume the connection, so even it may return error,
     /// connection will anyway be dropped.
     /// Once polled far enough to start closing, the handshake continues even if
-    /// the caller drops this future. This does not impose a handshake timeout or
-    /// wait for every internal I/O task to terminate.
+    /// the caller drops this future, using the runtime that opened the connection.
+    /// This does not impose a handshake timeout or wait for every internal I/O
+    /// task to terminate.
     ///
     /// # Errors
     ///
@@ -1204,7 +1207,9 @@ impl Connection {
             // Own responder registration and the handshake independently of the
             // caller. Cancellation between marking closed and sending Close
             // must not leave the reader with an abandoned registration ACK.
-            tokio::spawn(async move { self.close_handshake().await })
+            let runtime = self.shared.runtime.clone();
+            runtime
+                .spawn(async move { self.close_handshake().await })
                 .await
                 .map_err(|error| {
                     Error::ConnectionCloseError(format!("close handshake task failed: {error}"))

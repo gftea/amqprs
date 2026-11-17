@@ -380,3 +380,70 @@ async fn concurrent_close_calls_send_one_close_request() -> Result<(), Failure> 
     close.finish().await??;
     peer.eof().await
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn close_can_be_polled_outside_the_opening_runtime() -> Result<(), Failure> {
+    use std::task::{Context, Wake, Waker};
+    struct ThreadWake(std::thread::Thread);
+    impl Wake for ThreadWake {
+        fn wake(self: Arc<Self>) {
+            self.0.unpark();
+        }
+    }
+    let (connection, mut peer) = connection().await?;
+    let (send, mut result) = tokio::sync::oneshot::channel();
+    let thread = std::thread::spawn(move || {
+        assert!(tokio::runtime::Handle::try_current().is_err());
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let waker = Waker::from(Arc::new(ThreadWake(std::thread::current())));
+            let mut context = Context::from_waker(&waker);
+            let mut close = Box::pin(connection.close());
+            let deadline = std::time::Instant::now() + BUDGET;
+            loop {
+                if let Poll::Ready(result) = close.as_mut().poll(&mut context) {
+                    return result.map_err(|error| error.to_string());
+                }
+                let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+                if remaining.is_zero() {
+                    return Err("plain-thread close timed out".to_owned());
+                }
+                std::thread::park_timeout(remaining);
+            }
+        }))
+        .unwrap_or_else(|_| Err("close panicked outside an entered runtime".to_owned()));
+        let _ = send.send(outcome);
+    });
+    tokio::select! {
+        method = peer.method() => assert_eq!(method?, 50),
+        outcome = &mut result => return Err(format!("close ended before sending Close: {:?}", outcome?).into()),
+    }
+    peer.send(51, &[]).await?;
+    if let Err(error) = timeout(BUDGET, result).await?? {
+        return Err(error.into());
+    }
+    thread.join().expect("plain-thread close worker panicked");
+    peer.eof().await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancelling_close_on_another_runtime_preserves_the_origin_handshake() -> Result<(), Failure>
+{
+    let (connection, mut peer) = connection().await?;
+    let release = block_reader(&connection, &mut peer).await?;
+    let (send, exited) = tokio::sync::oneshot::channel();
+    let thread = std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(poll_pending(connection.close()));
+        drop(runtime);
+        let _ = send.send(());
+    });
+    timeout(BUDGET, exited).await??;
+    thread.join().expect("caller runtime worker panicked");
+    release.notify_one();
+    assert_eq!(peer.method().await?, 50);
+    peer.send(51, &[]).await?;
+    peer.eof().await
+}
