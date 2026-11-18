@@ -212,6 +212,7 @@ pub struct Connection {
 
 #[derive(Debug)]
 struct SharedConnectionInner {
+    runtime: tokio::runtime::Handle,
     server_properties: ServerProperties,
     connection_name: String,
     channel_max: ShortUint,
@@ -707,6 +708,7 @@ impl Connection {
         let (conn_mgmt_tx, conn_mgmt_rx) = mpsc::channel(CONNECTION_MANAGEMENT_COMMAND_BUFFER_SIZE);
         let (shutdown_notifer, _) = broadcast::channel::<bool>(1);
         let shared = Arc::new(SharedConnectionInner {
+            runtime: tokio::runtime::Handle::current(),
             server_properties,
             connection_name,
             channel_max,
@@ -1188,9 +1190,18 @@ impl Connection {
     /// This method consume the connection, so even it may return error,
     /// connection will anyway be dropped.
     ///
+    /// Once polled far enough to start closing, the handshake continues even if
+    /// the caller drops this future, using the runtime that opened the connection.
+    /// This does not impose a handshake timeout or wait for every internal I/O
+    /// task to terminate.
+    /// Ordinary incoming methods are discarded once local close starts. A
+    /// callback already running must return before the reader can finish.
+    ///
     /// # Errors
     ///
     /// Returns error if any failure in communication with server.
+    /// If a handshake is still needed, also returns an error if the runtime
+    /// that opened the connection has shut down and cannot run it.
     pub async fn close(self) -> Result<()> {
         if let Ok(true) =
             self.is_open
@@ -1198,7 +1209,16 @@ impl Connection {
         {
             #[cfg(feature = "traces")]
             info!("close connection {}", self);
-            self.close_handshake().await?;
+            // Own responder registration and the handshake independently of the
+            // caller. Cancellation between marking closed and sending Close
+            // must not leave the reader with an abandoned registration ACK.
+            let runtime = self.shared.runtime.clone();
+            runtime
+                .spawn(async move { self.close_handshake().await })
+                .await
+                .map_err(|error| {
+                    Error::ConnectionCloseError(format!("close handshake task failed: {error}"))
+                })??;
         }
         Ok(())
     }
@@ -1330,6 +1350,9 @@ fn generate_connection_name(domain: &str) -> String {
 }
 
 /////////////////////////////////////////////////////////////////////////////
+#[cfg(test)]
+mod close_tests;
+
 #[cfg(test)]
 mod tests {
     use super::{generate_connection_name, Connection, OpenConnectionArguments};

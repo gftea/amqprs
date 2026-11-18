@@ -1,0 +1,202 @@
+use super::*;
+use tokio::{io::AsyncWriteExt, net::TcpListener, sync::Notify, time::timeout};
+
+fn test_connection(
+    runtime: tokio::runtime::Handle,
+    outgoing: mpsc::Sender<OutgoingMessage>,
+    management: mpsc::Sender<ConnManagementCommand>,
+    shutdown: broadcast::Sender<bool>,
+) -> Connection {
+    Connection {
+        shared: Arc::new(SharedConnectionInner {
+            runtime,
+            server_properties: ServerProperties {
+                capabilities: ServerCapabilities {
+                    consumer_cancel_notify: false,
+                    publisher_confirms: false,
+                    consumer_priorities: false,
+                    authentication_failure_close: false,
+                    per_consumer_qos: false,
+                    connection_blocked: false,
+                    exchange_exchange_bindings: false,
+                    basic_nack: false,
+                    direct_reply_to: false,
+                },
+                product: String::new(),
+                cluster_name: String::new(),
+                version: String::new(),
+            },
+            connection_name: "writer-loss-test".into(),
+            channel_max: 128,
+            frame_max: 131072,
+            heartbeat: 60,
+            outgoing_tx: outgoing.clone(),
+            conn_mgmt_tx: management,
+            shutdown_subscriber: shutdown.clone(),
+        }),
+        is_open: Arc::new(AtomicBool::new(true)),
+        _guard: None,
+    }
+}
+
+#[tokio::test]
+async fn writer_loss_unblocks_reader_without_peer_eof() {
+    let budget = std::time::Duration::from_secs(3);
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let address = listener.local_addr().unwrap().to_string();
+    let (client, peer) = timeout(budget, async {
+        tokio::join!(SplitConnection::open(&address), listener.accept())
+    })
+    .await
+    .unwrap();
+    let (reader, writer) = client.unwrap().into_split();
+    let (mut peer, _) = peer.unwrap();
+    let (outgoing, receiver) = mpsc::channel(1);
+    let (management, commands) = mpsc::channel(1);
+    let (shutdown, mut notification) = broadcast::channel(1);
+    let connection = test_connection(
+        tokio::runtime::Handle::current(),
+        outgoing.clone(),
+        management,
+        shutdown.clone(),
+    );
+    let handler = ReaderHandler::new(
+        reader,
+        connection.clone_no_drop_guard(),
+        outgoing,
+        commands,
+        128,
+        shutdown,
+    );
+    let entered = Arc::new(Notify::new());
+    let reader_entered = entered.clone();
+    let mut task = tokio::spawn(async move {
+        reader_entered.notify_one();
+        handler.run_until_shutdown(60).await;
+    });
+    timeout(budget, entered.notified()).await.unwrap();
+
+    // Model the writer's exit while retaining both the peer and the client's
+    // write half. No socket EOF or heartbeat timeout can establish success.
+    connection.set_is_open(false);
+    drop(receiver);
+    timeout(budget, peer.write_all(&[8, 0, 0, 0, 0, 0, 0, 0xce]))
+        .await
+        .unwrap()
+        .unwrap();
+    let completed = timeout(budget, &mut task).await;
+    if completed.is_err() {
+        task.abort();
+        let _ = task.await;
+        panic!("writer loss must stop the reader without waiting for peer EOF");
+    }
+    completed.unwrap().unwrap();
+    assert!(timeout(budget, notification.recv()).await.unwrap().unwrap());
+    drop(writer);
+    drop(peer);
+}
+
+#[tokio::test]
+async fn cancelled_responder_registration_keeps_reader_running() {
+    let budget = std::time::Duration::from_secs(3);
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let address = listener.local_addr().unwrap().to_string();
+    let (client, peer) = timeout(budget, async {
+        tokio::join!(SplitConnection::open(&address), listener.accept())
+    })
+    .await
+    .unwrap();
+    let (reader, writer) = client.unwrap().into_split();
+    let (mut peer, _) = peer.unwrap();
+    let (outgoing, receiver) = mpsc::channel(1);
+    let (management, commands) = mpsc::channel(2);
+    let (shutdown, _) = broadcast::channel(1);
+    let connection = test_connection(
+        tokio::runtime::Handle::current(),
+        outgoing.clone(),
+        management.clone(),
+        shutdown.clone(),
+    );
+    let handler = ReaderHandler::new(reader, connection, outgoing, commands, 128, shutdown);
+    let mut task = tokio::spawn(handler.run_until_shutdown(60));
+
+    let (acker, registered) = oneshot::channel();
+    management
+        .send(ConnManagementCommand::RegisterChannelResource(
+            RegisterChannelResource {
+                channel_id: Some(DEFAULT_CONN_CHANNEL),
+                resource: ChannelResource::new(None),
+                acker,
+            },
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        timeout(budget, registered).await.unwrap().unwrap(),
+        Some(DEFAULT_CONN_CHANNEL)
+    );
+
+    let (responder, response) = oneshot::channel();
+    let (acker, acknowledged) = oneshot::channel();
+    drop(response);
+    drop(acknowledged);
+    management
+        .send(ConnManagementCommand::RegisterResponder(
+            RegisterResponder {
+                channel_id: DEFAULT_CONN_CHANNEL,
+                method_header: UpdateSecretOk::header(),
+                responder,
+                acker,
+            },
+        ))
+        .await
+        .unwrap();
+    // FIFO management ordering makes this acknowledgement prove that the
+    // reader survived the abandoned registration, without a timing sleep.
+    let (responder, response) = oneshot::channel();
+    let (acker, acknowledged) = oneshot::channel();
+    management
+        .send(ConnManagementCommand::RegisterResponder(
+            RegisterResponder {
+                channel_id: DEFAULT_CONN_CHANNEL,
+                method_header: UpdateSecretOk::header(),
+                responder,
+                acker,
+            },
+        ))
+        .await
+        .unwrap();
+    timeout(budget, acknowledged).await.unwrap().unwrap();
+    // Deliver UpdateSecretOk to the replacement responder. The abandoned
+    // entry must not intercept this response or terminate the reader.
+    timeout(
+        budget,
+        peer.write_all(&[1, 0, 0, 0, 0, 0, 4, 0, 10, 0, 71, 0xce]),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(matches!(
+        timeout(budget, response).await.unwrap().unwrap(),
+        Frame::UpdateSecretOk(..)
+    ));
+    assert!(!task.is_finished());
+    drop(receiver);
+    timeout(budget, &mut task).await.unwrap().unwrap();
+    drop(writer);
+    drop(peer);
+}
+
+#[test]
+fn close_reports_when_origin_runtime_has_stopped() {
+    let origin = tokio::runtime::Runtime::new().unwrap();
+    let (outgoing, _receiver) = mpsc::channel(1);
+    let (management, _commands) = mpsc::channel(1);
+    let (shutdown, _) = broadcast::channel(1);
+    let connection = test_connection(origin.handle().clone(), outgoing, management, shutdown);
+    drop(origin);
+    let caller = tokio::runtime::Runtime::new().unwrap();
+    let error = caller.block_on(connection.close()).unwrap_err();
+    assert!(matches!(error, Error::ConnectionCloseError(_)));
+    assert!(error.to_string().contains("close handshake task failed"));
+}

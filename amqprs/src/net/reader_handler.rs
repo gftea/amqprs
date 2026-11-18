@@ -43,8 +43,8 @@ pub(crate) struct ReaderHandler {
 
     /// Notify WriterHandler to shutdown.
     /// If reader handler exit first, it will notify writer handler to shutdown.
-    /// If writer handler exit first, socket connection will be shutdown because the writer half drop,
-    /// so socket read will return, and reader handler can detect connection shutdown without separate signal.
+    /// The reader also watches closure of the writer's outgoing receiver. A writer
+    /// exit does not necessarily produce EOF on the reader's socket half.
     ///
     /// send `true` if due to network I/O failure
     /// send `false` if other reasons
@@ -233,6 +233,13 @@ impl ReaderHandler {
             tokio::select! {
                 biased;
 
+                // The writer owns the only outgoing receiver. Its loss is an
+                // I/O failure even if the peer keeps this read direction open.
+                _ = self.outgoing_tx.closed() => {
+                    is_network_failure = true;
+                    break;
+                }
+
                 command = self.conn_mgmt_rx.recv() => {
                     let command = match command {
                         None => {
@@ -257,7 +264,8 @@ impl ReaderHandler {
                         },
                         ConnManagementCommand::RegisterResponder(cmd) => {
                             self.channel_manager.insert_responder(&cmd.channel_id, cmd.method_header, cmd.responder);
-                            cmd.acker.send(()).expect("ack to command RegisterResponder must succeed");
+                            // The API caller may cancel while registration is queued.
+                            let _ = cmd.acker.send(());
                         },
                         ConnManagementCommand::RegisterConnectionCallback(cmd) => {
                             self.callback.replace(cmd.callback);
@@ -275,6 +283,24 @@ impl ReaderHandler {
 
                     match res {
                         Ok((channel_id, frame)) => {
+                            let connection_method = channel_id == DEFAULT_CONN_CHANNEL
+                                && matches!(&frame, Frame::Close(..) | Frame::CloseOk(..));
+                            // Closing stops ordinary dispatch, not socket reads.
+                            // In particular, a new notification callback must not
+                            // prevent the close handshake from making progress.
+                            if !self.amqp_connection.is_open() && !connection_method {
+                                continue;
+                            }
+                            let connection_closed = channel_id == DEFAULT_CONN_CHANNEL
+                                && match &frame {
+                                    Frame::CloseOk(..) => true,
+                                    // Crossed Close requests still need the peer's
+                                    // CloseOk for our own registered handshake.
+                                    Frame::Close(..) => !self.channel_manager.has_responder(
+                                        &DEFAULT_CONN_CHANNEL, CloseOk::header(),
+                                    ),
+                                    _ => false,
+                                };
                             if let Err(err) = self.handle_frame(channel_id, frame).await {
                                 // notify network failure
                                 is_network_failure = true;
@@ -283,7 +309,7 @@ impl ReaderHandler {
                                 break;
                             }
                             // normal close
-                            if !self.amqp_connection.is_open() {
+                            if connection_closed {
                                 #[cfg(feature="traces")]
                                 info!("connection {} is closed, shutting down socket I/O handlers", self.amqp_connection);
                                 break;
