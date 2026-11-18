@@ -10,7 +10,7 @@ use crate::{
     api::{callbacks::ChannelCallback, channel::ReturnMessage},
     channel::GetOkMessage,
     frame::{CancelOk, CloseChannelOk, ContentBody, FlowOk, Frame, MethodHeader},
-    net::IncomingMessage,
+    net::{ConnManagementCommand, IncomingMessage},
     BasicProperties, Return,
 };
 #[cfg(feature = "traces")]
@@ -306,7 +306,7 @@ impl ChannelDispatcher {
                             // frames for closing channel
                             // channel.close-ok response from server
                             Frame::CloseChannelOk(method_header, close_channel_ok) => {
-                                self.channel.set_is_open(false);
+                                self.channel.set_is_open(false).await;
 
                                 match self.responders.remove(method_header) {
                                     Some(responder) => responder.send(close_channel_ok.into_frame()).unwrap(),
@@ -330,12 +330,28 @@ impl ChannelDispatcher {
                                     #[cfg(feature="traces")]
                                     error!("callback not registered on channel {}", self.channel);
                                 }
-                                self.channel.set_is_open(false);
+                                self.channel.set_is_open(false).await;
 
                                 // implictly respond OK to server
-                                self.channel.shared.outgoing_tx
+                                self.channel.shared.outgoing_tx.unchecked()
                                 .send((self.channel.channel_id(), CloseChannelOk.into_frame()))
                                 .await.unwrap();
+                                // The client already sent its own Channel.Close. The
+                                // server still answers it with Channel.CloseOk on this
+                                // ID, so keep the ID registered until that arrives; the
+                                // client close handshake then deregisters it.
+                                if self.responders.contains_key(CloseChannelOk::header()) {
+                                    continue;
+                                }
+                                // Server-initiated closes must release the client-side
+                                // channel ID too. The channel is already marked closed,
+                                // so neither Channel::close nor its DropGuard will run
+                                // the client close handshake that normally deregisters it.
+                                let _ = self.channel.shared.conn_mgmt_tx
+                                    .send(ConnManagementCommand::DeregisterChannelResource(
+                                        self.channel.channel_id(),
+                                    ))
+                                    .await;
                                 // exit
                                 break;
                             }
@@ -505,7 +521,7 @@ impl ChannelDispatcher {
                                       }
                                       Ok(active) => {
                                          // respond to server that we have handled the request
-                                         self.channel.shared.outgoing_tx
+                                         self.channel.shared.outgoing_tx.unchecked()
                                          .send((self.channel.channel_id(), FlowOk::new(active).into_frame()))
                                          .await.unwrap();
                                       }
@@ -530,7 +546,7 @@ impl ChannelDispatcher {
 
                                         // respond to server that we have handled the request
                                         if !no_wait  {
-                                            self.channel.shared.outgoing_tx
+                                            self.channel.shared.outgoing_tx.unchecked()
                                             .send((self.channel.channel_id(), CancelOk::new(consumer_tag.try_into().unwrap()).into_frame()))
                                             .await.unwrap();
                                         }
@@ -569,7 +585,7 @@ impl ChannelDispatcher {
                     }
                 }
             }
-            self.channel.set_is_open(false);
+            self.channel.set_is_open(false).await;
 
             #[cfg(feature = "traces")]
             info!("exit dispatcher of channel {}", self.channel);
