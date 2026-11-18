@@ -36,6 +36,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install latest stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
       - name: Check rust version
         run: rustc -V; cargo -V; rustup -V
 
@@ -69,6 +74,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install latest stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Start RabbitMQ server
         run: ./start_rabbitmq.sh
 
@@ -88,6 +96,9 @@ jobs:
           - -F urispec
           - --all-features --release
     steps:
+      - name: Install latest stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Check rust version
         run: rustc -V; cargo -V; rustup -V
 
